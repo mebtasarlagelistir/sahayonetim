@@ -219,11 +219,17 @@ function setupPracticeMatchesListeners() {
       loadPracticeMatches();
     });
   }
-  if (qs("practice_stage_toggle")) {
-    qs("practice_stage_toggle").addEventListener("click", async () => {
-      const isActive = qs("practice_stage_toggle").dataset.active !== "false";
-      setPracticeStageButton(!isActive);
-      togglePracticeStageUI(!isActive);
+  if (qs("practice_stage_activate")) {
+    qs("practice_stage_activate").addEventListener("click", async () => {
+      setPracticeStageButtons(true);
+      togglePracticeStageUI(true);
+      await savePracticeSettings();
+    });
+  }
+  if (qs("practice_stage_deactivate")) {
+    qs("practice_stage_deactivate").addEventListener("click", async () => {
+      setPracticeStageButtons(false);
+      togglePracticeStageUI(false);
       await savePracticeSettings();
     });
   }

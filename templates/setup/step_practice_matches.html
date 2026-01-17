@@ -4,9 +4,10 @@
   <!-- Aşama Ayarları -->
   <div class="card-section">
     <h3>Aşama Ayarları</h3>
-    <button type="button" id="practice_stage_toggle" class="btn-secondary" aria-pressed="false">
-      Aşama: Pasif
-    </button>
+    <div id="practice_stage_controls" data-active="true" style="display: flex; gap: 8px; align-items: center;">
+      <button type="button" id="practice_stage_activate" class="btn-secondary">Aşama: Aktif</button>
+      <button type="button" id="practice_stage_deactivate" class="btn-secondary">Aşama: Pasif</button>
+    </div>
     <small style="display: block; color: #666; margin-top: 6px;">
       Program hazırlandıktan sonra aşamayı aktif/pasif yapabilirsiniz.
     </small>

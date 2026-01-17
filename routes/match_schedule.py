@@ -142,6 +142,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         status = data.get("status", "scheduled")
         red_score = data.get("red_score")
         blue_score = data.get("blue_score")
+        surrogate_teams = data.get("surrogate_teams", [])
         notes = (data.get("notes") or "").strip()
 
         if not match_date or not match_time:
@@ -182,6 +183,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 status=status,
                 red_score=red_score,
                 blue_score=blue_score,
+                surrogate_teams=surrogate_teams,
                 notes=notes,
                 event_id=event_id,
             )
@@ -241,6 +243,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 status=data.get("status"),
                 red_score=data.get("red_score"),
                 blue_score=data.get("blue_score"),
+                surrogate_teams=data.get("surrogate_teams"),
                 notes=data.get("notes"),
             )
             return jsonify({"ok": True})
@@ -357,10 +360,12 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
     def get_match_settings():
         event_data = datastore.get_event()
         match_settings = event_data.get("match_settings", {})
+        stage_settings = event_data.get("stages", {}).get("match_schedule", {})
         return jsonify(
             {
                 "time_windows": match_settings.get("time_windows", []),
                 "breaks": match_settings.get("breaks", []),
+                "stage_active": stage_settings.get("active", True),
             }
         )
 
@@ -373,6 +378,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         event_data.setdefault("match_settings", {})
         event_data["match_settings"]["time_windows"] = data.get("time_windows", [])
         event_data["match_settings"]["breaks"] = data.get("breaks", [])
+        event_data.setdefault("stages", {})
+        event_data["stages"].setdefault("match_schedule", {})
+        event_data["stages"]["match_schedule"]["active"] = data.get("stage_active", True)
         datastore.save_event(event_data)
         return jsonify({"ok": True})
 
@@ -577,7 +585,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 # Takım çakışma kontrolü (mevcut DB)
                 conflict = False
                 for team in selected:
-                if datastore.check_match_schedule_conflict(
+                    if datastore.check_match_schedule_conflict(
                         team_number=team,
                         match_date=current_time.strftime("%Y-%m-%d"),
                         match_time=current_time.strftime("%H:%M"),
@@ -594,6 +602,12 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 red_alliance = shuffled_selected[:teams_per_alliance]
                 blue_alliance = shuffled_selected[teams_per_alliance:]
 
+                surrogate_teams = []
+                if matches_per_team:
+                    for team in red_alliance + blue_alliance:
+                        if team_stats[team]["match_count"] >= matches_per_team:
+                            surrogate_teams.append(team)
+
                 try:
                     field_number = field_index + 1
                     datastore.create_match(
@@ -605,6 +619,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                         red_alliance=red_alliance,
                         blue_alliance=blue_alliance,
                         status="scheduled",
+                        surrogate_teams=surrogate_teams,
                         event_id=event_id,
                     )
                 except Exception:

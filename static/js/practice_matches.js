@@ -119,7 +119,7 @@ async function loadPracticeSettings() {
     if (qs("practice_matches_per_team")) {
       qs("practice_matches_per_team").value = matchesPerTeam;
     }
-    setPracticeStageButton(stageSettings.active !== false);
+    setPracticeStageButtons(stageSettings.active !== false);
 
     // Saha isimlerini saha sayısına göre oluştur
     const container = qs("practice_fields_container");
@@ -310,7 +310,8 @@ function togglePracticeStageUI(active) {
   if (!container) return;
   const inputs = container.querySelectorAll("input, select, button, textarea");
   inputs.forEach((el) => {
-    if (el.id === "practice_stage_toggle") return;
+    if (el.id === "practice_stage_activate") return;
+    if (el.id === "practice_stage_deactivate") return;
     if (el.id === "save_practice_settings") return;
     if (el.id === "preview_practice_schedule") return;
     el.disabled = !active;
@@ -320,21 +321,26 @@ function togglePracticeStageUI(active) {
   }
 }
 
-function setPracticeStageButton(active) {
-  const btn = qs("practice_stage_toggle");
-  if (!btn) return;
-  btn.dataset.active = active ? "true" : "false";
-  btn.setAttribute("aria-pressed", active ? "true" : "false");
-  btn.textContent = active ? "Aşama: Aktif" : "Aşama: Pasif";
-  btn.style.backgroundColor = active ? "#2e7d32" : "#c62828";
-  btn.style.color = "#fff";
-  btn.style.border = "none";
+function setPracticeStageButtons(active) {
+  const container = qs("practice_stage_controls");
+  const activateBtn = qs("practice_stage_activate");
+  const deactivateBtn = qs("practice_stage_deactivate");
+  if (!container || !activateBtn || !deactivateBtn) return;
+  container.dataset.active = active ? "true" : "false";
+  activateBtn.classList.toggle("active", active);
+  deactivateBtn.classList.toggle("active", !active);
+  activateBtn.style.backgroundColor = active ? "#2e7d32" : "";
+  activateBtn.style.color = active ? "#fff" : "";
+  activateBtn.style.border = active ? "none" : "";
+  deactivateBtn.style.backgroundColor = !active ? "#c62828" : "";
+  deactivateBtn.style.color = !active ? "#fff" : "";
+  deactivateBtn.style.border = !active ? "none" : "";
 }
 
 function getPracticeStageActive() {
-  const btn = qs("practice_stage_toggle");
-  if (!btn) return true;
-  return btn.dataset.active !== "false";
+  const container = qs("practice_stage_controls");
+  if (!container) return true;
+  return container.dataset.active !== "false";
 }
 
 function renderPracticeBreaksList(breaks) {

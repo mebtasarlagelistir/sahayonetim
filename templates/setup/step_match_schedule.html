@@ -3,6 +3,14 @@
 
   <!-- Saat Aralıkları ve Molalar -->
   <div class="card-section">
+    <h3>Aşama Ayarları</h3>
+    <div id="match_stage_controls" data-active="true" style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+      <button type="button" id="match_stage_activate" class="btn-secondary">Aşama: Aktif</button>
+      <button type="button" id="match_stage_deactivate" class="btn-secondary">Aşama: Pasif</button>
+    </div>
+    <small style="display: block; color: #666; margin-bottom: 16px;">
+      Program hazırlandıktan sonra aşamayı aktif/pasif yapabilirsiniz.
+    </small>
     <h3>Maç Saat Aralıkları</h3>
     <div id="match_time_windows" style="margin-bottom: 8px;">
       <div class="time-window-group" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px;">
@@ -74,15 +82,12 @@
       Resmi maç takvimini tek tıkla oluşturun. Takımlar dengeli dağıtılır ve
       maç döngü süresi etkinlik ayarlarından alınır.
     </p>
+    <div class="card-section">
+      <p style="color: #666; font-size: 14px; margin-bottom: 12px;">
+        Başlangıç zamanı, yukarıdaki <strong>Maç Saat Aralıkları</strong> bölümündeki ilk aralıktan alınır.
+      </p>
+    </div>
     <div class="grid">
-      <label>
-        Başlangıç Tarihi
-        <input type="date" id="match_start_date" />
-      </label>
-      <label>
-        Başlangıç Saati
-        <input type="time" id="match_start_time" />
-      </label>
       <label>
         Algoritma
         <select id="match_algorithm">

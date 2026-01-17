@@ -51,7 +51,7 @@ class MatchScheduleStorage:
 
         query = """
             SELECT id, match_number, match_type, field_number, match_date, match_time,
-                   red_alliance, blue_alliance, status, red_score, blue_score, notes
+                   red_alliance, blue_alliance, status, red_score, blue_score, surrogate_teams, notes
             FROM match_schedule
             WHERE event_id = ?
         """
@@ -88,7 +88,8 @@ class MatchScheduleStorage:
                 "status": row[8],
                 "red_score": row[9],
                 "blue_score": row[10],
-                "notes": row[11] or "",
+                "surrogate_teams": json.loads(row[11]) if row[11] else [],
+                "notes": row[12] or "",
             }
             for row in rows
         ]
@@ -105,6 +106,7 @@ class MatchScheduleStorage:
         status: str = "scheduled",
         red_score: int | None = None,
         blue_score: int | None = None,
+        surrogate_teams: List[str] | None = None,
         notes: str = "",
         event_id: int | None = None,
     ) -> int:
@@ -138,8 +140,8 @@ class MatchScheduleStorage:
                 """
                 INSERT INTO match_schedule
                 (event_id, match_number, match_type, field_number, match_date, match_time,
-                 red_alliance, blue_alliance, status, red_score, blue_score, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 red_alliance, blue_alliance, status, red_score, blue_score, surrogate_teams, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
@@ -153,6 +155,7 @@ class MatchScheduleStorage:
                     status,
                     red_score,
                     blue_score,
+                    json.dumps(surrogate_teams or []),
                     notes,
                 ),
             )
@@ -172,6 +175,7 @@ class MatchScheduleStorage:
         status: str | None = None,
         red_score: int | None = None,
         blue_score: int | None = None,
+        surrogate_teams: List[str] | None = None,
         notes: str | None = None,
     ) -> None:
         """
@@ -210,6 +214,9 @@ class MatchScheduleStorage:
         if blue_score is not None:
             updates.append("blue_score = ?")
             params.append(blue_score)
+        if surrogate_teams is not None:
+            updates.append("surrogate_teams = ?")
+            params.append(json.dumps(surrogate_teams))
         if notes is not None:
             updates.append("notes = ?")
             params.append(notes)

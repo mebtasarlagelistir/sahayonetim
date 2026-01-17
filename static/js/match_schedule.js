@@ -29,13 +29,6 @@ async function loadMatchScheduleSettings() {
     if (qs("match_cycle_minutes")) qs("match_cycle_minutes").value = matchCycleMinutes;
 
     // Varsayılan başlangıç tarihi/saati
-    if (qs("match_start_date") && !qs("match_start_date").value) {
-      qs("match_start_date").value = event.dates?.start || "";
-    }
-    if (qs("match_start_time") && !qs("match_start_time").value) {
-      qs("match_start_time").value = "09:00";
-    }
-
     updateMatchFieldOptions(fieldCount);
     populateMatchTimeWindows(settings.time_windows || [], event.dates?.start || "");
     populateMatchBreaks(settings.breaks || [], event.dates?.start || "");
@@ -105,6 +98,13 @@ async function loadMatchSchedule() {
       const tr = document.createElement("tr");
       const redTeams = match.red_alliance || [];
       const blueTeams = match.blue_alliance || [];
+      const surrogateTeams = match.surrogate_teams || [];
+      const redDisplay = redTeams
+        .map((t) => `${escapeHtml(t)}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+        .join(", ");
+      const blueDisplay = blueTeams
+        .map((t) => `${escapeHtml(t)}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+        .join(", ");
 
       tr.innerHTML = `
         <td><input type="checkbox" class="match-select" data-match-id="${match.id}" /></td>
@@ -112,8 +112,8 @@ async function loadMatchSchedule() {
         <td>${escapeHtml(match.match_date)}</td>
         <td>${escapeHtml(match.match_time)}</td>
         <td>${escapeHtml(`Saha ${match.field_number}`)}</td>
-        <td>${redTeams.map((t) => escapeHtml(t)).join(", ")}</td>
-        <td>${blueTeams.map((t) => escapeHtml(t)).join(", ")}</td>
+        <td>${redDisplay}</td>
+        <td>${blueDisplay}</td>
         <td class="no-print">
           <button class="btn-danger" data-match-id="${match.id}">Sil</button>
         </td>
@@ -151,9 +151,16 @@ async function generateMatchSchedule() {
   const btn = qs("generate_match_schedule");
   try {
     setButtonLoading(btn, true);
+    let startDate = "";
+    let startTime = "";
+    const windows = collectMatchTimeWindows();
+    if (windows.length) {
+      startDate = windows[0].date || "";
+      startTime = windows[0].start_time || "";
+    }
     const payload = {
-      start_date: qs("match_start_date")?.value || "",
-      start_time: qs("match_start_time")?.value || "",
+      start_date: startDate,
+      start_time: startTime,
       algorithm: qs("match_algorithm")?.value || "balanced",
       field_count: Number(qs("match_field_count")?.value || 1),
       teams_per_alliance: Number(qs("match_teams_per_alliance")?.value || 2),
@@ -161,12 +168,12 @@ async function generateMatchSchedule() {
       matches_per_team: Number(qs("match_matches_per_team")?.value || 0) || null,
       num_matches: Number(qs("match_num_matches")?.value || 0) || null,
       clear_existing: qs("match_clear_existing")?.checked || false,
-      time_windows: collectMatchTimeWindows(),
+      time_windows: windows,
       breaks: collectMatchBreaks(),
     };
 
     if (!payload.start_date || !payload.start_time) {
-      showToast("Başlangıç tarihi ve saati gerekli", "warning");
+      showToast("Lütfen en az bir maç saat aralığı girin", "warning");
       return;
     }
 
@@ -331,7 +338,7 @@ async function saveMatchScheduleSettings() {
     }
     showToast("Ayarlar kaydedildi", "success");
     renderMatchBreaksList(payload.breaks);
-    updateMatchGridDefaults(qs("match_start_date")?.value || "", payload.time_windows);
+    updateMatchGridDefaults("", payload.time_windows);
   } catch (err) {
     console.error("Save match settings error:", err);
     showToast("Ayarlar kaydedilemedi", "error");
@@ -533,8 +540,13 @@ async function renderMatchGrid() {
         const mtEnd = mtStart + matchCycleMinutes;
         const colspan = Math.max(1, Math.ceil(matchCycleMinutes / slotWidth));
         lastMatchEnd = mtEnd;
-        const redTeams = (match.red_alliance || []).join(", ");
-        const blueTeams = (match.blue_alliance || []).join(", ");
+        const surrogateTeams = match.surrogate_teams || [];
+        const redTeams = (match.red_alliance || [])
+          .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+          .join(", ");
+        const blueTeams = (match.blue_alliance || [])
+          .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+          .join(", ");
         html += `<td style="padding: 2px 4px; border: 1px solid #e1e4ee; background: #2D5AF0; color: white; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
           colspan="${colspan}"
           title="${escapeHtml(match.match_number || "")} • ${escapeHtml(redTeams)} / ${escapeHtml(blueTeams)}">
