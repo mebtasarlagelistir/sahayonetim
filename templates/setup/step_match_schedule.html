@@ -1,0 +1,195 @@
+<section class="card" id="step-match-schedule">
+  <h2>Maç Takvimi</h2>
+
+  <!-- Otomatik Takvim Oluşturma -->
+  <div class="card-section">
+    <h3>Otomatik Takvim Oluştur</h3>
+    <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+      Resmi maç takvimini tek tıkla oluşturun. Takımlar dengeli dağıtılır ve
+      maç döngü süresi etkinlik ayarlarından alınır.
+    </p>
+    <div class="grid">
+      <label>
+        Başlangıç Tarihi
+        <input type="date" id="match_start_date" />
+      </label>
+      <label>
+        Başlangıç Saati
+        <input type="time" id="match_start_time" />
+      </label>
+      <label>
+        Maç Tipi
+        <select id="match_type">
+          <option value="qualification">Qualification</option>
+          <option value="elimination">Elimination</option>
+          <option value="final">Final</option>
+        </select>
+      </label>
+      <label>
+        Algoritma
+        <select id="match_algorithm">
+          <option value="balanced">Dengeli (Önerilen)</option>
+          <option value="random">Rastgele</option>
+        </select>
+      </label>
+      <label>
+        Saha Sayısı (Etkinlikten alınır)
+        <input type="number" id="match_field_count" value="1" min="1" max="10" readonly />
+      </label>
+      <label>
+        İttifak Başına Takım Sayısı
+        <input type="number" id="match_teams_per_alliance" value="2" min="1" max="4" />
+      </label>
+      <label>
+        Maç Döngü Süresi (dakika)
+        <input type="number" id="match_cycle_minutes" value="3" min="1" max="30" />
+      </label>
+      <label>
+        Takım Başına Maç Sayısı
+        <input type="number" id="match_matches_per_team" min="1" max="20" />
+      </label>
+      <label>
+        Maç Sayısı (boş bırakılırsa otomatik)
+        <input type="number" id="match_num_matches" min="1" max="2000" />
+      </label>
+    </div>
+    <label class="checkbox">
+      <input type="checkbox" id="match_clear_existing" />
+      Mevcut maçları temizle
+    </label>
+    <button id="generate_match_schedule" class="btn-primary">Otomatik Takvim Oluştur</button>
+  </div>
+
+  <!-- Filtreleme -->
+  <div class="card-section">
+    <h3>Filtrele</h3>
+    <div class="grid">
+      <label>
+        Tarih
+        <input type="date" id="filter_match_date" />
+      </label>
+      <label>
+        Saha
+        <select id="filter_match_field">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        Maç Tipi
+        <select id="filter_match_type">
+          <option value="">Tümü</option>
+          <option value="qualification">Qualification</option>
+          <option value="elimination">Elimination</option>
+          <option value="final">Final</option>
+        </select>
+      </label>
+    </div>
+    <div style="margin-top: 12px;">
+      <button id="apply_match_filters" class="btn-secondary">Filtrele</button>
+      <button id="clear_match_filters" class="btn-secondary">Filtreleri Temizle</button>
+    </div>
+  </div>
+
+  <!-- Manuel Maç Ekleme -->
+  <div class="card-section">
+    <h3>Manuel Maç Ekle</h3>
+    <div class="grid">
+      <label>
+        Maç Numarası (opsiyonel)
+        <input type="number" id="new_match_number" min="1" />
+      </label>
+      <label>
+        Maç Tipi
+        <select id="new_match_type">
+          <option value="qualification">Qualification</option>
+          <option value="elimination">Elimination</option>
+          <option value="final">Final</option>
+        </select>
+      </label>
+      <label>
+        Saha
+        <input type="number" id="new_match_field" value="1" min="1" max="10" />
+      </label>
+      <label>
+        Tarih
+        <input type="date" id="new_match_date" />
+      </label>
+      <label>
+        Saat
+        <input type="time" id="new_match_time" />
+      </label>
+    </div>
+    <div class="grid" style="margin-top: 12px;">
+      <label>
+        Kırmızı İttifak (virgülle ayırın)
+        <input type="text" id="new_match_red" placeholder="202501, 202502" />
+      </label>
+      <label>
+        Mavi İttifak (virgülle ayırın)
+        <input type="text" id="new_match_blue" placeholder="202503, 202504" />
+      </label>
+    </div>
+    <button id="add_match_schedule" class="btn-secondary">Maç Ekle</button>
+  </div>
+
+  <!-- Maç Listesi -->
+  <div class="card-section">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="margin: 0;">Maç Takvimi Listesi</h3>
+      <button id="print_match_schedule" class="btn-secondary" style="padding: 8px 16px;">
+        🖨️ Yazdır
+      </button>
+    </div>
+    <div class="card-section" style="background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
+      <h4 style="margin: 0 0 12px 0;">Toplu Güncelleme</h4>
+      <div class="grid">
+        <label>
+          Tarih
+          <input type="date" id="bulk_match_date" />
+        </label>
+        <label>
+          Saat
+          <input type="time" id="bulk_match_time" />
+        </label>
+        <label>
+          Saha
+          <select id="bulk_match_field">
+            <option value="">Değiştirme</option>
+          </select>
+        </label>
+        <label>
+          Maç Tipi
+          <select id="bulk_match_type">
+            <option value="">Değiştirme</option>
+            <option value="qualification">Qualification</option>
+            <option value="elimination">Elimination</option>
+            <option value="final">Final</option>
+          </select>
+        </label>
+      </div>
+      <button id="apply_match_bulk_update" class="btn-secondary" style="margin-top: 12px;">
+        Seçili Maçları Güncelle
+      </button>
+    </div>
+    <div id="match_schedule_print_area">
+      <table id="match_schedule_table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="match_select_all" /></th>
+            <th>Maç No</th>
+            <th>Tip</th>
+            <th>Tarih</th>
+            <th>Saat</th>
+            <th>Saha</th>
+            <th>Kırmızı İttifak</th>
+            <th>Mavi İttifak</th>
+            <th class="no-print"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JavaScript ile doldurulacak -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

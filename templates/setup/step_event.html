@@ -1,0 +1,75 @@
+<section class="card" id="step-event">
+  <h2>Etkinlik Bilgileri</h2>
+  <div class="grid">
+    <label>Etkinlik Adı <input id="event_name" type="text" /></label>
+    <label>Etkinlik Kodu (max 4 karakter) <input id="event_code" type="text" maxlength="4" /></label>
+    <label>Sezon <input id="season" type="text" /></label>
+    <label>Başlangıç Tarihi <input id="start_date" type="date" /></label>
+    <label>Bitiş Tarihi <input id="end_date" type="date" /></label>
+    <label>Zaman Dilimi <input id="timezone" type="text" /></label>
+  </div>
+</section>
+
+<section class="card" id="step-location">
+  <h2>Konum</h2>
+  <div class="grid">
+    <label>Mekan <input id="venue" type="text" /></label>
+    <label>Şehir <input id="city" type="text" /></label>
+    <label>Ülke <input id="country" type="text" /></label>
+  </div>
+</section>
+
+<section class="card" id="step-organizer">
+  <h2>Organizasyon</h2>
+  <div class="grid">
+    <label>Kurum <input id="org_name" type="text" /></label>
+    <label>Yetkili Kişi <input id="contact_name" type="text" /></label>
+    <label>E-posta <input id="contact_email" type="email" /></label>
+    <label>Telefon <input id="contact_phone" type="text" /></label>
+  </div>
+</section>
+
+<section class="card" id="step-format">
+  <h2>Format</h2>
+  <div class="grid">
+    <label>Kategoriler (virgüllü) <input id="divisions" type="text" /></label>
+    <label>Saha Sayısı <input id="fields" type="number" min="1" max="12" /></label>
+    <label>İttifak Başına Takım <input id="teams_per_alliance" type="number" min="1" max="4" /></label>
+    <label>İttifak Sayısı <input id="alliances" type="number" min="2" max="4" /></label>
+  </div>
+</section>
+
+<section class="card" id="step-schedule">
+  <h2>Maç Süreleri</h2>
+  <div class="grid">
+    <label>OKS (sn) <input id="auto_seconds" type="number" min="0" max="300" /></label>
+    <label>SKS (sn) <input id="teleop_seconds" type="number" min="0" max="300" /></label>
+    <label>Endgame (sn) <input id="endgame_seconds" type="number" min="0" max="300" /></label>
+    <label>Toplam Döngü (sn) <input id="match_cycle_seconds" type="number" min="0" max="600" /></label>
+  </div>
+</section>
+
+<section class="card" id="step-scoring">
+  <h2>Skorlama</h2>
+  <label class="checkbox">
+    <input id="allow_remote_scoring" type="checkbox" />
+    Hakem masası dışında puan girişi
+  </label>
+  <label>Notlar</label>
+  <textarea id="scoring_notes" rows="3"></textarea>
+</section>
+
+<section class="card" id="step-custom">
+  <h2>Esnek Alanlar</h2>
+  <table id="custom_table">
+    <thead>
+      <tr>
+        <th>Anahtar</th>
+        <th>Değer</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button id="add_custom">Alan Ekle</button>
+</section>

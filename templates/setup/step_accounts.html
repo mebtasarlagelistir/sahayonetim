@@ -1,0 +1,28 @@
+<section class="card" id="step-accounts">
+  <h2>Varsayılan Hesaplar</h2>
+  <div class="grid">
+    <label>Kullanıcı Adı <input id="user_username" type="text" /></label>
+    <label>Şifre <input id="user_password" type="password" /></label>
+    <label>Rol <input id="user_role" type="text" value="admin" /></label>
+  </div>
+  <div class="actions-row">
+    <button id="add_user">Kullanıcı Ekle</button>
+    <button id="create_default_users">Varsayılan Hesaplar Oluştur</button>
+    <button id="export_users">Listeyi Dışa Aktar</button>
+    <button id="print_users">Listeyi Yazdır</button>
+    <button id="delete_all_users" class="danger">Tüm Kullanıcıları Sil</button>
+  </div>
+  <table id="users_table">
+    <thead>
+      <tr>
+        <th>Kullanıcı</th>
+        <th>Rol</th>
+        <th>Şifre</th>
+        <th>QR</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div id="created_users"></div>
+</section>

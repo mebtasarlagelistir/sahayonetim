@@ -1,0 +1,265 @@
+{
+  "event": {
+    "name": "",
+    "code": "",
+    "season": "2025-2026",
+    "location": {
+      "venue": "",
+      "city": "",
+      "country": "TR"
+    },
+    "dates": {
+      "start": "",
+      "end": "",
+      "timezone": "Europe/Istanbul"
+    },
+    "organizer": {
+      "organization": "",
+      "contact_name": "",
+      "email": "",
+      "phone": ""
+    },
+    "format": {
+      "divisions": [
+        "Genel"
+      ],
+      "fields": 1,
+      "teams_per_alliance": 2,
+      "alliances": 2
+    },
+    "schedule": {
+      "auto_seconds": 30,
+      "teleop_seconds": 120,
+      "endgame_seconds": 30,
+      "match_cycle_seconds": 150
+    },
+    "scoring": {
+      "allow_remote_scoring": false,
+      "notes": ""
+    },
+    "custom_fields": []
+  },
+  "teams": [
+    {
+      "number": "202501",
+      "name": "ŞİŞLİ ROBOTICS",
+      "school": "ŞİŞLİ BİLİM VE SANAT MERKEZİ",
+      "city": "ŞİŞLİ",
+      "category": "Mentorlar: NESLİHAN BEKTAS, ERMAN CEMAL DURMUŞ"
+    },
+    {
+      "number": "202502",
+      "name": "ALFA ROBOTICS",
+      "school": "ÜMRANİYE ATATÜRK MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "ÜMRANİYE",
+      "category": "Mentorlar: MURAT KABASAKAL, ÖZGÜR KULA, SELAMİ ÜÇLER"
+    },
+    {
+      "number": "202503",
+      "name": "TULPAR",
+      "school": "GÜLTEPE ŞEHİT CİHAN ERAT MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "KAĞITHANE",
+      "category": "Mentorlar: HASAN GÜNAY GÖKTEPE, CEYNUR AYDIN ADAR, ASLI ÖZMEN"
+    },
+    {
+      "number": "202504",
+      "name": "AKİF TECH-BURAK ROBOTICS",
+      "school": "AKİF İNAN FEN VE TEKNOLOJİ İMAM HATİP LİSESİ",
+      "city": "BAŞAKŞEHİR",
+      "category": "Mentorlar: ASUMAN DURAN"
+    },
+    {
+      "number": "202505",
+      "name": "SENTAR ROBOTIC",
+      "school": "MEV KOLEJİ ÖZEL BASINKÖY OKULLARI",
+      "city": "BAKIRKÖY",
+      "category": "Mentorlar: ERHAN ALATAŞLI"
+    },
+    {
+      "number": "202506",
+      "name": "ITOBOT",
+      "school": "İSTANBUL TİCARET ODASI MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BAYRAMPAŞA",
+      "category": "Mentorlar: ALICAN KOCAOĞLU"
+    },
+    {
+      "number": "202507",
+      "name": "CEZERİ ROBOTICS",
+      "school": "SULTANGAZİ CEZERİ MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "SULTANGAZİ",
+      "category": "Mentorlar: TALAT ÇETİN"
+    },
+    {
+      "number": "202508",
+      "name": "MAÇKANIN YILDIZLARI",
+      "school": "YILDIZ TEKNİK ÜNİVERSİTESİ MAÇKA MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "ŞİŞLİ",
+      "category": "Mentorlar: AHMET ATEŞ, ALTUĞ ÖNAL"
+    },
+    {
+      "number": "202509",
+      "name": "AYYILDIZ ROBOTIM",
+      "school": "İMMİB ERKAN AVCI MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BAHÇELİEVLER",
+      "category": "Mentorlar: ATİLLA TÜRKASLAN, ŞERMİN AKSOY"
+    },
+    {
+      "number": "202510",
+      "name": "ARKHE",
+      "school": "MALTEPE BİLSEM",
+      "city": "MALTEPE",
+      "category": "Mentorlar: ASLI ÇAKMAK, NESLİHAN ŞAHİN, ADİL ŞAHİN"
+    },
+    {
+      "number": "202511",
+      "name": "KALKAVAN ROBOTIK",
+      "school": "ZİYA KALKAVAN DENİZCİLİK MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BEŞİKTAŞ",
+      "category": "Mentorlar: SUAT ATA, MURAT ADNAN TAMER, ALI RIZA KARABUBER"
+    },
+    {
+      "number": "202512",
+      "name": "ARAN ROBOT",
+      "school": "SİLE AYET AZER ARAN SAVUNMA SANAYİ MTAL",
+      "city": "ŞİLE",
+      "category": "Mentorlar: ESRA MORGÜL, FEHMI BAHADIR BASAN, HASAN ÜLKER"
+    },
+    {
+      "number": "202513",
+      "name": "TOIJAM INOVA ROBOTICS",
+      "school": "HACI BEKTAŞ VELİ ANADOLU LİSESİ",
+      "city": "KÜÇÜKÇEKMECE",
+      "category": "Mentorlar: AYNUR BERNA BELLİBAŞ ÜNLÜ, ABDULBARI BATUR"
+    },
+    {
+      "number": "202514",
+      "name": "RAVEN ROBOTICS",
+      "school": "ŞEHİT YÜZBAŞI YUSUF KENAN MESLEKİ VE TEKNİK ANADOLU LİSESI",
+      "city": "SANCAKTEPE",
+      "category": "Mentorlar: ALI SECAETTİN KAN, BANU TURAN, CEYDA AKPINAR YILMAZ"
+    },
+    {
+      "number": "202515",
+      "name": "GAL TIGERS",
+      "school": "GAZİOSMANPAŞA ANADOLU LİSESİ",
+      "city": "GAZİOSMANPAŞA",
+      "category": "Mentorlar: YAVUZ AKKAŞ, İREM ÖKSÜZ, NUMAN BEŞİR"
+    },
+    {
+      "number": "202516",
+      "name": "SYNTHEX",
+      "school": "ESENYURT BİLİM VE SANAT MERKEZİ",
+      "city": "ESENYURT",
+      "category": "Mentorlar: OĞUZ GÜVEN"
+    },
+    {
+      "number": "202517",
+      "name": "NEBULA ROBOTİK",
+      "school": "SULTANAHMET MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "FATİH",
+      "category": "Mentorlar: AHMET ALURAL, BAHADIR KAYA"
+    },
+    {
+      "number": "202518",
+      "name": "HARPIA ROBOTICS",
+      "school": "BEŞİKTAŞ ATATÜRK ANADOLU LİSESİ",
+      "city": "BEŞİKTAŞ",
+      "category": "Mentorlar: ORHAN YILDIRIM, HÜSEYİN ÇAĞLAYAN"
+    },
+    {
+      "number": "202519",
+      "name": "HİVEMİND",
+      "school": "SULTANGAZİ MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "SULTANGAZİ",
+      "category": "Mentorlar: KAMER ŞAHİN, ÜMİT UĞURLU"
+    },
+    {
+      "number": "202520",
+      "name": "CARACAL ROBOTICS",
+      "school": "MEHMET RIFAT EVYAP MESLEKİ VE TEKNIK ANADOLU LİSESİ",
+      "city": "SARIYER",
+      "category": "Mentorlar: ISMAIL HAMULU, ÜNSAL GÖRÜCÜ, ÖZGÜR GÜLBEYAZ"
+    },
+    {
+      "number": "202521",
+      "name": "MECHATAK",
+      "school": "AHMET KELEŞOĞLU FEN LİSESİ",
+      "city": "ATAŞEHİR",
+      "category": "Mentorlar: SEYMA ALAN"
+    },
+    {
+      "number": "202522",
+      "name": "VORTREX",
+      "school": "ISTANBUL ATATÜRK FEN LİSESİ",
+      "city": "KADIKÖY",
+      "category": "Mentorlar: MUCAHIT CAMNALBUR, VEDAT ŞAHİN"
+    },
+    {
+      "number": "202523",
+      "name": "ROBORSA BAŞAKŞEHİR",
+      "school": "BORSA İSTANBUL BAŞAKŞEHİR MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BAŞAKŞEHİR",
+      "category": "Mentorlar: ÜMİT ALTINDİŞ, MUHAMMED HUSREV ADANUR, MUSTAFA BAŞARAN"
+    },
+    {
+      "number": "202524",
+      "name": "ROBİSTİM",
+      "school": "ISTANBUL FUAT SEZGİN BİLİM VE SANAT MERKEZİ",
+      "city": "ATAŞEHİR",
+      "category": "Mentorlar: ONUR AYDEMİR, SEYİT KARAMAN, GULSUM YASEMİN UZ"
+    },
+    {
+      "number": "202525",
+      "name": "ROBOTSAL",
+      "school": "SEHREMİNİ ANADOLU LİSESİ",
+      "city": "FATİH",
+      "category": "Mentorlar: ÖZKAN DURMAZ, MUSTAFA AVCI"
+    },
+    {
+      "number": "202526",
+      "name": "BESNEK",
+      "school": "BAYKAR FEN LİSESİ-SULTANBEYLİ SABİHA GÖKÇEN MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BAŞAKŞEHİR",
+      "category": "Mentorlar: İSMAİL BAYRAKÇI, YUNUS ÖZEN"
+    },
+    {
+      "number": "202527",
+      "name": "GOKBAY",
+      "school": "BAYKAR FEN LİSESİ - SULTANBEYLİ SABİHA GÖKÇEN MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "SULTANBEYLİ",
+      "category": "Mentorlar: SEDAT ADAR, IBRAHIM YOLCU"
+    },
+    {
+      "number": "202528",
+      "name": "ISOV-MEKATRONİK26",
+      "school": "İSOV DİNÇKÖK MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BEŞİKTAŞ",
+      "category": "Mentorlar: MEHMET İBRAHİM KÖSE"
+    },
+    {
+      "number": "202529",
+      "name": "HAYDARPAŞALILAR",
+      "school": "HAYDARPAŞA MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "ÜSKÜDAR",
+      "category": "Mentorlar: YILMAZ SONGUR, AHMET DURAK, SAID YAYLA"
+    },
+    {
+      "number": "202530",
+      "name": "KAYA ROBOTIK",
+      "school": "TOKİ KAYAŞEHİR MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "BAŞAKŞEHİR",
+      "category": "Mentorlar: MUSTAFA ARIK, VEYİS ŞEN, MUZAFFER YAMAN"
+    },
+    {
+      "number": "202531",
+      "name": "CYGNUS",
+      "school": "ESENYURT TOKİ ALİ DURAN MESLEKİ VE TEKNİK ANADOLU LİSESİ",
+      "city": "ESENYURT",
+      "category": "Mentorlar: GÜLESİN YAVUZ, BURCU TİMUÇİN"
+    }
+  ],
+  "ui": {
+    "font_family": "Segoe UI",
+    "font_size": 10
+  }
+}
