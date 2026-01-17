@@ -27,6 +27,66 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         except (TypeError, ValueError):
             return default
 
+    def _parse_time_windows(raw_windows):
+        windows = []
+        for item in raw_windows or []:
+            date = (item.get("date") or "").strip()
+            start = (item.get("start_time") or "").strip()
+            end = (item.get("end_time") or "").strip()
+            if not date or not start or not end:
+                continue
+            try:
+                start_dt = datetime.strptime(f"{date} {start}", "%Y-%m-%d %H:%M")
+                end_dt = datetime.strptime(f"{date} {end}", "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            if end_dt > start_dt:
+                windows.append((start_dt, end_dt))
+        return sorted(windows, key=lambda x: x[0])
+
+    def _parse_breaks(raw_breaks):
+        breaks = []
+        for item in raw_breaks or []:
+            date = (item.get("date") or "").strip()
+            start = (item.get("start_time") or "").strip()
+            end = (item.get("end_time") or "").strip()
+            if not date or not start or not end:
+                continue
+            try:
+                start_dt = datetime.strptime(f"{date} {start}", "%Y-%m-%d %H:%M")
+                end_dt = datetime.strptime(f"{date} {end}", "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            if end_dt > start_dt:
+                breaks.append((start_dt, end_dt))
+        return sorted(breaks, key=lambda x: x[0])
+
+    def _next_valid_time(current, duration_minutes, windows, breaks):
+        if not windows:
+            return current
+        while True:
+            window = next((w for w in windows if w[0] <= current < w[1]), None)
+            if not window:
+                next_window = next((w for w in windows if w[0] > current), None)
+                if not next_window:
+                    return current
+                current = next_window[0]
+                continue
+            if current + timedelta(minutes=duration_minutes) > window[1]:
+                next_window = next((w for w in windows if w[0] > window[1]), None)
+                if not next_window:
+                    return current
+                current = next_window[0]
+                continue
+            overlapping_break = next(
+                (b for b in breaks if not (current + timedelta(minutes=duration_minutes) <= b[0] or current >= b[1])),
+                None,
+            )
+            if overlapping_break:
+                current = overlapping_break[1]
+                continue
+            return current
+
     def _get_next_match_number(event_id, match_type):
         matches = datastore.get_match_schedule(event_id=event_id, match_type=match_type)
         existing = [m.get("match_number") for m in matches if m.get("match_number")]
@@ -292,6 +352,30 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         )
         return jsonify({"conflict": conflict})
 
+    @bp.get("/match-settings")
+    @require_login
+    def get_match_settings():
+        event_data = datastore.get_event()
+        match_settings = event_data.get("match_settings", {})
+        return jsonify(
+            {
+                "time_windows": match_settings.get("time_windows", []),
+                "breaks": match_settings.get("breaks", []),
+            }
+        )
+
+    @bp.post("/match-settings")
+    @require_login
+    @require_event_manager
+    def save_match_settings():
+        data = request.get_json(force=True) or {}
+        event_data = datastore.get_event()
+        event_data.setdefault("match_settings", {})
+        event_data["match_settings"]["time_windows"] = data.get("time_windows", [])
+        event_data["match_settings"]["breaks"] = data.get("breaks", [])
+        datastore.save_event(event_data)
+        return jsonify({"ok": True})
+
     @bp.post("/match-schedule/generate")
     @require_login
     @require_event_manager
@@ -305,13 +389,18 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         start_time = (data.get("start_time") or "").strip()
         num_matches = _parse_int(data.get("num_matches"))
         matches_per_team = _parse_int(data.get("matches_per_team"))
-        match_type = (data.get("match_type") or "qualification").strip()
+        match_type = "qualification"
         algorithm = (data.get("algorithm") or "balanced").strip()
         field_count = _parse_int(data.get("field_count"), 1)
         teams_per_alliance = _parse_int(data.get("teams_per_alliance"), 2)
         match_cycle_minutes = _parse_int(data.get("match_cycle_minutes"))
         clear_existing = bool(data.get("clear_existing", False))
+        time_windows = _parse_time_windows(data.get("time_windows", []))
+        breaks = _parse_breaks(data.get("breaks", []))
 
+        if (not start_date or not start_time) and time_windows:
+            start_date = time_windows[0][0].strftime("%Y-%m-%d")
+            start_time = time_windows[0][0].strftime("%H:%M")
         if not start_date or not start_time:
             return jsonify({"error": "Başlangıç tarihi ve saati gerekli"}), 400
         if field_count < 1:
@@ -461,6 +550,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
         while created_count < num_matches and attempts < max_attempts:
             attempts += 1
+            current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
             slot_used = set()
             slot_created = 0
 
@@ -487,7 +577,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 # Takım çakışma kontrolü (mevcut DB)
                 conflict = False
                 for team in selected:
-                    if datastore.check_match_schedule_conflict(
+                if datastore.check_match_schedule_conflict(
                         team_number=team,
                         match_date=current_time.strftime("%Y-%m-%d"),
                         match_time=current_time.strftime("%H:%M"),
@@ -540,10 +630,6 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     team_stats[team]["opponents"].update(red_alliance)
 
             # Zamanı ilerlet
-            if slot_created == 0:
-                # Hiç maç oluşturulamadıysa yine ilerlet (sonsuz döngüyü önle)
-                current_time += timedelta(minutes=match_duration)
-            else:
-                current_time += timedelta(minutes=match_duration)
+            current_time += timedelta(minutes=match_duration)
 
         return jsonify({"ok": True, "created_count": created_count})

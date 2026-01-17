@@ -1,5 +1,71 @@
 <section class="card" id="step-match-schedule">
-  <h2>Maç Takvimi</h2>
+  <h2>Sıralama Maç Takvimi</h2>
+
+  <!-- Saat Aralıkları ve Molalar -->
+  <div class="card-section">
+    <h3>Maç Saat Aralıkları</h3>
+    <div id="match_time_windows" style="margin-bottom: 8px;">
+      <div class="time-window-group" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <input type="date" class="match-window-date" />
+        <input type="time" class="match-window-start" value="09:00" />
+        <input type="time" class="match-window-end" value="18:00" />
+        <button type="button" class="btn-danger remove-window-btn" style="padding: 4px 8px; font-size: 12px;">Sil</button>
+      </div>
+    </div>
+    <button type="button" id="add_match_window_btn" class="btn-secondary" style="margin-top: 4px; padding: 6px 12px; font-size: 13px;">+ Saat Aralığı Ekle</button>
+  </div>
+
+  <div class="card-section">
+    <h3>Mola / Yemek Araları</h3>
+    <div id="match_breaks" style="margin-bottom: 8px;">
+      <div class="break-group" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <input type="date" class="match-break-date" />
+        <input type="text" class="match-break-label" placeholder="Örn: Öğle" />
+        <input type="time" class="match-break-start" value="12:00" />
+        <input type="time" class="match-break-end" value="13:00" />
+        <button type="button" class="btn-danger remove-break-btn" style="padding: 4px 8px; font-size: 12px;">Sil</button>
+      </div>
+    </div>
+    <button type="button" id="add_match_break_btn" class="btn-secondary" style="margin-top: 4px; padding: 6px 12px; font-size: 13px;">+ Mola Ekle</button>
+  </div>
+
+  <div class="card-section">
+    <button id="save_match_settings" class="btn-secondary">Ayarları Kaydet</button>
+  </div>
+
+  <!-- Görünüm Seçimi -->
+  <div class="card-section">
+    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+      <button id="match_view_list" class="btn-secondary active">Liste Görünümü</button>
+      <button id="match_view_grid" class="btn-secondary">Takvim Görünümü</button>
+    </div>
+  </div>
+
+  <!-- Takvim Görünümü -->
+  <div class="card-section" id="match_grid_view" style="display: none;">
+    <h3>Takvim Görünümü (Saha Bazlı)</h3>
+    <div style="margin-bottom: 16px;">
+      <label>
+        Tarih Seç
+        <input type="date" id="match_grid_date" />
+      </label>
+      <label>
+        Saat Aralığı Başlangıç
+        <input type="time" id="match_grid_start_time" value="09:00" />
+      </label>
+      <label>
+        Saat Aralığı Bitiş
+        <input type="time" id="match_grid_end_time" value="18:00" />
+      </label>
+      <label>
+        Slot Genişliği (dakika)
+        <input type="number" id="match_grid_slot_width" value="10" min="5" max="60" />
+      </label>
+    </div>
+    <div id="match_schedule_grid" style="overflow-x: auto; border: 1px solid #e1e4ee; border-radius: 4px;">
+      <!-- Grid buraya JavaScript ile oluşturulacak -->
+    </div>
+  </div>
 
   <!-- Otomatik Takvim Oluşturma -->
   <div class="card-section">
@@ -16,14 +82,6 @@
       <label>
         Başlangıç Saati
         <input type="time" id="match_start_time" />
-      </label>
-      <label>
-        Maç Tipi
-        <select id="match_type">
-          <option value="qualification">Qualification</option>
-          <option value="elimination">Elimination</option>
-          <option value="final">Final</option>
-        </select>
       </label>
       <label>
         Algoritma
@@ -74,15 +132,6 @@
           <option value="">Tümü</option>
         </select>
       </label>
-      <label>
-        Maç Tipi
-        <select id="filter_match_type">
-          <option value="">Tümü</option>
-          <option value="qualification">Qualification</option>
-          <option value="elimination">Elimination</option>
-          <option value="final">Final</option>
-        </select>
-      </label>
     </div>
     <div style="margin-top: 12px;">
       <button id="apply_match_filters" class="btn-secondary">Filtrele</button>
@@ -97,14 +146,6 @@
       <label>
         Maç Numarası (opsiyonel)
         <input type="number" id="new_match_number" min="1" />
-      </label>
-      <label>
-        Maç Tipi
-        <select id="new_match_type">
-          <option value="qualification">Qualification</option>
-          <option value="elimination">Elimination</option>
-          <option value="final">Final</option>
-        </select>
       </label>
       <label>
         Saha
@@ -133,12 +174,16 @@
   </div>
 
   <!-- Maç Listesi -->
-  <div class="card-section">
+  <div class="card-section" id="match_list_view">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h3 style="margin: 0;">Maç Takvimi Listesi</h3>
       <button id="print_match_schedule" class="btn-secondary" style="padding: 8px 16px;">
         🖨️ Yazdır
       </button>
+    </div>
+    <div class="card-section" id="match_breaks_summary" style="background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
+      <h4 style="margin: 0 0 12px 0;">Mola / Yemek Aralıkları</h4>
+      <div id="match_breaks_list" style="color: #444;"></div>
     </div>
     <div class="card-section" style="background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
       <h4 style="margin: 0 0 12px 0;">Toplu Güncelleme</h4>
@@ -157,15 +202,6 @@
             <option value="">Değiştirme</option>
           </select>
         </label>
-        <label>
-          Maç Tipi
-          <select id="bulk_match_type">
-            <option value="">Değiştirme</option>
-            <option value="qualification">Qualification</option>
-            <option value="elimination">Elimination</option>
-            <option value="final">Final</option>
-          </select>
-        </label>
       </div>
       <button id="apply_match_bulk_update" class="btn-secondary" style="margin-top: 12px;">
         Seçili Maçları Güncelle
@@ -177,7 +213,6 @@
           <tr>
             <th><input type="checkbox" id="match_select_all" /></th>
             <th>Maç No</th>
-            <th>Tip</th>
             <th>Tarih</th>
             <th>Saat</th>
             <th>Saha</th>

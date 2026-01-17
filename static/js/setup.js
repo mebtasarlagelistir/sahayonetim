@@ -13,7 +13,7 @@ const steps = [
   { id: "step-judging", title: "Jüri/İnceleme Takibi", status: "Optional" },
   { id: "step-inspection-schedule", title: "İnceleme Programı", status: "Not Started" },
   { id: "step-practice-matches", title: "Deneme Maçları", status: "Not Started" },
-  { id: "step-match-schedule", title: "Maç Takvimi", status: "Not Started" },
+  { id: "step-match-schedule", title: "Sıralama Maç Takvimi", status: "Not Started" },
   { id: "step-wifi", title: "WiFi Kanal Atama", status: "Not Started" },
   { id: "step-pit-map", title: "Pit Haritası", status: "Optional" },
   { id: "step-awards", title: "Ödül Yönetimi", status: "Not Started" },
@@ -356,7 +356,6 @@ function setupMatchScheduleListeners() {
     qs("clear_match_filters").addEventListener("click", () => {
       if (qs("filter_match_date")) qs("filter_match_date").value = "";
       if (qs("filter_match_field")) qs("filter_match_field").value = "";
-      if (qs("filter_match_type")) qs("filter_match_type").value = "";
       loadMatchSchedule();
     });
   }
@@ -372,6 +371,55 @@ function setupMatchScheduleListeners() {
   }
   if (qs("print_match_schedule")) {
     qs("print_match_schedule").addEventListener("click", () => window.print());
+  }
+  if (qs("match_view_list")) {
+    qs("match_view_list").addEventListener("click", () => setMatchView("list"));
+  }
+  if (qs("match_view_grid")) {
+    qs("match_view_grid").addEventListener("click", () => setMatchView("grid"));
+  }
+  ["match_grid_date", "match_grid_start_time", "match_grid_end_time", "match_grid_slot_width"].forEach((id) => {
+    const el = qs(id);
+    if (el) {
+      el.addEventListener("change", () => {
+        if (qs("match_grid_view")?.style.display !== "none") {
+          renderMatchGrid();
+        }
+      });
+    }
+  });
+  if (qs("save_match_settings")) {
+    qs("save_match_settings").addEventListener("click", saveMatchScheduleSettings);
+  }
+  if (qs("add_match_window_btn")) {
+    const btn = qs("add_match_window_btn");
+    if (!btn.dataset.bound) {
+      btn.addEventListener("click", addMatchTimeWindow);
+      btn.dataset.bound = "true";
+    }
+  }
+  if (qs("add_match_break_btn")) {
+    const btn = qs("add_match_break_btn");
+    if (!btn.dataset.bound) {
+      btn.addEventListener("click", addMatchBreak);
+      btn.dataset.bound = "true";
+    }
+  }
+  const windowsContainer = qs("match_time_windows");
+  if (windowsContainer) {
+    windowsContainer.addEventListener("click", (e) => {
+      if (e.target.classList.contains("remove-window-btn")) {
+        e.target.closest(".time-window-group")?.remove();
+      }
+    });
+  }
+  const breaksContainer = qs("match_breaks");
+  if (breaksContainer) {
+    breaksContainer.addEventListener("click", (e) => {
+      if (e.target.classList.contains("remove-break-btn")) {
+        e.target.closest(".break-group")?.remove();
+      }
+    });
   }
 }
 
@@ -563,6 +611,7 @@ async function initializeSetup() {
       "judging": "judging",
       "inspection-schedule": "inspection-schedule",
       "practice-matches": "practice-matches",
+      "match-schedule": "match-schedule",
       "wifi": "wifi",
       "pit-map": "pit-map",
       "awards": "awards",
@@ -592,6 +641,7 @@ async function initializeSetup() {
           "judging": "judging",
           "inspection-schedule": "inspection-schedule",
           "practice-matches": "practice-matches",
+          "match-schedule": "match-schedule",
           "wifi": "wifi",
           "pit-map": "pit-map",
           "awards": "awards",
@@ -618,6 +668,7 @@ async function initializeSetup() {
         "sponsors": "sponsors",
         "judging": "judging",
         "inspection-schedule": "inspection-schedule",
+        "match-schedule": "match-schedule",
         "wifi": "wifi",
         "pit-map": "pit-map",
         "awards": "awards",
