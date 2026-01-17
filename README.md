@@ -1,5 +1,7 @@
 # MEMSKOR - Yarışma Yönetim Sistemi
 
+MEM Tasarla Geliştir Yarışması Kapsamında kullanılacak Saha yönetimi yazılımı.
+
 FTC türevi yarışma yönetim programı. Web tabanlı, modüler yapıda geliştirilmiştir.
 
 ## 📁 Proje Yapısı
