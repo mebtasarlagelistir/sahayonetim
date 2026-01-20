@@ -45,6 +45,11 @@
         <span>dk</span>
       </label>
     </div>
+    <label style="display: block; margin-top: 16px;">
+      Yazdırma Notu
+      <textarea id="inspection_print_note" rows="4" style="width: 100%; margin-top: 6px;"></textarea>
+    </label>
+    <button id="save_inspection_print_note" class="btn-secondary" style="margin-top: 8px;">Yazdırma Notunu Kaydet</button>
     <button id="save_inspection_durations" class="btn-secondary" style="margin-top: 16px;">Süreleri Kaydet</button>
   </div>
 
@@ -239,9 +244,9 @@
             <th>Saat</th>
             <th>Süre</th>
             <th>İstasyon</th>
-            <th>Müfettiş</th>
-            <th>Durum</th>
-            <th>Notlar</th>
+            <th class="print-hide">Müfettiş</th>
+            <th class="print-hide">Durum</th>
+            <th class="print-hide">Notlar</th>
             <th class="no-print"></th>
           </tr>
         </thead>

@@ -56,14 +56,13 @@ class EventsStorage:
             data: Etkinlik verisi (dict)
             
         Not:
-            - Aktif etkinlik yoksa yeni etkinlik oluşturulur
+            - Aktif etkinlik yoksa hata fırlatılır (yanlışlıkla yeni etkinlik oluşmasın)
             - Veri JSON formatında saklanır
             - Etkinlik adı ayrı bir kolonda da saklanır (hızlı erişim için)
         """
         event_id = self.get_active_event_id()
         if event_id is None:
-            event_id = self.create_event(data.get("name", "") or "Yeni Etkinlik", data)
-            return
+            raise ValueError("Aktif etkinlik bulunamadı")
         payload = json.dumps(data, ensure_ascii=False)
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -199,6 +198,9 @@ class EventsStorage:
             ).fetchone()
             was_active = active_row and active_row[0] == 1
             
+            # Delete event-specific users (admin stays with event_id NULL)
+            conn.execute("DELETE FROM users WHERE event_id = ?", (event_id,))
+
             # Delete event (teams will be deleted automatically due to CASCADE)
             conn.execute("DELETE FROM events WHERE id = ?", (event_id,))
             

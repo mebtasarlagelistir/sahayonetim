@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Etkinlik Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="dashboard">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+            <span class="event-datetime" id="event-datetime"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="event-switcher">
+          <label>
+            <select id="event_selector"></select>
+          </label>
+          <button id="new_event" class="btn-small">Yeni</button>
+          <button id="delete_event" class="btn-small danger">Sil</button>
+          <button id="clear_all_events" class="btn-small danger" title="Tüm etkinlikleri temizle (Test için)">Tümünü Temizle</button>
+        </div>
+        <div class="actions">
+          <a href="/setup" class="button btn-small">Kurulum</a>
+          <a href="/logout" class="button btn-small">Çıkış</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard-layout">
+      <section class="card dashboard-summary">
+        <h2>Etkinlik Özeti</h2>
+        <div class="dashboard-summary-grid">
+          <div>
+            <div class="dashboard-summary-label">Etkinlik</div>
+            <div class="dashboard-summary-value" id="dashboard_event_name">-</div>
+          </div>
+          <div>
+            <div class="dashboard-summary-label">Kod</div>
+            <div class="dashboard-summary-value" id="dashboard_event_code">-</div>
+          </div>
+          <div>
+            <div class="dashboard-summary-label">Tarih</div>
+            <div class="dashboard-summary-value" id="dashboard_event_dates">-</div>
+          </div>
+          <div>
+            <div class="dashboard-summary-label">Konum</div>
+            <div class="dashboard-summary-value" id="dashboard_event_location">-</div>
+          </div>
+          <div>
+            <div class="dashboard-summary-label">Takım Sayısı</div>
+            <div class="dashboard-summary-value" id="dashboard_team_count">-</div>
+          </div>
+          <div>
+            <div class="dashboard-summary-label">Saha Sayısı</div>
+            <div class="dashboard-summary-value" id="dashboard_field_count">-</div>
+          </div>
+        </div>
+        <div class="dashboard-summary-matches" id="dashboard_matches_summary">
+          <h3 style="margin: 16px 0 8px 0; font-size: 14px; color: #666;">Maç Özeti</h3>
+          <div class="dashboard-matches-grid" id="dashboard_matches_grid">
+            <div class="dashboard-match-item">
+              <span class="match-type-label">Deneme Maçları</span>
+              <span class="match-count" id="dashboard_practice_count">0</span>
+            </div>
+            <div class="dashboard-match-item">
+              <span class="match-type-label">Sıralama Maçları</span>
+              <span class="match-count" id="dashboard_qualification_count">0</span>
+            </div>
+            <div class="dashboard-match-item">
+              <span class="match-type-label">Elimination</span>
+              <span class="match-count" id="dashboard_elimination_count">0</span>
+            </div>
+            <div class="dashboard-match-item">
+              <span class="match-type-label">Final</span>
+              <span class="match-count" id="dashboard_final_count">0</span>
+            </div>
+          </div>
+        </div>
+        <p class="dashboard-summary-note">
+          Kurulum adımlarını tamamladıkça bu panelden ilgili modüllere geçebilirsiniz.
+        </p>
+      </section>
+
+      <section class="dashboard-grid">
+        <div class="card dashboard-section">
+          <h2>Etkinlik Bilgileri</h2>
+          <ul class="dashboard-list">
+            <li><a href="/setup#step-inspection-schedule">Jüri &amp; İnceleme Programı</a></li>
+            <li><a href="/setup#step-judging">Jüri &amp; İnceleme Durumu</a></li>
+            <li>
+              Deneme Maçları
+              <ul>
+                <li><a href="/setup#step-practice-matches">Program</a></li>
+              </ul>
+            </li>
+            <li>
+              Sıralama Maçları
+              <ul>
+                <li><a href="/setup#step-match-schedule">Program</a></li>
+                <li><a href="#" class="dashboard-link" data-coming-soon="true">Sıralamalar</a></li>
+              </ul>
+            </li>
+            <li>
+              Playoff
+              <ul>
+                <li><a href="#" class="dashboard-link" data-coming-soon="true">Program</a></li>
+                <li><a href="#" class="dashboard-link" data-coming-soon="true">Eşleşme Tablosu</a></li>
+              </ul>
+            </li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Maç Sonuçları</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Etkinlik Raporları</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>İnceleme</h2>
+          <ul class="dashboard-list">
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Kayıt</a></li>
+            <li><a href="/setup#step-judging">Jüri</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Donanım İncelemesi</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Boyut &amp; Kontrol</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>Hakem Skorlama</h2>
+          <ul class="dashboard-list">
+            <li><a href="/referee/red">Kırmızı İttifak Hakemi</a></li>
+            <li><a href="/referee/blue">Mavi İttifak Hakemi</a></li>
+            <li><a href="/head-referee">Baş Hakem</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>FTA/CSA Araçları</h2>
+          <ul class="dashboard-list">
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">FTA Not Defteri</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>Ekranlar</h2>
+          <ul class="dashboard-list">
+            <li><a href="/screens">Skorlama/Zamanlama Ekranları</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>Jüri</h2>
+          <ul class="dashboard-list">
+            <li><a href="/setup#step-awards">Ödül Yönetimi</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>Sunucu/Anonsör</h2>
+          <ul class="dashboard-list">
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Açılış Töreni Metni</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Anonsör Raporu</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">İttifak Seçimi</a></li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Kapanış Töreni Metni</a></li>
+          </ul>
+        </div>
+
+        <div class="card dashboard-section">
+          <h2>Event Administration</h2>
+          <ul class="dashboard-list">
+            <li><a href="/setup">Etkinlik Kurulumu</a></li>
+            <li>
+              Kurulum Adımları
+              <ul>
+                <li><a href="/setup#step-event">Etkinlik Bilgileri</a></li>
+                <li><a href="/setup#step-accounts">Varsayılan Hesaplar</a></li>
+                <li><a href="/setup#step-teams">Takım Yönetimi</a></li>
+                <li><a href="/setup#step-sponsors">Sponsor Yönetimi</a></li>
+                <li><a href="/setup#step-judging">Jüri/İnceleme Takibi</a></li>
+                <li><a href="/setup#step-inspection-schedule">İnceleme Programı</a></li>
+                <li><a href="/setup#step-practice-matches">Deneme Maçları</a></li>
+                <li><a href="/setup#step-match-schedule">Sıralama Maç Takvimi</a></li>
+                <li><a href="/setup#step-wifi">WiFi Kanal Atama</a></li>
+                <li><a href="/setup#step-awards">Ödül Yönetimi</a></li>
+                <li><a href="/setup#step-archive">Arşiv İndir</a></li>
+              </ul>
+            </li>
+            <li><a href="#" class="dashboard-link" data-coming-soon="true">Etkinlik Dashboard</a></li>
+            <li><a href="/match-control">Maç Kontrol Sayfası</a></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

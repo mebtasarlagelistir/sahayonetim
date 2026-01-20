@@ -22,12 +22,31 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
     """
 
     def _parse_int(value, default=None):
+        """
+        String veya sayısal değeri integer'a çevirir.
+        
+        Args:
+            value: Dönüştürülecek değer
+            default: Hata durumunda döndürülecek varsayılan değer
+        
+        Returns:
+            int: Dönüştürülmüş değer veya default
+        """
         try:
             return int(value)
         except (TypeError, ValueError):
             return default
 
     def _parse_time_windows(raw_windows):
+        """
+        Ham zaman penceresi verilerini datetime tuple listesine çevirir.
+        
+        Args:
+            raw_windows: Ham zaman penceresi listesi [{"date": "...", "start_time": "...", "end_time": "..."}, ...]
+        
+        Returns:
+            list: Sıralı (start_datetime, end_datetime) tuple listesi
+        """
         windows = []
         for item in raw_windows or []:
             date = (item.get("date") or "").strip()
@@ -45,6 +64,15 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         return sorted(windows, key=lambda x: x[0])
 
     def _parse_breaks(raw_breaks):
+        """
+        Ham mola verilerini datetime tuple listesine çevirir.
+        
+        Args:
+            raw_breaks: Ham mola listesi [{"date": "...", "start_time": "...", "end_time": "..."}, ...]
+        
+        Returns:
+            list: Sıralı (start_datetime, end_datetime) tuple listesi
+        """
         breaks = []
         for item in raw_breaks or []:
             date = (item.get("date") or "").strip()
@@ -62,6 +90,24 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         return sorted(breaks, key=lambda x: x[0])
 
     def _next_valid_time(current, duration_minutes, windows, breaks):
+        """
+        Verilen süre için uygun bir zaman bulur (zaman pencereleri ve molaları dikkate alarak).
+        
+        Algoritma:
+        1. Mevcut zaman bir zaman penceresi içindeyse kontrol et
+        2. Süre pencere dışına taşıyorsa sonraki pencereye geç
+        3. Mola ile çakışma varsa molanın bitişine geç
+        4. Uygun zaman bulunana kadar tekrarla
+        
+        Args:
+            current: Mevcut zaman (datetime)
+            duration_minutes: Maç süresi (dakika)
+            windows: Zaman pencereleri listesi [(start, end), ...]
+            breaks: Mola listesi [(start, end), ...]
+        
+        Returns:
+            datetime: Uygun zaman
+        """
         if not windows:
             return current
         while True:
@@ -88,6 +134,16 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
             return current
 
     def _get_next_match_number(event_id, match_type):
+        """
+        Bir sonraki maç numarasını hesaplar.
+        
+        Args:
+            event_id: Etkinlik ID'si
+            match_type: Maç tipi ("qualification", "elimination", vb.)
+        
+        Returns:
+            int: Bir sonraki maç numarası
+        """
         matches = datastore.get_match_schedule(event_id=event_id, match_type=match_type)
         existing = [m.get("match_number") for m in matches if m.get("match_number")]
         return max(existing, default=0) + 1
@@ -374,6 +430,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
     @require_event_manager
     def save_match_settings():
         data = request.get_json(force=True) or {}
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
         event_data = datastore.get_event()
         event_data.setdefault("match_settings", {})
         event_data["match_settings"]["time_windows"] = data.get("time_windows", [])
@@ -559,90 +618,100 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         while created_count < num_matches and attempts < max_attempts:
             attempts += 1
             current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
-            slot_used = set()
-            slot_created = 0
 
-            for field_index in range(field_count):
-                if created_count >= num_matches:
+            available_teams = list(team_numbers)
+            if len(available_teams) < teams_per_alliance * 2:
+                break
+
+            if algorithm == "random":
+                selected = random.sample(available_teams, teams_per_alliance * 2)
+            else:
+                selected = pick_balanced_teams(
+                    available_teams,
+                    teams_per_alliance * 2,
+                    current_time,
+                )
+
+            if not selected or len(selected) < teams_per_alliance * 2:
+                current_time += timedelta(minutes=match_duration)
+                continue
+
+            # Tek anda tek maç: çakışma kontrolü
+            conflict = False
+            for team in selected:
+                if datastore.check_match_schedule_conflict(
+                    team_number=team,
+                    match_date=current_time.strftime("%Y-%m-%d"),
+                    match_time=current_time.strftime("%H:%M"),
+                    duration_minutes=match_duration,
+                    event_id=event_id,
+                ):
+                    conflict = True
                     break
+            if conflict:
+                current_time += timedelta(minutes=match_duration)
+                continue
 
-                available_teams = [t for t in team_numbers if t not in slot_used]
-                if len(available_teams) < teams_per_alliance * 2:
-                    break
+            def color_preference_score(team):
+                stats = team_stats[team]
+                balance = stats["red_count"] - stats["blue_count"]
+                streak_bonus = 0
+                if stats["last_color"] == "red":
+                    streak_bonus = -5
+                elif stats["last_color"] == "blue":
+                    streak_bonus = 5
+                return balance + streak_bonus
 
-                if algorithm == "random":
-                    selected = random.sample(available_teams, teams_per_alliance * 2)
-                else:
-                    selected = pick_balanced_teams(
-                        available_teams,
-                        teams_per_alliance * 2,
-                        current_time,
-                    )
+            shuffled_selected = list(selected)
+            random.shuffle(shuffled_selected)
+            sorted_selected = sorted(
+                shuffled_selected,
+                key=lambda t: color_preference_score(t) + random.random() * 0.01,
+            )
+            red_alliance = sorted_selected[:teams_per_alliance]
+            blue_alliance = sorted_selected[teams_per_alliance:]
 
-                if not selected or len(selected) < teams_per_alliance * 2:
-                    break
+            surrogate_teams = []
+            if matches_per_team:
+                for team in red_alliance + blue_alliance:
+                    if team_stats[team]["match_count"] >= matches_per_team:
+                        surrogate_teams.append(team)
 
-                # Takım çakışma kontrolü (mevcut DB)
-                conflict = False
-                for team in selected:
-                    if datastore.check_match_schedule_conflict(
-                        team_number=team,
-                        match_date=current_time.strftime("%Y-%m-%d"),
-                        match_time=current_time.strftime("%H:%M"),
-                        duration_minutes=match_duration,
-                        event_id=event_id,
-                    ):
-                        conflict = True
-                        break
-                if conflict:
-                    continue
+            try:
+                # Saha numarası sırayla ilerler (aynı anda tek maç)
+                field_number = (created_count % max(1, field_count)) + 1
+                datastore.create_match(
+                    match_number=next_number,
+                    match_type=match_type,
+                    field_number=field_number,
+                    match_date=current_time.strftime("%Y-%m-%d"),
+                    match_time=current_time.strftime("%H:%M"),
+                    red_alliance=red_alliance,
+                    blue_alliance=blue_alliance,
+                    status="scheduled",
+                    surrogate_teams=surrogate_teams,
+                    event_id=event_id,
+                )
+            except Exception:
+                current_time += timedelta(minutes=match_duration)
+                continue
 
-                shuffled_selected = list(selected)
-                random.shuffle(shuffled_selected)
-                red_alliance = shuffled_selected[:teams_per_alliance]
-                blue_alliance = shuffled_selected[teams_per_alliance:]
+            created_count += 1
+            next_number += 1
 
-                surrogate_teams = []
-                if matches_per_team:
-                    for team in red_alliance + blue_alliance:
-                        if team_stats[team]["match_count"] >= matches_per_team:
-                            surrogate_teams.append(team)
-
-                try:
-                    field_number = field_index + 1
-                    datastore.create_match(
-                        match_number=next_number,
-                        match_type=match_type,
-                        field_number=field_number,
-                        match_date=current_time.strftime("%Y-%m-%d"),
-                        match_time=current_time.strftime("%H:%M"),
-                        red_alliance=red_alliance,
-                        blue_alliance=blue_alliance,
-                        status="scheduled",
-                        surrogate_teams=surrogate_teams,
-                        event_id=event_id,
-                    )
-                except Exception:
-                    continue
-
-                created_count += 1
-                slot_created += 1
-                next_number += 1
-                slot_used.update(red_alliance + blue_alliance)
-
-                # İstatistikleri güncelle
-                for team in red_alliance:
-                    team_stats[team]["match_count"] += 1
-                    team_stats[team]["red_count"] += 1
-                    team_stats[team]["last_color"] = "red"
-                    team_stats[team]["last_match_time"] = current_time
-                    team_stats[team]["opponents"].update(blue_alliance)
-                for team in blue_alliance:
-                    team_stats[team]["match_count"] += 1
-                    team_stats[team]["blue_count"] += 1
-                    team_stats[team]["last_color"] = "blue"
-                    team_stats[team]["last_match_time"] = current_time
-                    team_stats[team]["opponents"].update(red_alliance)
+            # İstatistikleri güncelle
+            for team in red_alliance:
+                team_stats[team]["match_count"] += 1
+                team_stats[team]["red_count"] += 1
+                team_stats[team]["last_color"] = "red"
+                team_stats[team]["last_match_time"] = current_time
+                team_stats[team]["opponents"].update(blue_alliance)
+            for team in blue_alliance:
+                team_stats[team]["match_count"] += 1
+                team_stats[team]["blue_count"] += 1
+                team_stats[team]["last_color"] = "blue"
+                team_stats[team]["last_match_time"] = current_time
+                team_stats[team]["opponents"].update(red_alliance)
 
             # Zamanı ilerlet
             current_time += timedelta(minutes=match_duration)

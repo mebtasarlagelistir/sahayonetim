@@ -39,7 +39,7 @@
 #### ✅ Seremoni Kullanıcısı
 - **Kullanıcı:** `istb_seremoni_1` / `fYApoJJoFr0`
 - **Sonuç:** ✅ Başarılı
-- **Görülen Bölümler:** Ödüller, Yükselme Raporu
+- **Görülen Bölümler:** Ödüller
 - **Yetkiler:** Görüntüleme modu (düzenleme yok)
 - **Gizli Bölümler:** Etkinlik bilgileri, takımlar, kullanıcılar, diğer tüm bölümler
 
@@ -50,7 +50,7 @@
 - **Etkinlik Yöneticisi:** ✅ Erişebilir, tüm bölümler görünür
 - **Hakem:** ✅ Erişebilir, sadece Skorlama görünür
 - **Mufettis:** ✅ Erişebilir, sadece İnceleme bölümleri görünür
-- **Seremoni:** ✅ Erişebilir, sadece Ödüller ve Yükselme Raporu görünür
+- **Seremoni:** ✅ Erişebilir, sadece Ödüller görünür
 
 #### ✅ API Endpoint Korumaları
 - **@require_login:** ✅ Çalışıyor

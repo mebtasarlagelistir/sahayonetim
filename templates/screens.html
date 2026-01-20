@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Seyirci Ekranları</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="screens">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+            <span class="event-datetime" id="event-datetime"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="event-switcher">
+          <label>
+            <select id="event_selector"></select>
+          </label>
+          <button id="new_event" class="btn-small">Yeni</button>
+          <button id="delete_event" class="btn-small danger">Sil</button>
+        </div>
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">Dashboard</a>
+          <a href="/match-control" class="button btn-small">Maç Kontrol</a>
+          <a href="/logout" class="button btn-small">Çıkış</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="card">
+          <h2>Ekran Yönetimi</h2>
+          <p class="muted">Bu sayfadan seyirci ekranlarını yönetebilirsiniz.</p>
+        </div>
+      </aside>
+      <div class="content">
+        <section class="card">
+          <h2>Seyirci Ekranı Ayarları</h2>
+          <div class="grid">
+            <label>
+              Aktif Ekran
+              <select id="screen_active_view">
+                <option value="match">Maç Ekranı</option>
+                <option value="inspection">İnceleme Durumu</option>
+                <option value="rankings">Sıralama Puanları</option>
+                <option value="awards">Ödüller</option>
+              </select>
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="screen_overlay_enabled" />
+              Overlay Açık
+            </label>
+          </div>
+          <label style="display: block; margin-top: 12px;">
+            Overlay Metni
+            <input type="text" id="screen_overlay_text" placeholder="Örn: Hoş geldiniz" />
+          </label>
+          <div style="margin-top: 12px;">
+            <button id="save_screen_settings" class="btn-primary">Ayarları Uygula</button>
+            <a href="/audience?new=1" target="_blank" class="button btn-secondary">Yeni Seyirci Ekranı Aç</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Bağlı Ekranlar</h2>
+          <div id="connected_screens_list" class="screen-list">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/screens.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

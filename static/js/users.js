@@ -15,25 +15,11 @@ let currentUserEventId = null;
  * - Admin ve etkinlik_yoneticisi: Tüm bölümleri görebilir
  * - Hakem: Sadece Skorlama bölümünü görebilir
  * - Mufettis: Sadece İnceleme Programı ve Jüri/İnceleme Takibi bölümlerini görebilir
- * - Seremoni: Sadece Ödüller ve Yükselme Raporu bölümlerini görebilir
+ * - Seremoni: Sadece Ödüller bölümünü görebilir
  */
 async function loadUserRole() {
   try {
-    const res = await fetch("/api/user/role");
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      // Yetkisiz erişim - ana sayfaya yönlendir
-      window.location.href = "/";
-      return;
-    }
-    if (!res.ok) {
-      console.error("Failed to load user role");
-      return;
-    }
-    const data = await res.json();
+    const data = await apiGet("/api/user/role");
     currentUserRole = data.role || null;
     currentUserEventId = data.event_id || null;
     
@@ -58,8 +44,7 @@ function updateUserInfo() {
   
   if (usernameEl && currentUserRole) {
     // Username'i API'den al (eğer varsa)
-    fetch("/api/user/role")
-      .then((res) => res.json())
+    apiGet("/api/user/role")
       .then((data) => {
         if (usernameEl) usernameEl.textContent = data.username || "Kullanıcı";
         if (roleEl) {
@@ -87,10 +72,10 @@ function updateSectionsForRole() {
   
   const roleLower = currentUserRole.toLowerCase();
   const isAdmin = roleLower === "admin";
-  const isEventManager = "etkinlik_yoneticisi" in roleLower || "yonetici" in roleLower;
-  const isReferee = "hakem" in roleLower;
-  const isInspector = "mufettis" in roleLower;
-  const isCeremony = "seremoni" in roleLower;
+  const isEventManager = roleLower.includes("etkinlik_yoneticisi") || roleLower.includes("yonetici");
+  const isReferee = roleLower.includes("hakem");
+  const isInspector = roleLower.includes("mufettis");
+  const isCeremony = roleLower.includes("seremoni");
   
   // Sidebar linklerini güncelle (sadece görünür olanları göster)
   const stepLinks = document.querySelectorAll("#setup-steps a");
@@ -104,8 +89,8 @@ function updateSectionsForRole() {
       shouldShow = true; // Hakem sadece skorlama adımını görebilir
     } else if (isInspector && (stepId === "step-judging" || stepId === "step-inspection-schedule")) {
       shouldShow = true; // Müfettiş sadece inceleme adımlarını görebilir
-    } else if (isCeremony && (stepId === "step-awards" || stepId === "step-advancement")) {
-      shouldShow = true; // Seremoni sadece ödül adımlarını görebilir
+    } else if (isCeremony && stepId === "step-awards") {
+      shouldShow = true; // Seremoni sadece ödül adımını görebilir
     }
     
     const listItem = link.closest("li");
@@ -123,7 +108,7 @@ function updateUIForRole() {
   
   const roleLower = currentUserRole.toLowerCase();
   const isAdmin = roleLower === "admin";
-  const isEventManager = "etkinlik_yoneticisi" in roleLower || "yonetici" in roleLower;
+  const isEventManager = roleLower.includes("etkinlik_yoneticisi") || roleLower.includes("yonetici");
   
   // Event selector ve butonları kontrol et
   const eventSelector = qs("event_selector");
@@ -159,39 +144,38 @@ function updateUIForRole() {
  * API: GET /api/users?include_password=1
  */
 async function loadUsers() {
-  const res = await fetch("/api/users?include_password=1");
-  if (res.status === 401) {
-    window.location.href = "/login";
-    return;
-  }
-  if (!res.ok) return;
-  const users = await res.json();
-  const table = qs("users_table");
-  if (!table) return;
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  const qrMap = await fetchQrMap();
-  users.forEach((user) => {
-    const tr = document.createElement("tr");
-    const qr = qrMap[user.username];
-    const isAdmin = user.username.toLowerCase() === "admin";
-    tr.innerHTML = `
-      <td>${escapeHtml(user.username)}</td>
-      <td>${escapeHtml(user.role)}</td>
-      <td>${escapeHtml(user.password ?? "")}</td>
-      <td class="qr-cell">${qr ? `<img src="${qr}" alt="QR">` : ""}</td>
-      <td>${isAdmin ? '<span style="color: #999; font-style: italic;">Korumalı</span>' : `<button class="danger" data-user="${escapeHtml(user.username)}">Sil</button>`}</td>
-    `;
-    if (!isAdmin) {
-      tr.querySelector("button").addEventListener("click", () =>
-        deleteUser(user.username)
-      );
+  try {
+    const users = await apiGet("/api/users", { include_password: 1 });
+    const table = qs("users_table");
+    if (!table) return;
+    const tbody = table.querySelector("tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    const qrMap = await fetchQrMap();
+    users.forEach((user) => {
+      const tr = document.createElement("tr");
+      const qr = qrMap[user.username];
+      const isAdmin = user.username.toLowerCase() === "admin";
+      tr.innerHTML = `
+        <td>${escapeHtml(user.username)}</td>
+        <td>${escapeHtml(user.role)}</td>
+        <td>${escapeHtml(user.password ?? "")}</td>
+        <td class="qr-cell">${qr ? `<img src="${qr}" alt="QR">` : ""}</td>
+        <td>${isAdmin ? '<span style="color: #999; font-style: italic;">Korumalı</span>' : `<button class="danger" data-user="${escapeHtml(user.username)}">Sil</button>`}</td>
+      `;
+      if (!isAdmin) {
+        tr.querySelector("button").addEventListener("click", () =>
+          deleteUser(user.username)
+        );
+      }
+      tbody.appendChild(tr);
+    });
+    if (typeof updateAccountStatus === "function") {
+      updateAccountStatus(users.length);
     }
-    tbody.appendChild(tr);
-  });
-  if (typeof updateAccountStatus === "function") {
-    updateAccountStatus(users.length);
+  } catch (err) {
+    console.error("Load users error:", err);
+    showToast("Kullanıcılar yüklenirken hata oluştu", "error");
   }
 }
 
@@ -218,31 +202,15 @@ async function createUser() {
   }
   
   try {
-    const res = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, role }),
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (res.ok) {
-      if (qs("user_username")) qs("user_username").value = "";
-      if (qs("user_password")) qs("user_password").value = "";
-      if (qs("user_role")) qs("user_role").value = "admin";
-      showToast("Kullanıcı başarıyla oluşturuldu", "success");
-      await loadUsers();
-    } else {
-      const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-      showToast(`Kullanıcı oluşturulamadı: ${error.error || res.statusText}`, "error");
+    await apiPost("/api/users", { username, password, role });
+    if (qs("user_username")) qs("user_username").value = "";
+    if (qs("user_password")) qs("user_password").value = "";
+    if (qs("user_role")) qs("user_role").value = "admin";
+    showToast("Kullanıcı başarıyla oluşturuldu", "success");
+    await loadUsers();
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
     }
   } catch (err) {
     console.error("Create user error:", err);
@@ -257,18 +225,7 @@ async function createUser() {
  */
 async function createDefaultUsers() {
   try {
-    const res = await fetch("/api/users/defaults", { method: "POST" });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    if (!res.ok) return;
-    const created = await res.json();
+    const created = await apiPost("/api/users/defaults", {});
     const container = qs("created_users");
     if (!created.length) {
       if (container) {
@@ -289,6 +246,10 @@ async function createDefaultUsers() {
         .join("");
     }
     await loadUsers();
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
+    }
   } catch (err) {
     console.error("Create default users error:", err);
     showToast("Varsayılan kullanıcılar oluşturulurken hata oluştu", "error");
@@ -301,9 +262,7 @@ async function createDefaultUsers() {
  */
 async function fetchQrMap() {
   try {
-    const res = await fetch("/api/users/qr");
-    if (!res.ok) return {};
-    const items = await res.json();
+    const items = await apiGet("/api/users/qr");
     return items.reduce((acc, item) => {
       acc[item.username] = item.qr;
       return acc;
@@ -319,14 +278,8 @@ async function fetchQrMap() {
  */
 async function exportUsers() {
   try {
-    const res = await fetch("/api/users?include_password=1");
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!res.ok) return;
-    const users = await res.json();
-    const qrItems = await fetch("/api/users/qr").then((r) => (r.ok ? r.json() : []));
+    const users = await apiGet("/api/users", { include_password: 1 });
+    const qrItems = await apiGet("/api/users/qr").catch(() => []);
     const qrMap = qrItems.reduce((acc, item) => {
       acc[item.username] = item.url;
       return acc;
@@ -365,27 +318,9 @@ async function deleteUser(username) {
   }
   if (!window.confirm(`${username} kullanıcısı silinsin mi?`)) return;
   try {
-    const res = await fetch("/api/users/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
-    });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    if (res.ok) {
-      await loadUsers();
-      showToast("Kullanıcı başarıyla silindi", "success");
-    } else {
-      const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-      showToast(`Silme işlemi başarısız: ${error.error || res.statusText}`, "error");
-    }
+    await apiPost("/api/users/delete", { username });
+    await loadUsers();
+    showToast("Kullanıcı başarıyla silindi", "success");
   } catch (err) {
     console.error("Delete user error:", err);
     showToast(`Silme işlemi sırasında hata oluştu: ${err.message}`, "error");
@@ -398,23 +333,9 @@ async function deleteUser(username) {
 async function deleteAllUsers() {
   if (!window.confirm("Tüm kullanıcılar silinsin mi? (Admin kullanıcısı korunacak)")) return;
   try {
-    const res = await fetch("/api/users/delete_all", { method: "POST" });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    if (res.ok) {
-      await loadUsers();
-      showToast("Tüm kullanıcılar silindi. (Admin kullanıcısı korundu)", "success");
-    } else {
-      const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-      showToast(`Silme işlemi başarısız: ${error.error || res.statusText}`, "error");
-    }
+    await apiPost("/api/users/delete_all", {});
+    await loadUsers();
+    showToast("Tüm kullanıcılar silindi. (Admin kullanıcısı korundu)", "success");
   } catch (err) {
     console.error("Delete all users error:", err);
     showToast(`Silme işlemi sırasında hata oluştu: ${err.message}`, "error");
@@ -429,16 +350,7 @@ async function deleteAllUsers() {
 async function printUsers() {
   try {
     // Kullanıcıları ve QR kodlarını yükle
-    const usersRes = await fetch("/api/users?include_password=1");
-    if (usersRes.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!usersRes.ok) {
-      showToast("Kullanıcılar yüklenemedi", "error");
-      return;
-    }
-    const users = await usersRes.json();
+    const users = await apiGet("/api/users", { include_password: 1 });
     
     // QR kodlarını al
     const qrMap = await fetchQrMap();

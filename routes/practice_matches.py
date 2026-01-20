@@ -9,6 +9,15 @@ import random
 
 def register_practice_matches_routes(bp, datastore, require_login, require_event_manager):
     def _parse_time_windows(raw_windows: list[dict]) -> list[tuple[datetime, datetime]]:
+        """
+        Ham zaman penceresi verilerini datetime tuple listesine çevirir.
+        
+        Args:
+            raw_windows: Ham zaman penceresi listesi [{"date": "...", "start_time": "...", "end_time": "..."}, ...]
+        
+        Returns:
+            list: Sıralı (start_datetime, end_datetime) tuple listesi
+        """
         windows = []
         for item in raw_windows or []:
             date = (item.get("date") or "").strip()
@@ -26,6 +35,15 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
         return sorted(windows, key=lambda x: x[0])
 
     def _parse_breaks(raw_breaks: list[dict]) -> list[tuple[datetime, datetime]]:
+        """
+        Ham mola verilerini datetime tuple listesine çevirir.
+        
+        Args:
+            raw_breaks: Ham mola listesi [{"date": "...", "start_time": "...", "end_time": "..."}, ...]
+        
+        Returns:
+            list: Sıralı (start_datetime, end_datetime) tuple listesi
+        """
         breaks = []
         for item in raw_breaks or []:
             date = (item.get("date") or "").strip()
@@ -43,6 +61,24 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
         return sorted(breaks, key=lambda x: x[0])
 
     def _next_valid_time(current: datetime, duration_minutes: int, windows, breaks) -> datetime:
+        """
+        Verilen süre için uygun bir zaman bulur (zaman pencereleri ve molaları dikkate alarak).
+        
+        Algoritma:
+        1. Mevcut zaman bir zaman penceresi içindeyse kontrol et
+        2. Süre pencere dışına taşıyorsa sonraki pencereye geç
+        3. Mola ile çakışma varsa molanın bitişine geç
+        4. Uygun zaman bulunana kadar tekrarla
+        
+        Args:
+            current: Mevcut zaman (datetime)
+            duration_minutes: Maç süresi (dakika)
+            windows: Zaman pencereleri listesi [(start, end), ...]
+            breaks: Mola listesi [(start, end), ...]
+        
+        Returns:
+            datetime: Uygun zaman
+        """
         if not windows:
             return current
         while True:
@@ -96,6 +132,9 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
     @require_event_manager
     def save_practice_settings():
         data = request.get_json(force=True) or {}
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
         event_data = datastore.get_event()
         event_data.setdefault("practice_settings", {})
         event_data["practice_settings"]["field_names"] = data.get("field_names", [])
@@ -760,30 +799,29 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
                 current_time += timedelta(minutes=match_duration)
                 continue
             
-            # İttifak dengesini koru: her takımın kırmızı/mavi sayılarına göre atama yap
-            # Daha az kırmızı oynayan takımları kırmızıya, daha az mavi oynayan takımları maviye
-            # Takımları renk tercihine göre sırala: son renk tekrarını mümkün oldukça sürdür
-            def color_preference_score(team):
+            # İttifak dengesini koru: kırmızı/mavi dağılımını mümkün olduğunca eşitle
+            # Daha az kırmızı oynayanları kırmızıya, daha az mavi oynayanları maviye ata
+            def red_need_score(team):
                 stats = team_stats[team]
-                # Kırmızı/mavi dengesine göre temel skor
-                balance = stats["red_count"] - stats["blue_count"]
-                # Son rengi korumaya çalış
-                streak_bonus = 0
+                # Pozitif değer: kırmızıya daha çok ihtiyaç var
+                balance = stats["blue_count"] - stats["red_count"]
+                streak_adjust = 0
                 if stats["last_color"] == "red":
-                    streak_bonus = -5
+                    streak_adjust -= 2
                 elif stats["last_color"] == "blue":
-                    streak_bonus = 5
-                return balance + streak_bonus
+                    streak_adjust += 2
+                return balance + streak_adjust
             
             shuffled_selected = list(selected_teams)
             random.shuffle(shuffled_selected)
-            sorted_selected = sorted(
+            sorted_for_red = sorted(
                 shuffled_selected,
-                key=lambda t: color_preference_score(t) + random.random() * 0.01,
+                key=lambda t: red_need_score(t) + random.random() * 0.01,
+                reverse=True,
             )
             
-            red_alliance = sorted_selected[:teams_per_alliance]
-            blue_alliance = sorted_selected[teams_per_alliance:]
+            red_alliance = sorted_for_red[:teams_per_alliance]
+            blue_alliance = [t for t in shuffled_selected if t not in red_alliance]
             
             # Surrogate takımlar: hedef maç sayısını doldurmak için ekstra oynayanlar
             surrogate_teams = []
@@ -809,6 +847,7 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
             if conflict:
                 # Çakışma varsa zamanı ilerlet
                 current_time += timedelta(minutes=match_duration)
+                continue
             
             try:
                 match_number = f"P{match_counter}"

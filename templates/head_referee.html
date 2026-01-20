@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Baş Hakem</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="head-referee">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR - Baş Hakem</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="referee-panel-layout">
+      <div class="card" id="head_referee_match_card" style="display: none;">
+        <h2 id="head_match_info">Aktif Maç Yok</h2>
+        <div class="match-assignment">
+          <p id="head_match_field">Saha: -</p>
+          <p id="head_match_teams">Takımlar: -</p>
+        </div>
+      </div>
+
+      <div class="card" id="head_referee_scores" style="display: none;">
+        <h3>Hakem Giriş Durumu</h3>
+        <div class="head-referee-status-grid">
+          <div class="status-card alliance-red">
+            <div class="status-title">Kırmızı İttifak</div>
+            <div class="status-score" id="head_red_score">0</div>
+            <div class="status-meta" id="head_red_status">Giriş bekleniyor</div>
+          </div>
+          <div class="status-card alliance-blue">
+            <div class="status-title">Mavi İttifak</div>
+            <div class="status-score" id="head_blue_score">0</div>
+            <div class="status-meta" id="head_blue_status">Giriş bekleniyor</div>
+          </div>
+        </div>
+        <div class="referee-actions">
+          <button id="btn_head_approve" class="btn-success btn-large">Maçı Onayla</button>
+        </div>
+        <div class="match-assignment-status" id="head_approve_status" style="display: none;"></div>
+      </div>
+
+      <div class="card" id="head_no_match">
+        <div class="no-match-content">
+          <h2>Aktif Maç Yok</h2>
+          <p>Baş hakem ekranında aktif maç görünmüyor.</p>
+        </div>
+      </div>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/head_referee.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

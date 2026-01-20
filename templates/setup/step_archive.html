@@ -1,4 +1,37 @@
 <section class="card" id="step-archive">
-  <h2>Arşiv İndir</h2>
-  <p class="placeholder">Etkinlik arşivi ve yedek dosyalar.</p>
+  <h2>Arşiv Yönetimi</h2>
+  <p style="color: #666; margin-bottom: 16px;">
+    Programdaki tüm verileri tek dosya olarak indirip başka bilgisayara
+    aktarabilirsiniz. Aynı sayfadan indirilen arşivi yükleyerek tüm verileri
+    geri yükleyin.
+  </p>
+
+  <div class="card-section">
+    <h3>Arşiv İndir</h3>
+    <p style="color: #666; margin-bottom: 12px;">
+      Etkinlik verileri, kullanıcılar, takımlar ve tüm program ayarları tek bir
+      <strong>.zip</strong> dosyası olarak indirilir.
+    </p>
+    <button type="button" id="archive_download">Arşivi İndir</button>
+  </div>
+
+  <div class="card-section">
+    <h3>Arşiv Yükle</h3>
+    <p style="color: #666; margin-bottom: 12px;">
+      Yükleme sırasında mevcut veriler otomatik olarak yedeklenir ve arşivdeki
+      içeriklerle değiştirilir. İşlem sonrası sayfayı yenilemeniz önerilir.
+    </p>
+    <div class="grid">
+      <label>
+        Arşiv Dosyası (.zip)
+        <input type="file" id="archive_file" accept=".zip" />
+      </label>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+      <button type="button" id="archive_upload">Arşivi Yükle</button>
+    </div>
+    <div id="archive_status" class="placeholder" style="margin-top: 12px;">
+      Henüz arşiv yüklenmedi.
+    </div>
+  </div>
 </section>

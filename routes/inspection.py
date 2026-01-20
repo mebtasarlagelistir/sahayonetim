@@ -37,9 +37,20 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             "custom": 15,
         })
         selected_types = inspection_settings.get("selected_types", ["hardware", "size", "safety"])
+        print_note = inspection_settings.get(
+            "print_note",
+            (
+                "İnceleme İstanyonu Ekipleri programda bir sakma olmama durumunda belirtilen saatte "
+                "Pit Alanınıza inceleme için ziyaret gerçekleştirecektir. Bu saatte robotunuz ve ilgili "
+                "kişiler mutlaka Pit Alanınızda yer bulunmalıdır. Oyun kılavuzunda izin verilen kurallara "
+                "göre robotunuzun yarışmaya hazır olduğunuzdan emin olacaklardır. Bir itirazınız olduğun "
+                "Baş Robot Müfettişine danışınız."
+            ),
+        )
         return jsonify({
             "type_durations": type_durations,
             "selected_types": selected_types,
+            "print_note": print_note,
         })
 
     @bp.post("/inspection-settings")
@@ -63,16 +74,23 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             JSON: Başarı durumu
         """
         data = request.get_json(force=True) or {}
-        type_durations = data.get("type_durations", {})
-        selected_types = data.get("selected_types", [])
+        type_durations = data.get("type_durations")
+        selected_types = data.get("selected_types")
+        print_note = data.get("print_note")
         
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
         # Event data'yı güncelle
         event_data = datastore.get_event()
         if "inspection_settings" not in event_data:
             event_data["inspection_settings"] = {}
-        event_data["inspection_settings"]["type_durations"] = type_durations
-        if selected_types:
+        if isinstance(type_durations, dict):
+            event_data["inspection_settings"]["type_durations"] = type_durations
+        if isinstance(selected_types, list) and selected_types:
             event_data["inspection_settings"]["selected_types"] = selected_types
+        if print_note is not None:
+            event_data["inspection_settings"]["print_note"] = str(print_note).strip()
         datastore.save_event(event_data)
         
         return jsonify({"ok": True})

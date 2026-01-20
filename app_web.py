@@ -16,7 +16,7 @@ Rol Bazlı Erişim Kontrolü:
 - Etkinlik Yöneticisi: Sadece kendi etkinliği, tüm bölümleri görebilir
 - Hakem: Setup sayfasına erişebilir, sadece Skorlama bölümünü görebilir
 - Mufettis: Setup sayfasına erişebilir, sadece İnceleme bölümlerini görebilir
-- Seremoni: Setup sayfasına erişebilir, sadece Ödüller ve Yükselme Raporu görebilir
+        - Seremoni: Setup sayfasına erişebilir, sadece Ödüller bölümünü görebilir
 
 Bağımlılıklar:
 - Flask: Web framework
@@ -25,23 +25,42 @@ Bağımlılıklar:
 """
 
 from pathlib import Path
-
-from functools import wraps
-from pathlib import Path
 import base64
+import logging
 import secrets
 import socket
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 import qrcode
 from qrcode.image.svg import SvgImage
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from src.core.config import Config
 from src.core.storage import DataStore
+from src.core.constants import RateLimitConstants
 from decorators import create_decorators
 from routes.inspection import register_inspection_routes
 from routes.practice_matches import register_practice_matches_routes
 from routes.match_schedule import register_match_schedule_routes
+from routes.wifi import register_wifi_routes
+from routes.archive import register_archive_routes
+from routes.match_control import register_match_control_routes
+from routes.screens import register_screen_routes
+from routes.referee_panel import register_referee_panel_routes
+
+
+def _deep_merge(base: dict, updates: dict) -> dict:
+    """
+    İç içe sözlükleri birleştirir; updates değerleri base üzerine yazılır.
+    """
+    merged = dict(base) if isinstance(base, dict) else {}
+    for key, value in updates.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 def _load_secret_key(base_path: Path) -> str:
@@ -129,6 +148,20 @@ def create_app() -> Flask:
     """
     base_path = Path(__file__).resolve().parent
     config = Config(base_path=base_path)
+    
+    # Logging yapılandırması
+    (base_path / 'logs').mkdir(exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(base_path / 'logs' / 'app.log', encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    logger.info("MEMSKOR uygulaması başlatılıyor...")
+    
     app = Flask(
         __name__,
         template_folder=str(base_path / "templates"),
@@ -140,6 +173,18 @@ def create_app() -> Flask:
     app.secret_key = _load_secret_key(base_path)
     datastore = DataStore(base_path=base_path)
     datastore.migrate_from_config(config.data)
+
+    # Rate limiting yapılandırması - constants modülünden al
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=[
+            RateLimitConstants.DEFAULT_DAILY_LIMIT,
+            RateLimitConstants.DEFAULT_HOURLY_LIMIT
+        ],
+        storage_uri="memory://",  # Production'da Redis kullanılabilir
+        strategy="fixed-window"
+    )
 
     # Decorator'ları oluştur
     decorators = create_decorators(datastore)
@@ -159,8 +204,8 @@ def create_app() -> Flask:
         Ana sayfa.
         
         Kullanıcının rolüne göre yönlendirme yapar:
-        - Admin ve etkinlik_yoneticisi: setup sayfasına
-        - Diğerleri: bir bilgilendirme sayfasına (şimdilik setup sayfası ama görüntüleme modu)
+        - Admin ve etkinlik_yoneticisi: dashboard sayfasına
+        - Diğerleri: dashboard sayfasına (okuma/erişim rolüne göre sınırlandırılır)
         """
         username = session.get("user")
         if not username:
@@ -171,13 +216,22 @@ def create_app() -> Flask:
             return redirect(url_for("login"))
         
         role_lower = role.lower()
-        # Admin ve etkinlik yöneticisi setup sayfasına erişebilir
+        # Admin ve etkinlik yöneticisi dashboard sayfasına erişebilir
         if role_lower == "admin" or "etkinlik_yoneticisi" in role_lower or "yonetici" in role_lower:
-            return redirect(url_for("setup"))
+            return redirect(url_for("dashboard"))
         
-        # Diğer kullanıcılar için şimdilik bir bilgilendirme mesajı göster
-        # (Gelecekte başka bir sayfa olabilir)
-        return render_template("setup.html")  # Frontend'de görüntüleme modu aktif olacak
+        # Diğer kullanıcılar dashboard sayfasında rol bazlı içerik görecek
+        return redirect(url_for("dashboard"))
+
+    @app.get("/dashboard")
+    @require_login
+    def dashboard():
+        """
+        Etkinlik yönetim dashboard'u.
+
+        Kurulum adımlarına bağlantılar ve etkinlik özet bilgileri içerir.
+        """
+        return render_template("dashboard.html")
 
     @app.get("/setup")
     @app.get("/setup/<step>")
@@ -219,10 +273,7 @@ def create_app() -> Flask:
             "practice-matches": "step_practice_matches.html",
             "match-schedule": "step_match_schedule.html",
             "wifi": "step_wifi.html",
-            "pit-map": "step_pit_map.html",
             "awards": "step_awards.html",
-            "advancement": "step_advancement.html",
-            "send-results": "step_send_results.html",
             "archive": "step_archive.html",
         }
         
@@ -247,6 +298,7 @@ def create_app() -> Flask:
         return render_template("login.html")
 
     @app.post("/login")
+    @limiter.limit(RateLimitConstants.LOGIN_LIMIT)  # Brute force koruması
     def login_post():
         """
         Kullanıcı giriş işlemi (form POST).
@@ -320,6 +372,7 @@ def create_app() -> Flask:
         return jsonify({"username": username, "role": role, "event_id": event_id})
     
     @app.post("/api/events")
+    @limiter.limit(RateLimitConstants.EVENT_CREATE_LIMIT)
     @require_login
     @require_event_manager
     def create_event():
@@ -381,7 +434,32 @@ def create_app() -> Flask:
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.delete("/api/events")
+    @require_login
+    @require_admin
+    def delete_all_events():
+        """
+        Tüm etkinlikleri siler (test/başlangıç için).
+        
+        Returns:
+            JSON: {"ok": true, "deleted_count": sayı} veya {"error": "mesaj"}
+            
+        Not: 
+            - Sadece admin kullanıcılar bu işlemi yapabilir
+            - Tüm etkinlikler ve takımları silinir
+        """
+        try:
+            events = datastore.get_events()
+            count = len(events)
+            for event in events:
+                datastore.delete_event(event["id"])
+            return jsonify({"ok": True, "deleted_count": count})
+        except Exception as e:
+            logger.error(f"Tüm etkinlikleri silme hatası: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
     @app.get("/api/event")
+    @limiter.limit(RateLimitConstants.EVENT_READ_LIMIT)
     @require_login
     def get_event():
         """
@@ -426,6 +504,10 @@ def create_app() -> Flask:
         if not isinstance(data, dict):
             return jsonify({"error": "invalid payload"}), 400
         
+        # Aktif etkinlik yoksa, bilinçli olarak yeni etkinlik oluşturulmalı
+        if datastore.get_active_event_id() is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı. Önce Yeni ile etkinlik oluşturun."}), 400
+        
         # Validations
         event_code = str(data.get("code", "")).strip()
         if event_code and len(event_code) > 4:
@@ -451,10 +533,97 @@ def create_app() -> Flask:
                 return jsonify({"error": "Geçerli bir e-posta adresi giriniz"}), 400
         
         try:
-            datastore.save_event(data)
+            existing = datastore.get_event()
+            merged = _deep_merge(existing, data)
+            datastore.save_event(merged)
             return jsonify({"ok": True})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/awards")
+    @require_login
+    def get_awards():
+        """
+        Aktif etkinliğin ödül listesini döndürür.
+
+        Returns:
+            JSON: Ödül listesi
+        """
+        event_data = datastore.get_event()
+        awards = event_data.get("awards", [])
+        if not isinstance(awards, list):
+            awards = []
+        return jsonify(awards)
+
+    @app.get("/api/public/awards")
+    def get_awards_public():
+        """
+        Seyirci ekranı için ödül listesini döndürür (giriş gerektirmez).
+        """
+        event_data = datastore.get_event()
+        awards = event_data.get("awards", [])
+        if not isinstance(awards, list):
+            awards = []
+        return jsonify(awards)
+
+    @app.get("/api/public/inspection-status")
+    def get_inspection_status_public():
+        """
+        Seyirci ekranı için inceleme durumlarını döndürür (giriş gerektirmez).
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"teams": [], "slots": []})
+        teams = datastore.get_teams()
+        slots = datastore.get_inspection_slots(event_id=event_id)
+        return jsonify({"teams": teams, "slots": slots})
+
+    @app.post("/api/awards")
+    @require_login
+    def save_awards():
+        """
+        Aktif etkinliğin ödül listesini kaydeder.
+
+        Request Body:
+            [
+                {"name": "...", "category": "...", "type": "...", "sponsor": "...", "description": "..."},
+                ...
+            ]
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_edit = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "yonetici" in role_lower
+            or "seremoni" in role_lower
+        )
+        if not can_edit:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+
+        data = request.get_json(force=True) or []
+        if not isinstance(data, list):
+            return jsonify({"error": "invalid payload"}), 400
+
+        cleaned = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            cleaned.append(
+                {
+                    "name": str(item.get("name", "")).strip(),
+                    "category": str(item.get("category", "")).strip(),
+                    "type": str(item.get("type", "")).strip(),
+                    "sponsor": str(item.get("sponsor", "")).strip(),
+                    "description": str(item.get("description", "")).strip(),
+                }
+            )
+
+        event_data = datastore.get_event()
+        event_data["awards"] = cleaned
+        datastore.save_event(event_data)
+        return jsonify({"ok": True, "count": len(cleaned)})
 
     # --- TAKIM YÖNETİMİ ---
     
@@ -514,6 +683,8 @@ def create_app() -> Flask:
             return jsonify({"error": f"Aynı takım numarası birden fazla kez kullanılamaz: {', '.join(set(duplicates))}"}), 400
         
         try:
+            if datastore.get_active_event_id() is None:
+                return jsonify({"error": "Aktif etkinlik bulunamadı. Önce etkinlik seçin."}), 400
             datastore.save_teams(data)
             return jsonify({"ok": True})
         except Exception as e:
@@ -521,17 +692,15 @@ def create_app() -> Flask:
 
     @app.post("/api/teams/seed")
     @require_login
+    @require_event_manager
     def seed_teams():
-        target_event_name = "Istanbul ve Su 1"
-        event_id = datastore.get_event_id_by_name(target_event_name)
+        event_id = datastore.get_active_event_id()
         if event_id is None:
-            event_data = config.data.get("event") if isinstance(config.data, dict) else None
-            event_id = datastore.create_event(target_event_name, event_data)
+            return jsonify({"error": "Aktif etkinlik bulunamadı. Önce etkinlik oluşturun."}), 400
         teams = config.data.get("teams")
         if not isinstance(teams, list) or not teams:
             return jsonify({"error": "no teams in config"}), 400
         datastore.save_teams_for_event(event_id, teams)
-        datastore.set_active_event(event_id)
         return jsonify({"ok": True, "event_id": event_id, "count": len(teams)})
 
     # --- KULLANICI YÖNETİMİ ---
@@ -631,6 +800,7 @@ def create_app() -> Flask:
         return jsonify({"ok": True})
 
     @app.post("/api/users/defaults")
+    @limiter.limit(RateLimitConstants.USER_DEFAULTS_LIMIT)
     @require_login
     @require_event_manager
     def create_default_users():
@@ -666,6 +836,31 @@ def create_app() -> Flask:
     match_schedule_bp = Blueprint("match_schedule", __name__, url_prefix="/api")
     register_match_schedule_routes(match_schedule_bp, datastore, require_login, require_event_manager)
     app.register_blueprint(match_schedule_bp)
+
+    # WiFi Kanal Atama route'larını Blueprint'e kaydet
+    wifi_bp = Blueprint("wifi", __name__, url_prefix="/api")
+    register_wifi_routes(wifi_bp, datastore, require_login, require_event_manager)
+    app.register_blueprint(wifi_bp)
+
+    # Arşiv yönetimi route'larını Blueprint'e kaydet
+    archive_bp = Blueprint("archive", __name__, url_prefix="/api")
+    register_archive_routes(archive_bp, datastore, require_login, require_event_manager, limiter)
+    app.register_blueprint(archive_bp)
+    
+    # Maç Kontrol route'larını Blueprint'e kaydet
+    match_control_bp = Blueprint("match_control", __name__, url_prefix="")
+    register_match_control_routes(match_control_bp, datastore, require_login, require_event_manager)
+    app.register_blueprint(match_control_bp)
+    
+    # Hakem Paneli route'larını Blueprint'e kaydet
+    referee_panel_bp = Blueprint("referee_panel", __name__, url_prefix="")
+    register_referee_panel_routes(referee_panel_bp, datastore, require_login)
+    app.register_blueprint(referee_panel_bp)
+    
+    # Seyirci ekranları route'larını Blueprint'e kaydet
+    screens_bp = Blueprint("screens", __name__, url_prefix="")
+    register_screen_routes(screens_bp, datastore, require_login, require_event_manager)
+    app.register_blueprint(screens_bp)
 
     # Eski route'lar kaldırıldı - Blueprint kullanılıyor (routes/inspection.py, routes/practice_matches.py)
 
@@ -706,4 +901,4 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     application = create_app()
-    application.run(host="127.0.0.1", port=5000, debug=False)
+    application.run(host="127.0.0.1", port=5000, debug=True)

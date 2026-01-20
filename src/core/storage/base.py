@@ -137,6 +137,7 @@ class BaseStorage:
                     red_score INTEGER,
                     blue_score INTEGER,
                     surrogate_teams TEXT,
+                    scoring_data TEXT,
                     notes TEXT,
                     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
                 )
@@ -158,6 +159,7 @@ class BaseStorage:
                     red_score INTEGER,
                     blue_score INTEGER,
                     surrogate_teams TEXT,
+                    scoring_data TEXT,
                     notes TEXT,
                     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
                     UNIQUE(event_id, match_number, match_type)
@@ -171,7 +173,9 @@ class BaseStorage:
         self._ensure_inspection_station_column()
         self._ensure_practice_field_name_column()
         self._ensure_practice_surrogate_column()
+        self._ensure_practice_scoring_data_column()
         self._ensure_match_surrogate_column()
+        self._ensure_match_scoring_data_column()
     
     def _migrate_legacy_schema(self) -> None:
         """
@@ -344,6 +348,18 @@ class BaseStorage:
                 conn.execute("ALTER TABLE practice_matches ADD COLUMN surrogate_teams TEXT")
                 conn.commit()
 
+    def _ensure_practice_scoring_data_column(self) -> None:
+        """
+        practice_matches tablosuna scoring_data kolonu ekler (migration).
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            columns = [
+                row[1] for row in conn.execute("PRAGMA table_info(practice_matches)").fetchall()
+            ]
+            if "scoring_data" not in columns:
+                conn.execute("ALTER TABLE practice_matches ADD COLUMN scoring_data TEXT")
+                conn.commit()
+
     def _ensure_match_surrogate_column(self) -> None:
         """
         match_schedule tablosuna surrogate_teams kolonu ekler (migration).
@@ -356,6 +372,18 @@ class BaseStorage:
             ]
             if "surrogate_teams" not in columns:
                 conn.execute("ALTER TABLE match_schedule ADD COLUMN surrogate_teams TEXT")
+                conn.commit()
+
+    def _ensure_match_scoring_data_column(self) -> None:
+        """
+        match_schedule tablosuna scoring_data kolonu ekler (migration).
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            columns = [
+                row[1] for row in conn.execute("PRAGMA table_info(match_schedule)").fetchall()
+            ]
+            if "scoring_data" not in columns:
+                conn.execute("ALTER TABLE match_schedule ADD COLUMN scoring_data TEXT")
                 conn.commit()
     
     def is_empty(self) -> bool:

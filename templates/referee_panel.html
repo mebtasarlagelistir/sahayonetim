@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Hakem Paneli</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="referee-panel" data-referee-mode="{{ referee_mode or '' }}">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR - Hakem Paneli</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="referee-panel-layout">
+      <!-- Aktif Maç Bilgisi -->
+      <div class="card" id="active_match_card" style="display: none;">
+        <h2 id="current_match_info">Maç Seçilmedi</h2>
+        <div class="match-assignment">
+          <p id="assigned_alliance">Atanan İttifak: -</p>
+          <p id="assigned_field">Saha: -</p>
+          <p id="assigned_teams">Takımlar: -</p>
+        </div>
+        <div class="match-assignment-status" id="referee_submit_status" style="display: none;"></div>
+      </div>
+
+      <!-- Puanlama Paneli -->
+      <div class="card scoring-panel" id="scoring_panel" style="display: none;">
+        <h3 id="alliance_title">İttifak Seçilmedi</h3>
+        
+        <!-- Kompakt Puanlama Formu -->
+        <div class="referee-scoring-form">
+          <div class="scoring-section auto-section">
+            <h4>OTONOM (OKS) - İlk 30 Saniye</h4>
+
+            <div class="scoring-group">
+              <div class="group-header">Başlangıç Alanını Terk Etme (3 Puan/Robot)</div>
+              <div class="robot-leave-grid">
+                <label class="robot-checkbox">
+                  <input type="checkbox" id="ref_auto_leave_r1" data-points="3" />
+                  <span>Robot 1</span>
+                </label>
+                <label class="robot-checkbox">
+                  <input type="checkbox" id="ref_auto_leave_r2" data-points="3" />
+                  <span>Robot 2</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 1 (4 Puan/Küre)</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Kendi</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent1_own" data-points="4">−</button>
+                  <input type="number" id="ref_auto_bent1_own" value="0" min="0" data-points="4" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent1_own" data-points="4">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent1_opponent" data-points="4">−</button>
+                  <input type="number" id="ref_auto_bent1_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent1_opponent" data-points="4">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 2</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Doğru (6)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent2_correct" data-points="6">−</button>
+                  <input type="number" id="ref_auto_bent2_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent2_correct" data-points="6">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Yanlış (3)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent2_wrong" data-points="3">−</button>
+                  <input type="number" id="ref_auto_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent2_wrong" data-points="3">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip (6)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent2_opponent" data-points="6">−</button>
+                  <input type="number" id="ref_auto_bent2_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent2_opponent" data-points="6">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 3</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Doğru (8)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent3_correct" data-points="8">−</button>
+                  <input type="number" id="ref_auto_bent3_correct" value="0" min="0" data-points="8" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent3_correct" data-points="8">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Yanlış (4)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent3_wrong" data-points="4">−</button>
+                  <input type="number" id="ref_auto_bent3_wrong" value="0" min="0" data-points="4" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent3_wrong" data-points="4">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip (8)</span>
+                  <button class="btn-score-minus" data-field="ref_auto_bent3_opponent" data-points="8">−</button>
+                  <input type="number" id="ref_auto_bent3_opponent" value="0" min="0" data-points="8" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_bent3_opponent" data-points="8">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Sarnıçlar (7 Puan/Küre)</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Kendi</span>
+                  <button class="btn-score-minus" data-field="ref_auto_tank_own" data-points="7">−</button>
+                  <input type="number" id="ref_auto_tank_own" value="0" min="0" data-points="7" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_tank_own" data-points="7">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip</span>
+                  <button class="btn-score-minus" data-field="ref_auto_tank_opponent" data-points="7">−</button>
+                  <input type="number" id="ref_auto_tank_opponent" value="0" min="0" data-points="7" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_auto_tank_opponent" data-points="7">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="scoring-section teleop-section">
+            <h4>SÜRÜCÜ KONTROLLÜ (SKS) - 30. Saniyeden Sonra</h4>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 1 (2 Puan/Küre)</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Kendi</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent1_own" data-points="2">−</button>
+                  <input type="number" id="ref_teleop_bent1_own" value="0" min="0" data-points="2" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent1_own" data-points="2">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent1_opponent" data-points="2">−</button>
+                  <input type="number" id="ref_teleop_bent1_opponent" value="0" min="0" data-points="2" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent1_opponent" data-points="2">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 2</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Doğru (4)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent2_correct" data-points="4">−</button>
+                  <input type="number" id="ref_teleop_bent2_correct" value="0" min="0" data-points="4" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent2_correct" data-points="4">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Yanlış (3)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent2_wrong" data-points="3">−</button>
+                  <input type="number" id="ref_teleop_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent2_wrong" data-points="3">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip (4)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent2_opponent" data-points="4">−</button>
+                  <input type="number" id="ref_teleop_bent2_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent2_opponent" data-points="4">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Bent Seviye 3</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Doğru (6)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent3_correct" data-points="6">−</button>
+                  <input type="number" id="ref_teleop_bent3_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent3_correct" data-points="6">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Yanlış (3)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent3_wrong" data-points="3">−</button>
+                  <input type="number" id="ref_teleop_bent3_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent3_wrong" data-points="3">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip (6)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_bent3_opponent" data-points="6">−</button>
+                  <input type="number" id="ref_teleop_bent3_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_bent3_opponent" data-points="6">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Sarnıçlar (5 Puan/Küre)</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Kendi</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_tank_own" data-points="5">−</button>
+                  <input type="number" id="ref_teleop_tank_own" value="0" min="0" data-points="5" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_tank_own" data-points="5">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Rakip</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_tank_opponent" data-points="5">−</button>
+                  <input type="number" id="ref_teleop_tank_opponent" value="0" min="0" data-points="5" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_tank_opponent" data-points="5">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="scoring-group compact-group">
+              <div class="group-header">Özel Aksiyonlar</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Kaynak Girişi (5)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_source_entry" data-points="5">−</button>
+                  <input type="number" id="ref_teleop_source_entry" value="0" min="0" data-points="5" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_source_entry" data-points="5">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Tırmanış (20)</span>
+                  <button class="btn-score-minus" data-field="ref_teleop_climb" data-points="20">−</button>
+                  <input type="number" id="ref_teleop_climb" value="0" min="0" data-points="20" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_teleop_climb" data-points="20">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="scoring-section">
+            <h4>CEZALAR</h4>
+            <div class="scoring-group compact-group">
+              <div class="group-header">Kartlar ve Cezalar</div>
+              <div class="scoring-input-compact">
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Sarı Kart</span>
+                  <button class="btn-score-minus" data-field="ref_yellow_card" data-points="0">−</button>
+                  <input type="number" id="ref_yellow_card" value="0" min="0" data-points="0" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_yellow_card" data-points="0">+</button>
+                </div>
+                <div class="score-control-compact">
+                  <span class="score-label-compact">Büyük Ceza</span>
+                  <button class="btn-score-minus" data-field="ref_major_penalty" data-points="0">−</button>
+                  <input type="number" id="ref_major_penalty" value="0" min="0" data-points="0" class="score-field-compact" />
+                  <button class="btn-score-plus" data-field="ref_major_penalty" data-points="0">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="scoring-group compact-group">
+              <div class="group-header">Kırmızı Kart</div>
+              <div class="robot-checkbox-grid">
+                <label class="robot-checkbox">
+                  <input type="checkbox" id="ref_red_card_r1" />
+                  <span>Robot 1</span>
+                </label>
+                <label class="robot-checkbox">
+                  <input type="checkbox" id="ref_red_card_r2" />
+                  <span>Robot 2</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kaydet Butonu -->
+        <div class="referee-actions">
+          <button id="btn_save_score" class="btn-primary btn-large">Skorları Kaydet</button>
+          <button id="btn_sync_score" class="btn-secondary btn-large">Senkronize Et</button>
+          <button id="btn_submit_referee" class="btn-success btn-large">Maç Girişini Bitir</button>
+        </div>
+      </div>
+
+      <!-- Maç Seçilmedi Mesajı -->
+      <div class="card" id="no_match_message">
+        <div class="no-match-content">
+          <h2>Aktif Maç Yok</h2>
+          <p>Şu anda aktif bir maç bulunmamaktadır.</p>
+          <p>Baş hakem maçı başlattığında burada görünecektir.</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/referee_panel.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

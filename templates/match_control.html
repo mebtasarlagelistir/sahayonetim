@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Maç Kontrol</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="match-control">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+            <span class="event-datetime" id="event-datetime"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="event-switcher">
+          <label>
+            <select id="event_selector"></select>
+          </label>
+          <button id="new_event" class="btn-small">Yeni</button>
+          <button id="delete_event" class="btn-small danger">Sil</button>
+        </div>
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">Dashboard</a>
+          <a href="/setup" class="button btn-small">Kurulum</a>
+          <a href="/logout" class="button btn-small">Çıkış</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="match-control-layout">
+      <!-- Match Control Butonları (FTC benzeri) -->
+      <div class="match-control-bar">
+        <div class="match-control-info">
+          <div class="match-info-item">
+            <span class="label">Yüklenen Maç:</span>
+            <span id="loaded_match_info" class="value">-</span>
+          </div>
+          <div class="match-info-item">
+            <span class="label">Aktif Maç:</span>
+            <span id="active_match_info" class="value">-</span>
+          </div>
+        </div>
+        <div class="match-control-buttons">
+          <button id="btn_load_next_match" class="btn-success btn-medium">Sıradaki Maçı Yükle</button>
+          <button id="btn_show_preview" class="btn-secondary btn-medium">Önizleme Göster</button>
+          <button id="btn_show_live" class="btn-secondary btn-medium">Maçı Göster</button>
+          <button id="btn_start_match" class="btn-primary btn-medium">Maçı Başlat</button>
+          <button id="btn_next_state" class="btn-primary btn-medium" style="display: none;">Sonraki Aşama</button>
+          <button id="btn_stop_match" class="btn-danger btn-medium" style="display: none;">Maçı Durdur</button>
+          <button id="btn_show_results" class="btn-secondary btn-medium" style="display: none;">Sonuçları Göster</button>
+          <button id="btn_complete_match" class="btn-success btn-medium" style="display: none;">Maçı Tamamla</button>
+          <button id="btn_commit_post" class="btn-warning btn-medium" style="display: none;">Kaydet ve Yayınla</button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="match-control-tabs">
+        <button class="tab-button" data-tab="active-match" data-active="true">Aktif Maç</button>
+        <button class="tab-button" data-tab="schedule">Takvim</button>
+        <button class="tab-button" data-tab="incomplete">Tamamlanmamış Maçlar</button>
+        <button class="tab-button" data-tab="score-edit">Skor Düzenle</button>
+        <button class="tab-button" data-tab="settings">Ayarlar</button>
+      </div>
+
+      <!-- Tab Content: Active Match -->
+      <div class="tab-content" id="tab-active-match">
+        <!-- Ana Panel: Maç Kontrol Ekranı -->
+        <section class="match-control-main">
+        <!-- Kompakt Maç Başlığı ve Timer -->
+        <div class="compact-match-header" id="compact_match_header" style="display: none;">
+          <div class="compact-match-info">
+            <div class="compact-match-title">
+              <span id="compact_match_number">Maç -</span>
+              <span id="compact_match_type_field"></span>
+            </div>
+            <div class="compact-match-timer">
+              <span class="compact-state-label" id="compact_state_label">Beklemede</span>
+              <span class="compact-timer" id="compact_timer">--:--</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Maç Durumu Göstergesi (Eski - gizli) -->
+        <div class="match-status-card card" id="match_status_card" style="display: none;">
+          <div class="match-header" style="display: none;">
+            <div class="match-info">
+              <h2 id="current_match_title">Maç Seçilmedi</h2>
+              <div class="match-meta">
+                <span id="current_match_number"></span>
+                <span id="current_match_type"></span>
+                <span id="current_field_number"></span>
+              </div>
+            </div>
+            <div class="match-state-display">
+              <div class="state-indicator" id="state_indicator">
+                <span class="state-label" id="state_label">Beklemede</span>
+                <span class="state-timer" id="state_timer">--:--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Merkezi Alliance ve Match Status (FTC benzeri) -->
+          <div class="central-alliance-display">
+            <!-- Mavi İttifak (Sol) -->
+            <div class="central-alliance-panel alliance-blue">
+              <div class="central-alliance-label">Mavi İttifak</div>
+              <div class="central-alliance-teams" id="central_blue_teams">
+                <!-- Takımlar buraya eklenecek -->
+              </div>
+              <div class="alliance-status-grid" id="central_blue_status">
+                <!-- Status square'ler buraya eklenecek -->
+              </div>
+            </div>
+
+            <!-- Merkezi Match Status -->
+            <div class="central-match-status">
+              <div class="match-status-text" id="central_match_status">Aktif Maç Yok</div>
+              <div class="central-scores">
+                <div class="central-score alliance-blue" id="central_blue_score">0</div>
+                <div class="central-score alliance-red" id="central_red_score">0</div>
+              </div>
+            </div>
+
+            <!-- Kırmızı İttifak (Sağ) -->
+            <div class="central-alliance-panel alliance-red">
+              <div class="central-alliance-label">Kırmızı İttifak</div>
+              <div class="central-alliance-teams" id="central_red_teams">
+                <!-- Takımlar buraya eklenecek -->
+              </div>
+              <div class="alliance-status-grid" id="central_red_status">
+                <!-- Status square'ler buraya eklenecek -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Detaylı Skorlama Bölümleri (FTC benzeri) -->
+          <div id="detailed_scoring_home">
+            <div class="detailed-scoring-container" id="detailed_scoring_container">
+            <!-- Mavi İttifak Detaylı Skorlama -->
+            <div class="detailed-scoring-panel alliance-blue">
+              <h3 class="alliance-title">Mavi İttifak</h3>
+              <div class="alliance-teams-display" id="detailed_blue_teams">
+                <!-- Takımlar buraya eklenecek -->
+              </div>
+              
+              <!-- Takım Durumları -->
+              <div class="team-status-section" id="blue_team_statuses">
+                <!-- Takım durumları buraya eklenecek -->
+              </div>
+
+              <!-- Saha Özeti -->
+              <div class="field-summary">
+                <div class="field-summary-item">Bent 1: <span id="blue_field_bent1">0</span></div>
+                <div class="field-summary-item">Bent 2 (D): <span id="blue_field_bent2_correct">0</span></div>
+                <div class="field-summary-item">Bent 3 (D): <span id="blue_field_bent3_correct">0</span></div>
+                <div class="field-summary-item">Sarnıç: <span id="blue_field_tank">0</span></div>
+                <div class="field-summary-item">Kaynak: <span id="blue_field_source">0</span></div>
+                <div class="field-summary-item">Kemere: <span id="blue_field_climb">0</span></div>
+              </div>
+              
+              <!-- AUTO (Otonom) Bölümü -->
+              <div class="scoring-section auto-section">
+                <h4 class="section-title">OTONOM (OKS) - İlk 30 Saniye</h4>
+                
+                <!-- Başlangıç Alanını Terk -->
+                <div class="scoring-group">
+                  <div class="group-header">Başlangıç Alanını Terk Etme (3 Puan/Robot)</div>
+                  <div class="robot-leave-grid">
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="blue_auto_leave_r1" data-points="3" />
+                      <span>Robot 1</span>
+                    </label>
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="blue_auto_leave_r2" data-points="3" />
+                      <span>Robot 2</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 1 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 1 (4 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent1_own" data-points="4">−</button>
+                      <input type="number" id="blue_auto_bent1_own" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent1_own" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent1_opponent" data-points="4">−</button>
+                      <input type="number" id="blue_auto_bent1_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent1_opponent" data-points="4">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 2 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 2</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (6)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent2_correct" data-points="6">−</button>
+                      <input type="number" id="blue_auto_bent2_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent2_correct" data-points="6">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (3)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent2_wrong" data-points="3">−</button>
+                      <input type="number" id="blue_auto_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent2_wrong" data-points="3">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (6)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent2_opponent" data-points="6">−</button>
+                      <input type="number" id="blue_auto_bent2_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent2_opponent" data-points="6">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 3 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 3</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (8)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent3_correct" data-points="8">−</button>
+                      <input type="number" id="blue_auto_bent3_correct" value="0" min="0" data-points="8" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent3_correct" data-points="8">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (4)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent3_wrong" data-points="4">−</button>
+                      <input type="number" id="blue_auto_bent3_wrong" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent3_wrong" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (8)</span>
+                      <button class="btn-score-minus" data-field="blue_auto_bent3_opponent" data-points="8">−</button>
+                      <input type="number" id="blue_auto_bent3_opponent" value="0" min="0" data-points="8" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_bent3_opponent" data-points="8">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sarnıçlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarnıçlar (7 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="blue_auto_tank_own" data-points="7">−</button>
+                      <input type="number" id="blue_auto_tank_own" value="0" min="0" data-points="7" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_tank_own" data-points="7">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="blue_auto_tank_opponent" data-points="7">−</button>
+                      <input type="number" id="blue_auto_tank_opponent" value="0" min="0" data-points="7" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_auto_tank_opponent" data-points="7">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TELEOP (Sürücü Kontrollü) Bölümü -->
+              <div class="scoring-section teleop-section">
+                <h4 class="section-title">SÜRÜCÜ KONTROLLÜ (SKS) - 30. Saniyeden Sonra</h4>
+                
+                <!-- Bent Seviye 1 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 1 (2 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent1_own" data-points="2">−</button>
+                      <input type="number" id="blue_teleop_bent1_own" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent1_own" data-points="2">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent1_opponent" data-points="2">−</button>
+                      <input type="number" id="blue_teleop_bent1_opponent" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent1_opponent" data-points="2">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 2 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 2</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (4)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent2_correct" data-points="4">−</button>
+                      <input type="number" id="blue_teleop_bent2_correct" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent2_correct" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (3)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent2_wrong" data-points="3">−</button>
+                      <input type="number" id="blue_teleop_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent2_wrong" data-points="3">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (4)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent2_opponent" data-points="4">−</button>
+                      <input type="number" id="blue_teleop_bent2_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent2_opponent" data-points="4">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 3 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 3</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (6)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent3_correct" data-points="6">−</button>
+                      <input type="number" id="blue_teleop_bent3_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent3_correct" data-points="6">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (4)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent3_wrong" data-points="4">−</button>
+                      <input type="number" id="blue_teleop_bent3_wrong" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent3_wrong" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (6)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_bent3_opponent" data-points="6">−</button>
+                      <input type="number" id="blue_teleop_bent3_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_bent3_opponent" data-points="6">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sarnıçlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarnıçlar (5 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_tank_own" data-points="5">−</button>
+                      <input type="number" id="blue_teleop_tank_own" value="0" min="0" data-points="5" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_tank_own" data-points="5">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_tank_opponent" data-points="5">−</button>
+                      <input type="number" id="blue_teleop_tank_opponent" value="0" min="0" data-points="5" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_tank_opponent" data-points="5">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Özel Aksiyonlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Özel Aksiyonlar</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kaynak (2)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_source_entry" data-points="2">−</button>
+                      <input type="number" id="blue_teleop_source_entry" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_source_entry" data-points="2">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Tırmanma (15)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_climb" data-points="15">−</button>
+                      <input type="number" id="blue_teleop_climb" value="0" min="0" max="2" data-points="15" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_climb" data-points="15">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cezalar -->
+              <div class="scoring-section penalty-section">
+                <h4 class="section-title">CEZALAR</h4>
+                
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarı Kart (+2 Puan Rakip Takıma)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Sayı</span>
+                      <button class="btn-score-minus" data-field="blue_yellow_card" data-points="-2">−</button>
+                      <input type="number" id="blue_yellow_card" value="0" min="0" data-points="-2" class="score-field-compact penalty-field" />
+                      <button class="btn-score-plus" data-field="blue_yellow_card" data-points="-2">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Major Penalty (+5 Puan Rakip Takıma)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Sayı</span>
+                      <button class="btn-score-minus" data-field="blue_major_penalty" data-points="-5">−</button>
+                      <input type="number" id="blue_major_penalty" value="0" min="0" data-points="-5" class="score-field-compact penalty-field" />
+                      <button class="btn-score-plus" data-field="blue_major_penalty" data-points="-5">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scoring-group">
+                  <div class="group-header">Kırmızı Kart (Diskalifiye)</div>
+                  <div class="robot-checkbox-grid">
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="blue_red_card_r1" />
+                      <span>Robot 1</span>
+                    </label>
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="blue_red_card_r2" />
+                      <span>Robot 2</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Score Breakdown -->
+              <div class="score-breakdown">
+                <div class="breakdown-header">Puan Dökümü</div>
+                <div class="breakdown-list" id="blue_score_breakdown">
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>OTONOM (OKS)</span></div>
+                    <div class="breakdown-item"><span>Başlangıç Alanını Terk:</span> <span id="blue_auto_leave_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 1:</span> <span id="blue_auto_bent1_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Doğru):</span> <span id="blue_auto_bent2_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Yanlış):</span> <span id="blue_auto_bent2_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Doğru):</span> <span id="blue_auto_bent3_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Yanlış):</span> <span id="blue_auto_bent3_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Sarnıçlar:</span> <span id="blue_auto_tank_points">0</span></div>
+                    <div class="breakdown-item"><span>Rakip Alana Verilen Puanlar:</span> <span id="blue_auto_opponent_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>OTONOM TOPLAM:</span> <span id="blue_auto_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>SÜRÜCÜ KONTROLLÜ (SKS)</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 1:</span> <span id="blue_teleop_bent1_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Doğru):</span> <span id="blue_teleop_bent2_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Yanlış):</span> <span id="blue_teleop_bent2_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Doğru):</span> <span id="blue_teleop_bent3_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Yanlış):</span> <span id="blue_teleop_bent3_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Sarnıçlar:</span> <span id="blue_teleop_tank_points">0</span></div>
+                    <div class="breakdown-item"><span>Kaynaktan Giriş:</span> <span id="blue_teleop_source_points">0</span></div>
+                    <div class="breakdown-item"><span>Su Kemerine Tırmanma:</span> <span id="blue_teleop_climb_points">0</span></div>
+                    <div class="breakdown-item"><span>Rakip Alana Verilen Puanlar:</span> <span id="blue_teleop_opponent_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>SKS TOPLAM:</span> <span id="blue_teleop_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>CEZALAR</span></div>
+                    <div class="breakdown-item"><span>Sarı Kart Cezası:</span> <span id="blue_yellow_card_points">0</span></div>
+                    <div class="breakdown-item"><span>Major Penalty:</span> <span id="blue_major_penalty_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>CEZA TOPLAM:</span> <span id="blue_penalty_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>SIRALAMA PUANI (SP)</span></div>
+                    <div class="breakdown-item"><span>Maç Sonucu:</span> <span id="blue_ranking_result">0</span></div>
+                    <div class="breakdown-item"><span>Kemere Yükselme:</span> <span id="blue_ranking_climb">0</span></div>
+                    <div class="breakdown-item"><span>Otonom 4 Küre:</span> <span id="blue_ranking_auto">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>SP TOPLAM:</span> <span id="blue_ranking_total">0</span></div>
+                  </div>
+                  <div class="breakdown-item breakdown-total"><span>TOPLAM SKOR:</span> <span id="blue_total_score">0</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kırmızı İttifak Detaylı Skorlama -->
+            <div class="detailed-scoring-panel alliance-red">
+              <h3 class="alliance-title">Kırmızı İttifak</h3>
+              <div class="alliance-teams-display" id="detailed_red_teams">
+                <!-- Takımlar buraya eklenecek -->
+              </div>
+              
+              <!-- Takım Durumları -->
+              <div class="team-status-section" id="red_team_statuses">
+                <!-- Takım durumları buraya eklenecek -->
+              </div>
+
+              <!-- Saha Özeti -->
+              <div class="field-summary">
+                <div class="field-summary-item">Bent 1: <span id="red_field_bent1">0</span></div>
+                <div class="field-summary-item">Bent 2 (D): <span id="red_field_bent2_correct">0</span></div>
+                <div class="field-summary-item">Bent 3 (D): <span id="red_field_bent3_correct">0</span></div>
+                <div class="field-summary-item">Sarnıç: <span id="red_field_tank">0</span></div>
+                <div class="field-summary-item">Kaynak: <span id="red_field_source">0</span></div>
+                <div class="field-summary-item">Kemere: <span id="red_field_climb">0</span></div>
+              </div>
+              
+              <!-- AUTO (Otonom) Bölümü -->
+              <div class="scoring-section auto-section">
+                <h4 class="section-title">OTONOM (OKS) - İlk 30 Saniye</h4>
+                
+                <!-- Başlangıç Alanını Terk -->
+                <div class="scoring-group">
+                  <div class="group-header">Başlangıç Alanını Terk Etme (3 Puan/Robot)</div>
+                  <div class="robot-leave-grid">
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="red_auto_leave_r1" data-points="3" />
+                      <span>Robot 1</span>
+                    </label>
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="red_auto_leave_r2" data-points="3" />
+                      <span>Robot 2</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 1 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 1 (4 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent1_own" data-points="4">−</button>
+                      <input type="number" id="red_auto_bent1_own" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent1_own" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent1_opponent" data-points="4">−</button>
+                      <input type="number" id="red_auto_bent1_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent1_opponent" data-points="4">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 2 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 2</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (6)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent2_correct" data-points="6">−</button>
+                      <input type="number" id="red_auto_bent2_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent2_correct" data-points="6">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (3)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent2_wrong" data-points="3">−</button>
+                      <input type="number" id="red_auto_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent2_wrong" data-points="3">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (6)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent2_opponent" data-points="6">−</button>
+                      <input type="number" id="red_auto_bent2_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent2_opponent" data-points="6">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 3 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 3</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (8)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent3_correct" data-points="8">−</button>
+                      <input type="number" id="red_auto_bent3_correct" value="0" min="0" data-points="8" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent3_correct" data-points="8">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (4)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent3_wrong" data-points="4">−</button>
+                      <input type="number" id="red_auto_bent3_wrong" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent3_wrong" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (8)</span>
+                      <button class="btn-score-minus" data-field="red_auto_bent3_opponent" data-points="8">−</button>
+                      <input type="number" id="red_auto_bent3_opponent" value="0" min="0" data-points="8" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_bent3_opponent" data-points="8">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sarnıçlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarnıçlar (7 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="red_auto_tank_own" data-points="7">−</button>
+                      <input type="number" id="red_auto_tank_own" value="0" min="0" data-points="7" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_tank_own" data-points="7">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="red_auto_tank_opponent" data-points="7">−</button>
+                      <input type="number" id="red_auto_tank_opponent" value="0" min="0" data-points="7" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_auto_tank_opponent" data-points="7">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TELEOP (Sürücü Kontrollü) Bölümü -->
+              <div class="scoring-section teleop-section">
+                <h4 class="section-title">SÜRÜCÜ KONTROLLÜ (SKS) - 30. Saniyeden Sonra</h4>
+                
+                <!-- Bent Seviye 1 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 1 (2 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent1_own" data-points="2">−</button>
+                      <input type="number" id="red_teleop_bent1_own" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent1_own" data-points="2">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent1_opponent" data-points="2">−</button>
+                      <input type="number" id="red_teleop_bent1_opponent" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent1_opponent" data-points="2">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 2 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 2</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (4)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent2_correct" data-points="4">−</button>
+                      <input type="number" id="red_teleop_bent2_correct" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent2_correct" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (3)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent2_wrong" data-points="3">−</button>
+                      <input type="number" id="red_teleop_bent2_wrong" value="0" min="0" data-points="3" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent2_wrong" data-points="3">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (4)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent2_opponent" data-points="4">−</button>
+                      <input type="number" id="red_teleop_bent2_opponent" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent2_opponent" data-points="4">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bent Seviye 3 -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Bent Seviye 3</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Doğru (6)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent3_correct" data-points="6">−</button>
+                      <input type="number" id="red_teleop_bent3_correct" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent3_correct" data-points="6">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Yanlış (4)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent3_wrong" data-points="4">−</button>
+                      <input type="number" id="red_teleop_bent3_wrong" value="0" min="0" data-points="4" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent3_wrong" data-points="4">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip (6)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_bent3_opponent" data-points="6">−</button>
+                      <input type="number" id="red_teleop_bent3_opponent" value="0" min="0" data-points="6" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_bent3_opponent" data-points="6">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sarnıçlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarnıçlar (5 Puan/Küre)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kendi</span>
+                      <button class="btn-score-minus" data-field="red_teleop_tank_own" data-points="5">−</button>
+                      <input type="number" id="red_teleop_tank_own" value="0" min="0" data-points="5" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_tank_own" data-points="5">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Rakip</span>
+                      <button class="btn-score-minus" data-field="red_teleop_tank_opponent" data-points="5">−</button>
+                      <input type="number" id="red_teleop_tank_opponent" value="0" min="0" data-points="5" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_tank_opponent" data-points="5">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Özel Aksiyonlar -->
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Özel Aksiyonlar</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Kaynak (2)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_source_entry" data-points="2">−</button>
+                      <input type="number" id="red_teleop_source_entry" value="0" min="0" data-points="2" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_source_entry" data-points="2">+</button>
+                    </div>
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Tırmanma (15)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_climb" data-points="15">−</button>
+                      <input type="number" id="red_teleop_climb" value="0" min="0" max="2" data-points="15" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_climb" data-points="15">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cezalar -->
+              <div class="scoring-section penalty-section">
+                <h4 class="section-title">CEZALAR</h4>
+                
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Sarı Kart (+2 Puan Rakip Takıma)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Sayı</span>
+                      <button class="btn-score-minus" data-field="red_yellow_card" data-points="-2">−</button>
+                      <input type="number" id="red_yellow_card" value="0" min="0" data-points="-2" class="score-field-compact penalty-field" />
+                      <button class="btn-score-plus" data-field="red_yellow_card" data-points="-2">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scoring-group compact-group">
+                  <div class="group-header">Major Penalty (+5 Puan Rakip Takıma)</div>
+                  <div class="scoring-input-compact">
+                    <div class="score-control-compact">
+                      <span class="score-label-compact">Sayı</span>
+                      <button class="btn-score-minus" data-field="red_major_penalty" data-points="-5">−</button>
+                      <input type="number" id="red_major_penalty" value="0" min="0" data-points="-5" class="score-field-compact penalty-field" />
+                      <button class="btn-score-plus" data-field="red_major_penalty" data-points="-5">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scoring-group">
+                  <div class="group-header">Kırmızı Kart (Diskalifiye)</div>
+                  <div class="robot-checkbox-grid">
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="red_red_card_r1" />
+                      <span>Robot 1</span>
+                    </label>
+                    <label class="robot-checkbox">
+                      <input type="checkbox" id="red_red_card_r2" />
+                      <span>Robot 2</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Score Breakdown -->
+              <div class="score-breakdown">
+                <div class="breakdown-header">Puan Dökümü</div>
+                <div class="breakdown-list" id="red_score_breakdown">
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>OTONOM (OKS)</span></div>
+                    <div class="breakdown-item"><span>Başlangıç Alanını Terk:</span> <span id="red_auto_leave_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 1:</span> <span id="red_auto_bent1_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Doğru):</span> <span id="red_auto_bent2_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Yanlış):</span> <span id="red_auto_bent2_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Doğru):</span> <span id="red_auto_bent3_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Yanlış):</span> <span id="red_auto_bent3_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Sarnıçlar:</span> <span id="red_auto_tank_points">0</span></div>
+                    <div class="breakdown-item"><span>Rakip Alana Verilen Puanlar:</span> <span id="red_auto_opponent_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>OTONOM TOPLAM:</span> <span id="red_auto_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>SÜRÜCÜ KONTROLLÜ (SKS)</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 1:</span> <span id="red_teleop_bent1_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Doğru):</span> <span id="red_teleop_bent2_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 2 (Yanlış):</span> <span id="red_teleop_bent2_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Doğru):</span> <span id="red_teleop_bent3_correct_points">0</span></div>
+                    <div class="breakdown-item"><span>Bent Seviye 3 (Yanlış):</span> <span id="red_teleop_bent3_wrong_points">0</span></div>
+                    <div class="breakdown-item"><span>Sarnıçlar:</span> <span id="red_teleop_tank_points">0</span></div>
+                    <div class="breakdown-item"><span>Kaynaktan Giriş:</span> <span id="red_teleop_source_points">0</span></div>
+                    <div class="breakdown-item"><span>Su Kemerine Tırmanma:</span> <span id="red_teleop_climb_points">0</span></div>
+                    <div class="breakdown-item"><span>Rakip Alana Verilen Puanlar:</span> <span id="red_teleop_opponent_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>SKS TOPLAM:</span> <span id="red_teleop_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>CEZALAR</span></div>
+                    <div class="breakdown-item"><span>Sarı Kart Cezası:</span> <span id="red_yellow_card_points">0</span></div>
+                    <div class="breakdown-item"><span>Major Penalty:</span> <span id="red_major_penalty_points">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>CEZA TOPLAM:</span> <span id="red_penalty_total">0</span></div>
+                  </div>
+                  <div class="breakdown-section">
+                    <div class="breakdown-item breakdown-subheader"><span>SIRALAMA PUANI (SP)</span></div>
+                    <div class="breakdown-item"><span>Maç Sonucu:</span> <span id="red_ranking_result">0</span></div>
+                    <div class="breakdown-item"><span>Kemere Yükselme:</span> <span id="red_ranking_climb">0</span></div>
+                    <div class="breakdown-item"><span>Otonom 4 Küre:</span> <span id="red_ranking_auto">0</span></div>
+                    <div class="breakdown-item breakdown-subtotal"><span>SP TOPLAM:</span> <span id="red_ranking_total">0</span></div>
+                  </div>
+                  <div class="breakdown-item breakdown-total"><span>TOPLAM SKOR:</span> <span id="red_total_score">0</span></div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Maç Seçilmedi Mesajı -->
+        <div class="card no-match-selected" id="no_match_selected">
+          <div class="no-match-content">
+            <h2>Maç Seçilmedi</h2>
+            <p>Lütfen "Sıradaki Maçı Yükle" butonuna tıklayın veya bir maç seçin.</p>
+          </div>
+        </div>
+      </section>
+      </div>
+
+      <!-- Tab Content: Schedule -->
+      <div class="tab-content" id="tab-schedule" style="display: none;">
+        <div class="card">
+          <h2>Maç Takvimi</h2>
+          <div class="match-selector">
+            <label>
+              <span>Saha:</span>
+              <select id="schedule_field_selector">
+                <option value="">Tüm Sahalar</option>
+              </select>
+            </label>
+            <label>
+              <span>Maç Tipi:</span>
+              <select id="schedule_match_type_selector">
+                <option value="">Tüm Tipler</option>
+                <option value="practice">Deneme</option>
+                <option value="qualification">Sıralama</option>
+                <option value="elimination">Eleme (Playoff)</option>
+                <option value="final">Final</option>
+              </select>
+            </label>
+          </div>
+          <div class="match-list" id="schedule_match_list">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Incomplete Matches -->
+      <div class="tab-content" id="tab-incomplete" style="display: none;">
+        <div class="card">
+          <h2>Tamamlanmamış Maçlar</h2>
+          <div class="match-list" id="incomplete_match_list">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Score Edit -->
+      <div class="tab-content" id="tab-score-edit" style="display: none;">
+        <div class="card">
+          <h2>Skor Düzenle</h2>
+          <p>Tamamlanmış maçların skorlarını buradan düzenleyebilirsiniz.</p>
+          <div class="match-list" id="score_edit_match_list">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+          <div class="score-edit-form" id="score_edit_form" style="display: none;">
+            <h3>Seçilen Maç</h3>
+            <div class="score-edit-info" id="score_edit_match_info">-</div>
+            <div class="score-edit-inputs">
+              <label>
+                Kırmızı Skor
+                <input type="number" id="score_edit_red_score" min="0" value="0" />
+              </label>
+              <label>
+                Mavi Skor
+                <input type="number" id="score_edit_blue_score" min="0" value="0" />
+              </label>
+            </div>
+            <label>
+              Notlar
+              <textarea id="score_edit_notes" rows="3" placeholder="Maç notları..."></textarea>
+            </label>
+            <div class="score-edit-actions">
+              <button id="btn_score_edit_show_results" class="btn-secondary">Sonucu Göster</button>
+              <button id="btn_score_edit_save" class="btn-primary">Skoru Kaydet</button>
+            </div>
+            <div class="score-edit-details">
+              <h4>Detaylı Puanlama</h4>
+              <p class="hint">Aşağıdaki alanlar aktif maç ekranı ile aynıdır, düzenleyebilirsiniz.</p>
+              <div id="score_edit_detailed_slot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Settings -->
+      <div class="tab-content" id="tab-settings" style="display: none;">
+        <div class="card">
+          <h2>Maç Kontrol Ayarları</h2>
+          <div class="card-section">
+            <h3>Seyirci Ekranı Kontrolü</h3>
+            <div class="grid">
+              <label>
+                Aktif Ekran
+                <select id="mc_screen_active_view">
+                  <option value="match">Maç Ekranı</option>
+                  <option value="inspection">İnceleme Durumu</option>
+                  <option value="rankings">Sıralama Puanları</option>
+                  <option value="awards">Ödüller</option>
+                </select>
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="mc_screen_overlay_enabled" />
+                Overlay Açık
+              </label>
+            </div>
+            <label style="display: block; margin-top: 12px;">
+              Overlay Metni
+              <input type="text" id="mc_screen_overlay_text" placeholder="Örn: Hoş geldiniz" />
+            </label>
+            <div style="margin-top: 12px;">
+              <button id="mc_save_screen_settings" class="btn-primary">Ayarları Uygula</button>
+              <a href="/audience?new=1" target="_blank" class="button btn-secondary">Yeni Seyirci Ekranı Aç</a>
+            </div>
+          </div>
+          <div class="card-section">
+            <h3>Bağlı Ekranlar</h3>
+            <div id="mc_connected_screens_list" class="screen-list">
+              <div class="loading">Yükleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/match_control.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

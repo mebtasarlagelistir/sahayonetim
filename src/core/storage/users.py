@@ -134,6 +134,8 @@ class UsersStorage:
         """Yeni kullanıcı oluşturur (etkinlik bazlı)."""
         if event_id is None and username.lower() != "admin":
             event_id = self.get_active_event_id()
+            if event_id is None:
+                raise ValueError("Aktif etkinlik yok. Kullanıcılar etkinlik bazlı oluşturulmalıdır.")
         
         password_hash = generate_password_hash(password)
         token = secrets.token_urlsafe(24)
@@ -144,6 +146,34 @@ class UsersStorage:
             )
             conn.commit()
         return token
+
+    def cleanup_global_users(self) -> int:
+        """
+        Etkinlik seçili değilken admin dışındaki global kullanıcıları temizler.
+        
+        Returns:
+            int: Silinen kullanıcı sayısı
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "DELETE FROM users WHERE event_id IS NULL AND LOWER(username) != 'admin'"
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def cleanup_orphan_event_users(self) -> int:
+        """
+        Etkinliği olmayan (orphan) kullanıcıları temizler.
+        
+        Returns:
+            int: Silinen kullanıcı sayısı
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "DELETE FROM users WHERE event_id IS NOT NULL AND event_id NOT IN (SELECT id FROM events)"
+            )
+            conn.commit()
+            return cursor.rowcount
     
     def update_user_password(self, username: str, password: str, event_id: int | None = None) -> str:
         """Kullanıcı şifresini günceller (etkinlik bazlı)."""

@@ -6,27 +6,36 @@
     <title>MEMSKOR - Etkinlik Kurulumu</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
-  <body>
+  <body data-page="setup">
     <header class="header">
-      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <h1 style="margin: 0;">MEMSKOR - Etkinlik Kurulumu</h1>
-        <div id="user-info" style="display: flex; align-items: center; gap: 12px; font-size: 14px; color: #666;">
-          <span id="current-user" style="font-weight: 500;"></span>
-          <span id="user-role" style="background: #e1e4ee; padding: 4px 8px; border-radius: 4px; font-size: 12px;"></span>
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+            <span class="event-datetime" id="event-datetime"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
         </div>
       </div>
-      <div class="event-switcher">
-        <label>
-          Aktif Etkinlik
-          <select id="event_selector"></select>
-        </label>
-        <button id="new_event">Yeni Etkinlik</button>
-        <button id="delete_event" class="danger">Etkinliği Sil</button>
-      </div>
-      <div class="actions">
-        <button id="save-event">Etkinliği Kaydet</button>
-        <button id="save-teams">Takımları Kaydet</button>
-        <a href="/logout" class="button" style="margin-left: auto;">Çıkış Yap</a>
+      <div class="header-bottom">
+        <div class="event-switcher">
+          <label>
+            <select id="event_selector"></select>
+          </label>
+          <button id="new_event" class="btn-small">Yeni</button>
+          <button id="delete_event" class="btn-small danger">Sil</button>
+        </div>
+        <div class="actions">
+          <button id="save-event" class="btn-small">Etkinliği Kaydet</button>
+          <a href="/dashboard" class="button btn-small">Dashboard</a>
+          <a href="/logout" class="button btn-small">Çıkış</a>
+        </div>
       </div>
     </header>
 
@@ -34,7 +43,27 @@
       <aside class="sidebar">
         <div class="card">
           <h2>Kurulum Adımları</h2>
+          <div class="setup-progress">
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="setup-progress-bar">
+                <div class="progress-fill" id="setup-progress-fill"></div>
+              </div>
+              <span class="progress-text" id="setup-progress-text">0%</span>
+            </div>
+            <div class="progress-summary" id="setup-progress-summary">
+              <span id="completed-steps">0</span> / <span id="total-steps">11</span> adım tamamlandı
+            </div>
+          </div>
           <ol id="setup-steps" class="steps"></ol>
+          <div class="match-control-ready" id="match-control-ready" style="display: none;">
+            <div class="ready-indicator">
+              <span class="ready-icon">✓</span>
+              <span class="ready-text">Maç Kontrol Sayfasına Hazır</span>
+            </div>
+            <button id="go-to-match-control" class="button btn-small" style="margin-top: 8px; width: 100%;">
+              Maç Kontrol Sayfasına Git
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -48,12 +77,19 @@
 
     <!-- Modüller (sıralama önemli) -->
     <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
     <script src="/static/js/event.js"></script>
     <script src="/static/js/teams.js"></script>
     <script src="/static/js/users.js"></script>
     <script src="/static/js/inspection.js"></script>
     <script src="/static/js/practice_matches.js"></script>
     <script src="/static/js/match_schedule.js"></script>
+    <script src="/static/js/awards.js"></script>
+    <script src="/static/js/wifi.js"></script>
+    <script src="/static/js/archive.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/setup_validation.js"></script>
     <script src="/static/js/setup.js"></script>
     <!-- Ana dosya (en son yüklenmeli) -->
     <script src="/static/app.js"></script>

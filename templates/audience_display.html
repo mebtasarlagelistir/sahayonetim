@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Seyirci Ekranı</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body class="audience-display" data-page="audience">
+    <div class="audience-overlay" id="audience_overlay" style="display: none;">
+      <span id="audience_overlay_text"></span>
+    </div>
+
+    <main class="audience-container">
+      <section class="audience-panel" id="audience_match_view">
+        <h1 id="audience_match_title">Maç Ekranı</h1>
+        <div class="audience-scoreboard">
+          <div class="audience-alliance blue">
+            <div class="alliance-title">Mavi İttifak</div>
+            <div class="alliance-score" id="audience_blue_score">0</div>
+            <div class="alliance-teams" id="audience_blue_teams">-</div>
+          </div>
+          <div class="audience-timer">
+            <div class="timer-label" id="audience_state_label">Beklemede</div>
+            <div class="timer-value" id="audience_timer_value">--:--</div>
+            <div class="timer-meta" id="audience_match_meta"></div>
+          </div>
+          <div class="audience-alliance red">
+            <div class="alliance-title">Kırmızı İttifak</div>
+            <div class="alliance-score" id="audience_red_score">0</div>
+            <div class="alliance-teams" id="audience_red_teams">-</div>
+          </div>
+        </div>
+        <div class="audience-results" id="audience_results" style="display: none;">
+          <div class="audience-results-title">Maç Sonucu</div>
+          <div class="audience-results-winner" id="audience_results_winner">-</div>
+          <div class="audience-results-grid">
+            <div class="audience-results-card blue">
+              <div class="results-label">Mavi Özet</div>
+              <div class="results-line">Toplam: <span id="audience_results_blue_total">0</span></div>
+              <div class="results-line">Otonom: <span id="audience_results_blue_auto">0</span></div>
+              <div class="results-line">Teleop: <span id="audience_results_blue_teleop">0</span></div>
+              <div class="results-line">Ceza: <span id="audience_results_blue_penalty">0</span></div>
+              <div class="results-line">SP: <span id="audience_results_blue_sp">0</span></div>
+              <div class="results-line">Sarı Kart: <span id="audience_results_blue_yellow">0</span></div>
+              <div class="results-line">Kırmızı Kart: <span id="audience_results_blue_red">0</span></div>
+            </div>
+            <div class="audience-results-card red">
+              <div class="results-label">Kırmızı Özet</div>
+              <div class="results-line">Toplam: <span id="audience_results_red_total">0</span></div>
+              <div class="results-line">Otonom: <span id="audience_results_red_auto">0</span></div>
+              <div class="results-line">Teleop: <span id="audience_results_red_teleop">0</span></div>
+              <div class="results-line">Ceza: <span id="audience_results_red_penalty">0</span></div>
+              <div class="results-line">SP: <span id="audience_results_red_sp">0</span></div>
+              <div class="results-line">Sarı Kart: <span id="audience_results_red_yellow">0</span></div>
+              <div class="results-line">Kırmızı Kart: <span id="audience_results_red_red">0</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="audience-up-next" id="audience_next_match">Sıradaki maç yükleniyor...</div>
+      </section>
+
+      <section class="audience-panel" id="audience_inspection_view" style="display: none;">
+        <h1>İnceleme Durumları</h1>
+        <div id="audience_inspection_summary"></div>
+        <div id="audience_inspection_table" class="audience-table"></div>
+      </section>
+
+      <section class="audience-panel" id="audience_rankings_view" style="display: none;">
+        <h1>Sıralama Puanları</h1>
+        <div class="audience-placeholder">Bu ekran yakında etkinleştirilecek.</div>
+      </section>
+
+      <section class="audience-panel" id="audience_awards_view" style="display: none;">
+        <h1>Ödüller</h1>
+        <div id="audience_awards_list" class="audience-table"></div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/audience_display.js"></script>
+  </body>
+</html>

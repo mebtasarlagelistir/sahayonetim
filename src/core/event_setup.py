@@ -86,6 +86,38 @@ def default_config_dict() -> Dict:
                 "allow_remote_scoring": False,
                 "notes": "",
             },
+            "inspection_settings": {
+                "type_durations": {
+                    "hardware": 20,
+                    "size": 10,
+                    "safety": 15,
+                    "software": 15,
+                    "weight": 5,
+                    "custom": 15,
+                },
+                "selected_types": ["hardware", "size", "safety"],
+                "print_note": (
+                    "İnceleme İstanyonu Ekipleri programda bir sakma olmama durumunda belirtilen saatte "
+                    "Pit Alanınıza inceleme için ziyaret gerçekleştirecektir. Bu saatte robotunuz ve ilgili "
+                    "kişiler mutlaka Pit Alanınızda yer bulunmalıdır. Oyun kılavuzunda izin verilen kurallara "
+                    "göre robotunuzun yarışmaya hazır olduğunuzdan emin olacaklardır. Bir itirazınız olduğun "
+                    "Baş Robot Müfettişine danışınız."
+                ),
+            },
+            "awards": [],
+            "wifi": {
+                "supported_channels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+                "allowed_channels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+                "assignments": {},
+                "scan_notes": "",
+                "assignment_mode": "unique",
+                "last_assigned_at": "",
+            },
+            "screens": {
+                "active_view": "match",
+                "overlay_enabled": False,
+                "overlay_text": "",
+            },
             "custom_fields": [],
         },
         "teams": [],

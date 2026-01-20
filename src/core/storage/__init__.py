@@ -62,3 +62,11 @@ class DataStore(
         
         # Varsayılan admin kullanıcısını oluştur (UsersStorage'dan)
         self.ensure_default_admin()
+        
+        # Etkinlik yoksa admin dışı global kullanıcıları temizle
+        if self.get_active_event_id() is None:
+            self.cleanup_global_users()
+        
+        # Etkinlik silinmişse orphan kullanıcıları temizle
+        if not self.get_events():
+            self.cleanup_orphan_event_users()

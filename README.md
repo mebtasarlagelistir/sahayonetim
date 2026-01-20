@@ -9,32 +9,69 @@ FTC türevi yarışma yönetim programı. Web tabanlı, modüler yapıda gelişt
 ```
 MEMSKOR_NEW/
 ├── app_web.py              # Flask web uygulaması (ana giriş noktası)
-├── main.py                 # Eski PyQt uygulaması (geçiş için)
 ├── requirements.txt        # Python bağımlılıkları
 │
 ├── src/                    # Kaynak kodlar
 │   ├── core/              # Temel iş mantığı modülleri
 │   │   ├── config.py      # Yapılandırma yönetimi
-│   │   ├── storage.py     # Veritabanı işlemleri (SQLite)
+│   │   ├── storage/        # Modüler veritabanı işlemleri
+│   │   │   ├── __init__.py    # DataStore ana sınıfı
+│   │   │   ├── base.py         # Temel DB işlemleri
+│   │   │   ├── events.py       # Etkinlik yönetimi
+│   │   │   ├── teams.py        # Takım yönetimi
+│   │   │   ├── users.py        # Kullanıcı yönetimi
+│   │   │   ├── inspection.py   # İnceleme slotları
+│   │   │   ├── practice_matches.py  # Deneme maçları
+│   │   │   └── match_schedule.py     # Resmi maç takvimi
+│   │   ├── scoring/        # Modüler puanlama sistemi ⭐ YENİ
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py      # Puanlama kuralları
+│   │   │   ├── calculator.py  # Skor hesaplama
+│   │   │   └── realtime.py    # Gerçek zamanlı senkronizasyon
 │   │   └── event_setup.py # Etkinlik yapılandırma şemaları
-│   │
-│   ├── gui/               # PyQt GUI bileşenleri (gelecekte kullanılabilir)
-│   │   ├── main_window.py
-│   │   └── tabs/
 │   │
 │   └── resources/         # Statik kaynaklar
 │       ├── config.json    # UI yapılandırması
 │       ├── data.db        # SQLite veritabanı
-│       └── style.qss      # PyQt stilleri
+│       └── style.qss      # PyQt stilleri (eski, kullanılmıyor)
+│
+├── routes/                # Route modülleri (Blueprint)
+│   ├── match_control.py   # Maç kontrol sistemi ⭐ YENİ
+│   ├── referee_panel.py   # Hakem paneli ⭐ YENİ
+│   ├── inspection.py      # İnceleme programı
+│   ├── practice_matches.py # Deneme maçları
+│   ├── match_schedule.py  # Resmi maç takvimi
+│   ├── wifi.py            # WiFi kanal atama
+│   └── archive.py         # Arşiv yönetimi
 │
 ├── templates/             # HTML şablonları (Jinja2)
 │   ├── login.html
+│   ├── dashboard.html
+│   ├── match_control.html # Maç kontrol sayfası ⭐ YENİ
+│   ├── referee_panel.html # Hakem paneli ⭐ YENİ
 │   └── setup.html
 │
 └── static/                # Statik dosyalar (CSS, JS)
     ├── style.css
-    └── app.js
+    └── js/                # JavaScript modülleri
+        ├── utils.js
+        ├── event.js
+        ├── teams.js
+        ├── users.js
+        ├── inspection.js
+        ├── practice_matches.js
+        ├── match_schedule.js
+        ├── match_control.js  # Maç kontrol ⭐ YENİ
+        ├── referee_panel.js  # Hakem paneli ⭐ YENİ
+        ├── wifi.js
+        ├── awards.js
+        ├── archive.js
+        ├── dashboard.js
+        ├── setup.js
+        └── setup_validation.js
 ```
+
+**Not:** PyQt GUI uygulaması (`main.py` ve `src/gui/`) artık kullanılmıyor. Flask web uygulaması (`app_web.py`) ana uygulamadır.
 
 ## 🏗️ Mimari Yapı
 
@@ -130,7 +167,7 @@ Program üç ana katmandan oluşur:
 
 ### Seremoni (seremoni_*)
 - Setup sayfasına erişebilir
-- Sadece **Ödüller** ve **Yükselme Raporu** bölümlerini görebilir
+- Sadece **Ödüller** bölümünü görebilir
 - Görüntüleme modu (düzenleme yetkisi yok)
 
 ### Diğer Roller
@@ -139,21 +176,31 @@ Program üç ana katmandan oluşur:
 
 ## 📝 Geliştirme Rehberi
 
+Detaylı geliştirme rehberi için `DEVELOPMENT.md` dosyasına bakın.
+
+**Gönüllü geliştiriciler için:** `GONULLU_REHBERI.md` dosyasına bakın.
+
 ### Yeni Özellik Ekleme
 
 1. **Backend (Python)**
-   - `app_web.py` içinde yeni route ekleyin
-   - `src/core/storage.py` içinde gerekli veritabanı metodlarını ekleyin
+   - `routes/` klasöründe yeni Blueprint modülü oluşturun
+   - `src/core/storage/` içinde gerekli veritabanı metodlarını ekleyin
+   - `app_web.py` içinde Blueprint'i kaydedin
    - Validasyon kurallarını ekleyin
 
 2. **Frontend (JavaScript)**
-   - `static/app.js` içinde yeni fonksiyonlar ekleyin
-   - `templates/setup.html` içinde UI bileşenlerini ekleyin
+   - `static/js/` içinde yeni modül oluşturun
+   - `templates/` içinde HTML şablonu ekleyin
    - `static/style.css` içinde stilleri ekleyin
 
 3. **Veritabanı Değişiklikleri**
-   - `storage.py` içinde `_init_db()` metodunu güncelleyin
-   - Migrasyon gerekirse `_migrate_legacy_schema()` metodunu güncelleyin
+   - İlgili storage modülünde `_init_db()` metodunu güncelleyin
+   - Migrasyon gerekirse migration metodunu ekleyin
+
+### Modüler Puanlama Sistemi
+
+Puanlama kurallarını güncellemek için `src/core/scoring/config.py` dosyasını düzenleyin.
+Detaylı bilgi için `SCORING_SYSTEM_README.md` dosyasına bakın.
 
 ### Kod Standartları
 
@@ -168,6 +215,11 @@ Program üç ana katmandan oluşur:
   1. Sunucuyu yeniden başlatın
   2. Tarayıcıda hard refresh yapın (Ctrl+F5)
   3. Tüm özellikleri test edin
+
+## 🧾 Agent Kayıtları
+
+Cursor agent tarafından yapılan değişiklikler `AGENT_LOG.md` dosyasında tutulur.
+Güncel özet `DEVELOPMENT.md` içinde bulunur.
 
 ## 🔧 Yapılandırma
 
@@ -197,6 +249,30 @@ Program üç ana katmandan oluşur:
 - `POST /api/users` - Yeni kullanıcı oluştur
 - `POST /api/users/delete` - Kullanıcı sil
 - `POST /api/users/defaults` - Varsayılan kullanıcıları oluştur
+
+### Maç Kontrol Sistemi ⭐ YENİ
+- `GET /match-control` - Maç kontrol sayfası
+- `GET /api/match-control/active` - Aktif maç bilgisi (in_progress veya preview)
+- `POST /api/match-control/start` - Maç başlat
+- `POST /api/match-control/stop` - Maç durdur
+- `POST /api/match-control/complete` - Maç tamamla (match_source desteği)
+- `POST /api/match-control/preview` - Maçı önizleme durumuna alır (hakem tabletleri için)
+- `POST /api/match-control/score/detailed` - Detaylı skor güncelleme (modüler sistem)
+- `GET /api/match-control/score/realtime/<match_id>` - Gerçek zamanlı skor stream (SSE)
+
+### Hakem Paneli ⭐ YENİ
+- `GET /referee/red` - Kırmızı İttifak Hakemi sayfası
+- `GET /referee/blue` - Mavi İttifak Hakemi sayfası
+- `GET /head-referee` - Baş Hakem sayfası
+- `GET /referee-panel` - Genel hakem paneli (geriye dönük uyumluluk)
+- `GET /api/referee/active-match` - Aktif maç bilgisi (match-control ile senkronize)
+- `POST /api/referee/score/update` - Skor güncelleme (match_source desteği)
+- `GET /api/referee/score/get/<match_id>` - Mevcut skorlar ve hakem meta bilgisi
+- `POST /api/referee/submit` - Hakem girişini tamamlar
+- `POST /api/referee/approve` - Baş hakem maçı onaylar
+
+### Diğer Modüller
+Detaylı API dokümantasyonu için `DEVELOPMENT.md` ve `SCORING_SYSTEM_README.md` dosyalarına bakın.
 
 ## 🤝 Katkıda Bulunma
 

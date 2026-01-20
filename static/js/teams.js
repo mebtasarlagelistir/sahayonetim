@@ -13,16 +13,7 @@
  */
 async function loadTeams() {
   try {
-    const res = await fetch("/api/teams");
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!res.ok) {
-      showToast("Takımlar yüklenemedi", "error");
-      return;
-    }
-    const teams = await res.json();
+    const teams = await apiGet("/api/teams");
     const table = qs("teams_table");
     if (!table) return;
     const tbody = table.querySelector("tbody");
@@ -136,30 +127,14 @@ async function saveTeams() {
   setButtonLoading(button, true);
   
   try {
-    const res = await fetch("/api/teams", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
+    await apiPost("/api/teams", payload);
+    if (typeof updateTeamStatus === "function") {
+      updateTeamStatus(payload.length);
     }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (res.ok) {
-      if (typeof updateTeamStatus === "function") {
-        updateTeamStatus(payload.length);
-      }
-      showToast(`${payload.length} takım başarıyla kaydedildi`, "success");
-    } else {
-      const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-      showToast(`Kaydetme başarısız: ${error.error || res.statusText}`, "error");
+    showToast(`${payload.length} takım başarıyla kaydedildi`, "success");
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
     }
   } catch (err) {
     console.error("Save teams error:", err);
@@ -178,68 +153,39 @@ async function saveTeams() {
 async function seedTeams() {
   try {
     // Önce API endpoint'ini dene
-    let res = await fetch("/api/teams/seed", { method: "POST" });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await apiPost("/api/teams/seed", {});
       showToast(`${data.count || 0} takım yüklendi`, "success");
       await loadTeams();
       return;
-    }
-    
-    // API endpoint yoksa static JSON dosyasını yükle
-    res = await fetch("/static/seed_teams.json");
-    if (!res.ok) {
-      showToast("Seed verileri yüklenemedi", "error");
-      return;
-    }
-    
-    const seedData = await res.json();
-    
-    // Etkinlik oluştur veya aktif et
-    const eventsRes = await fetch("/api/events");
-    if (eventsRes.ok) {
-      const events = await eventsRes.json();
-      let event = events.find((e) => e.name === seedData.event_name);
+    } catch (err) {
+      // API endpoint yoksa static JSON dosyasını yükle
+      const res = await fetchWithRetry("/static/seed_teams.json", { method: "GET" });
+      if (!res.ok) {
+        showToast("Seed verileri yüklenemedi", "error");
+        return;
+      }
       
-      if (!event) {
-        // Etkinlik yoksa oluştur
-        const createRes = await fetch("/api/events", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: seedData.event_name }),
-        });
-        if (createRes.ok) {
-          const newEvents = await fetch("/api/events").then((r) => r.json());
-          event = newEvents.find((e) => e.name === seedData.event_name);
+      const seedData = await res.json();
+      const teamsList = Array.isArray(seedData) ? seedData : seedData.teams || [];
+      if (!teamsList.length) {
+        showToast("Seed verileri boş veya hatalı", "error");
+        return;
+      }
+      
+      // Takımları kaydet (kategori alanındaki mentor bilgilerini temizle)
+      const teams = teamsList.map((team) => {
+        if (team.category && team.category.toLowerCase().includes("mentor")) {
+          team.category = ""; // Mentorlar bilgisini kaldır
         }
-      }
+        return team;
+      });
       
-      if (event) {
-        // Etkinliği aktif et
-        await fetch("/api/events/active", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ event_id: event.id }),
-        });
-      }
+      await apiPost("/api/teams", teams);
+      
+      showToast(`${teams.length} takım yüklendi`, "success");
+      await loadTeams();
     }
-    
-    // Takımları kaydet (kategori alanındaki mentor bilgilerini temizle)
-    const teams = seedData.teams.map((team) => {
-      if (team.category && team.category.toLowerCase().includes("mentor")) {
-        team.category = ""; // Mentorlar bilgisini kaldır
-      }
-      return team;
-    });
-    
-    await fetch("/api/teams", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(teams),
-    });
-    
-    showToast(`${teams.length} takım yüklendi`, "success");
-    await loadTeams();
   } catch (err) {
     console.error("Seed teams error:", err);
     showToast("Takımlar yüklenirken hata oluştu", "error");

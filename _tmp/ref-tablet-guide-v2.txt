@@ -1,0 +1,1780 @@
+Referee Scoring Tablet Guide 
+
+Revision 
+25-26.1 
+
+25-26.2 
+
+Revision History 
+
+Description 
+Initial 2025-26 Season Release 
+Added: Device Settings & Configuration 
+Added: Special Inputs for Some DECODE Violations G401 & G427 
+Edited: Additional Violations & Cards regarding G401 & G427, RP 
+violation application 
+Updated: Figure 2 & Figure 5 per v7.2.1 
+Added: Event Day Support 
+Added: Appendix A: Gameplay Referee Entry (Optional) 
+
+Contents 
+Overview ............................................................................................................................................................................. 2 
+Scope ............................................................................................................................................................................. 2 
+Event Management System .......................................................................................................................................... 2 
+Device Setup ...................................................................................................................................................................... 3 
+Scoring System Connection and Setup ........................................................................................................................ 3 
+Device Settings & Configuration ................................................................................................................................... 3 
+Frequent Icons and Terms ................................................................................................................................................ 4 
+Referee Score Tracking ..................................................................................................................................................... 5 
+Scoring Referee Locations ............................................................................................................................................ 5 
+Access Referee Score Tracking .................................................................................................................................... 6 
+Field Selection ............................................................................................................................................................... 7 
+Match Selection ............................................................................................................................................................. 7 
+Pre-Match Setup ............................................................................................................................................................ 8 
+Ready ........................................................................................................................................................................... 10 
+AUTO Scoring ............................................................................................................................................................. 12 
+TELEOP Scoring .......................................................................................................................................................... 19 
+Scoring Review ........................................................................................................................................................... 22 
+Resources ................................................................................................................................................................... 27 
+Head Referee View ......................................................................................................................................................... 29 
+Overview ...................................................................................................................................................................... 29 
+Access Head Referee View ........................................................................................................................................ 29 
+Head Referee Notes ................................................................................................................................................... 31 
+Timers ......................................................................................................................................................................... 35 
+Scoresheets ................................................................................................................................................................ 38 
+Active Match ............................................................................................................................................................... 39 
+Event Day Support .......................................................................................................................................................... 49 
+Appendix A: Gameplay Referee Entry (Optional) .......................................................................................................... 50 
+Device Setup ............................................................................................................................................................... 50 
+Gameplay Referee Entry ............................................................................................................................................. 51 
+Impact on Other Devices ............................................................................................................................................ 59 
+
+Revision 25-26.2 
+
+1 of 61 
+
+ 
+ 
+ 
+ 
+Overview 
+
+Scope 
+
+This guide covers Referee scoring tablet functions for the FIRST® Tech Challenge (FTC) program for the 
+DECODE™ season. This document is not intended to detail how to set up an event in the system or set 
+up the Event Management System at an event. Please see the FTC-Live Scoring Setup Guide for more 
+details on the FTC-Live setup. 
+
+Event Management System 
+
+The FTC Event Management System is composed of FTC Scoring, FTC Live, and FTC Events. 
+
+FTC Scoring 
+
+FTC Scoring is the cloud-based, official event management system for FTC.  
+
+Volunteers and Teams use FTC Scoring for a variety of functions. These include: 
+
+•  Manage Region, League, and Team Information 
+•  Create and manage Events and Leagues 
+•  Complete hybrid Judging and Portfolios 
+
+The FTC Score Calculator is part of FTC Scoring and can be used by teams and Referees to provide a 
+practice input for scoring. All of the scoring functions are replicated in the FTC Score Calculator.  
+Additionally, the FTC Score Calculator shows a live score breakdown, including RP, at the top of the 
+screen and includes a timer and randomization functions to allow a team or volunteer to run a 
+complete match with the FTC Score Calculator. 
+
+FTC Live 
+
+FTC Live is the local event management software used during an event to run matches, operate local 
+displays, manage awards, and determine advancement from an event. 
+
+•  Local event management 
+•  Manage & track event scores and rankings 
+•  Scoreboard and display management 
+
+FTC Events 
+
+FTC Events is the official score results website for FIRST Tech Challenge. On this site, people may: 
+
+•  View region, league, and team information 
+•  View event, match, and ranking information 
+•  View awards information, league rankings, and advancement information 
+
+Revision 25-26.2 
+
+2 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Device Setup 
+
+Scoring System Connection and Setup 
+
+In order to use a device such as a phone or tablet for any Referee function, the following steps must be 
+completed: 
+
+•  Connect to the Wi-Fi network being used by the event.  
+• 
+
+In an internet browser (see supported browsers below), set the address to the FTC Live IP 
+address. 
+
+•  Login with appropriate credentials created for the event in FTC Live.  
+
+The individual operating the local scoring system (e.g., Scorekeeper) can provide the IP and login 
+information.  
+
+Events and/or venues may restrict which devices are allowed on their network and instead require the 
+use of event- or venue- supplied devices. If you anticipate needing to use a personal device, let event 
+technical volunteers know as soon as possible. 
+
+Device Settings & Configuration 
+
+Physical Configuration 
+
+It is recommended that devices used for Referee functions have the following features: 
+
+•  Tablets are recommended for scoring Referees and Head Referees.  
+•  Any tablets and phones that are used should include a physical feature that helps prevent 
+
+accidental release of the device or prevent it from travelling far if released. 
+
+o  Wrist or neck lanyard 
+o  Case with built-in handle or hand-strap 
+o  Circular or ring grip/stand 
+
+Settings 
+
+It is recommended that devices used for Referee functions have the following operating system 
+settings: 
+
+•  Latest version of operating system and browser. 
+
+Safari and Chrome are the supported browsers for iOS. 
+Silk and Chrome are the supported browsers for Fire OS. 
+Chrome is the supported browser for Android and all other operating 
+systems. 
+
+• 
+
+If there is a password or PIN code to unlock the device, it should be communicated to the Head 
+Referee, Referees, and/or FTA. 
+
+•  The screen is set to not auto-rotate e.g., “Auto-rotate” is OFF or Rotation Lock is ON. 
+•  The screen is locked in portrait mode (vertical). 
+•  The screen is set to stay awake – e.g., “Auto-Lock” or “Screen Timeout” – a minimum of 5 
+
+minutes. 
+
+Revision 25-26.2 
+
+3 of 61 
+
+ 
+ 
+ 
+ 
+Frequent Icons and Terms 
+
+Icon 
+
+Term 
+
+Description/Definition 
+
+Green ARTIFACT 
+
+Indicates a Green ARTIFACT in a MOTIF or in 
+a position on a RAMP. 
+
+Green ARTIFACT scoring 
+PATTERN points 
+
+Indicates a Green ARTIFACT in a position on a 
+RAMP that scores PATTERN points (Head 
+Referee Active Match summary view only). 
+
+Purple ARTIFACT 
+
+Indicates a Purple ARTIFACT in a MOTIF or in 
+a position on a RAMP. 
+
+Purple ARTIFACT scoring 
+PATTERN points 
+
+Indicates a Green ARTIFACT in a position on a 
+RAMP that scores PATTERN points (Head 
+Referee Active Match summary view only). 
+
+No ARTIFACT 
+
+Indicates no ARTIFACT is present. 
+
+Increase blue count 
+
+Increase red count 
+
+Decrease count 
+
+GATE 
+
+SQUARE 
+
+Achieved 
+
+Not achieved 
+
+Increase the count shown in the adjacent box 
+for blue. 
+
+Increase the count shown in the adjacent box 
+for red. 
+
+Decrease the count shown in the adjacent 
+box. 
+The GATE is located at the bottom of the 
+RAMP. 
+The SQUARE is located at the top of the 
+RAMP. 
+This scoring achievement has been 
+accomplished. 
+This scoring achievement has not been 
+accomplished. 
+
+Revision 25-26.2 
+
+4 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Referee Score Tracking 
+
+Scoring Referee Locations 
+
+Referees that track Scores should be located adjacent to the Alliance Area that aligns with their score 
+tracking tablet color.  
+
+Referees that track Scores are responsible NOT for an Alliance, but for all 
+of the scoring achievements on their assigned side of the field.  
+In DECODE, there is a mix of Alliance scoring elements on each side of 
+the field, so the Referees that track Scores are responsible for a mix of 
+Alliance tasks on their assigned sides of the field. 
+
+Figure 1: Scoring Referee Locations 
+
+Revision 25-26.2 
+
+5 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Access Referee Score Tracking 
+
+Once logged in to a valid Referee login, the Referee must navigate to the Referee Score Tracking 
+category on the FTC Live event home page shown in Figure 2 and select either red or blue Scoring 
+Referee.  
+
+Referees should be standing adjacent to the Alliance Area color that 
+aligns with the color of the Referee score tracking menu selected, as 
+shown in Figure 1. 
+
+Figure 2: Event Home Page for Referees 
+
+Revision 25-26.2 
+
+6 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Field Selection 
+
+The Field Selection screen allows the Referee to select the appropriate field(s).  
+
+Within either the red or blue score tracking, a selection of fields must be made, as shown in Figure 3. It 
+is recommended for Referees at multi-field events to only select the field on which the tablet is used. 
+At most events for the majority of matches, the Referee should select only one field. Once Playoff 
+Matches are on “Field 0,” it is advisable to setup tablets for “All Fields.” 
+
+Figure 3: Red Alliance Score Tracking – Field Selection 
+
+Match Selection 
+
+The Match Selection screen is the beginning of the match cycle on the Referee scoring tablet. 
+
+If no match is available for selection, as shown in Figure 4, then the Scorekeeper has not made the next 
+match active. 
+
+Once the Scorekeeper has activated the match, it will be selectable on this screen, as shown in Figure 
+5. Referees should check the match number and ensure that they are selecting the correct match. 
+
+Figure 4: Match Selection – No Matches 
+
+Revision 25-26.2 
+
+7 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Pre-Match Setup 
+
+Figure 5: Match Selection – Match Available 
+
+The color banner should match the color of the alliance area nearest to 
+the scoring Referee. 
+
+On the page shown in Figure 6, the scoring Referee enters the status of the teams in the alliance area 
+across from them, which have robots in the scoring Referee’s side of the field. 
+
+Referees should check to confirm the correct teams are present, that the drive teams are prepared to 
+participate in the match, and the robot is compliant with relevant rules at the start of the match. 
+
+Enter information about each of the teams present, as follows: 
+
+•  No team: no team members are present at the field and their robot is not present on the field. 
+•  No robot: the robot is not present on the field, but at least one member of the drive team is 
+
+present in the alliance area. 
+
+•  Present: the robot is starting the match on the field and at least one drive team member is 
+
+present at the field. This is the default selection. 
+
+The scoring system automatically applies the relevant rules based on these selections. 
+
+During Playoff Matches, “No Team” is not an option. 
+
+Revision 25-26.2 
+
+8 of 61 
+
+ 
+ 
+ 
+ 
+ 
+After inputting team information on the Pre-Match Setup screen, the Referee should advance to the 
+Ready screen with the “Red Alliance Ready” button. The Referee can return to this screen at any time 
+until they submit AUTO. 
+
+Figure 6: Pre-Match Setup for the Red (Left) and Blue (Right) Scoring Referees 
+
+Revision 25-26.2 
+
+9 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Ready 
+
+Figure 7: Ready Screen for the Red (Left) and Blue (Right) Scoring Referees 
+
+The Ready screen, as shown in Figure 7, denotes that the Referee is ready and the relevant alliance’s 
+participation status is confirmed to start the match. It flags to the Head Referee and Scorekeeper that 
+the Referee is ready. 
+
+If one or both of the scoring Referees is not on the Ready screen, this will be apparent to both the Head 
+Referee and the Scorekeeper. See Figure 8 as an example of the red scoring Referee not being ready 
+and Figure 9, where both scoring Referees are ready. 
+
+Figure 8: Scorekeeper’s Match Control Screen – Red Scoring Referee is not "Ready,” Blue Scoring Referee is “Ready” 
+
+Figure 9: Scorekeeper's Match Control Screen – Red Scoring Referee and Blue Scoring Referee are both “Ready” 
+
+Revision 25-26.2 
+
+10 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+The Referee can return to the Pre-Match Setup screen, if needed, in order to edit the status of the teams 
+participating in the match. However, the Referee must return to the Ready screen to indicate they are 
+ready to start the match. 
+
+After randomization is initiated, the randomized motif will display on the Ready screen of the Referee 
+Scoring Tablets. Referees should help ensure the Obelisk is randomized correctly. The same 
+information will also appear on the field display, if applicable. 
+
+Figure 10: Ready Screen – Randomized for the Red (Left) and Blue (Right) Scoring Referees 
+
+Revision 25-26.2 
+
+11 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+AUTO Scoring 
+
+Figure 11: AUTO Scoring – Artifacts, Leave, and Fouls for the Red (Left) and Blue (Right) Scoring Referees 
+
+This page is for recording AUTO scoring. After scoring AUTO, click the submit button to advance to the 
+TELEOP screen. Even if the scoring Referee has questions about AUTO, they should submit what they 
+can and move on so they don't miss TELEOP achievements. The page will blink yellow if the Referee 
+has not advanced to TELEOP in time. 
+
+Referees can make edits to the AUTO scores in the Review screen 
+following TELEOP.  
+
+For in-match scoring, the Referee scores achievements that occur on the same side of the field. This 
+will include achievements by both alliances. Referees are looking at the goal immediately adjacent to 
+them and the robots that start on their side of the field, which should match the color of the inputs. 
+
+Revision 25-26.2 
+
+12 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Artifacts 
+
+Figure 12: AUTO Scoring – Artifact Inputs for the Red (Left) and Blue (Right) Scoring Referees 
+
+Use the top two inputs to record the number of artifacts that enter the goal, exit under the archway, and 
+pass through the square, live as they are scored. 
+
+If the artifact passes through the square and transitions directly to the ramp, count it as 
+classified.  
+
+If the artifact passes through the square but does not directly transition to the ramp, count it as 
+overflow.  
+
+• 
+
+• 
+
+Leave 
+
+Figure 13: AUTO Scoring – Leave Inputs for the Red (Left) and Blue (Right) Scoring Referees 
+
+For each robot that started on the scoring Referee’s half of the field, check their location at the end of 
+AUTO (approximately at the start of the buzzer).  
+
+To count for leave points (mark as "Yes"), the robot must be not be over any launch line (the lines of the 
+white triangles and the line at the base of the goal). Otherwise, the scoring Referee should mark them 
+as "No." 
+
+The number in parentheses is the team number for that robot. Entering the correct robot helps ensure 
+accurate scoring; however, if the Referee cannot immediately identify the two robots, they should enter 
+the correct quantity regardless of team. 
+
+Figure 14: Leave cannot be scored with "No Robot" or “No Team” 
+
+Revision 25-26.2 
+
+13 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Fouls 
+
+Figure 15: AUTO Scoring – Foul Input 
+
+The scoring Referee should enter any fouls communicated to them by the gameplay Referee during the 
+match. Foul counts are shared between AUTO and TELEOP. Each scoring Referee can enter fouls for 
+either alliance, but they will not see foul counts entered by other Referees.  
+
+When entering a foul, the scoring Referee should ensure they enter the 
+correct foul type for the correct alliance. 
+
+Revision 25-26.2 
+
+14 of 61 
+
+Figure 16: Example AUTO Inputs – Artifacts, Leave, and Fouls 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Pattern 
+
+As AUTO ends, artifacts on the ramp contained by the gate are recorded for pattern scoring. 
+
+Figure 17: AUTO – Pattern Scoring Inputs for Red (left) and Blue (Right) Scoring Referees 
+
+Starting at the gate (first input, nearest the bottom of the ramp), record the color of each artifact 
+directly on the ramp in the order they are on the ramp by selecting either "green" or "purple," regardless 
+of how they got there. If only 5 artifacts are on the ramp, only 5 colors should be recorded, starting at 
+the gate. The rest (6-9) should remain with the default "none" (white circle). This example is shown in 
+Figure 18 for the red scoring Referee (blue pattern). 
+
+The Referee has a limited time to enter this information before the start of 
+TELEOP. While watching the SQUARE is the highest priority, if there is a 
+lull in AUTO, the Referee may start entering the pattern. Once TELEOP 
+starts, if a robot opens the GATE, the pattern information will be lost, so it 
+is important to work expediently.  
+
+Revision 25-26.2 
+
+15 of 61 
+
+ 
+ 
+ 
+ 
+Figure 18: Example AUTO Input – Pattern Scoring for the Red (Left) and Blue (Right) Scoring Referees 
+
+Revision 25-26.2 
+
+16 of 61 
+
+ 
+ 
+ 
+ 
+Figure 19: Example AUTO Input – Pattern Scoring Input Errors 
+
+If an impossible input is entered for pattern scoring – such as artifacts in 
+indices 1-3, no artifact in index 4, and another artifact in index 5, as shown 
+in Figure 19 – then the issue will be highlighted in red and must be 
+corrected before the scoring Referee can submit AUTO. 
+
+Revision 25-26.2 
+
+17 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Submit AUTO 
+
+After scoring AUTO, the Referee must click the Submit button to advance to the TELEOP screen. Even if 
+a Referee has questions about AUTO, they should submit what they can and move on so they don't 
+miss achievements. Referees can make edits to the AUTO scores in the Review screen following 
+TELEOP. 
+
+The page will blink yellow if the Referee has not advanced to TELEOP in 
+time, as shown in Figure 20. 
+
+Figure 20: AUTO – Late Submit 
+
+Revision 25-26.2 
+
+18 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+TELEOP Scoring 
+
+Figure 21: TELEOP Scoring – Artifacts, Base, Depot, and Fouls for the Red (Left) and Blue (Right) Scoring Referees 
+
+This page is for recording TELEOP scoring. Foul counts have carried over from AUTO. 
+
+Only fouls input during AUTO will “carry over” display on the TELEOP 
+scoring screen. Fouls are cumulative throughout the match.  
+
+No scoring achievements are cumulative through the entire match. 
+Artifact scoring is done live and all other achievements are period-
+specific. 
+
+Revision 25-26.2 
+
+19 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Artifacts 
+
+Continue to score artifacts as was done in AUTO. 
+
+See AUTO Artifact Scoring for screenshots and examples. 
+
+Base 
+
+Figure 22: TELEOP Scoring – Base Inputs for the Red (Left) and Blue (Right) Scoring Referees 
+
+At the end of the match (T=0:00), each scoring Referee should look at the base zone nearest them. 
+They must record if each of the ROBOTS has met fully or partially returned criteria.  
+
+•  A fully returned robot must be only supported, either directly or transitively, by the base zone.  
+
+•  A partially returned robot must be partially supported either directly or transitively, by the base 
+
+zone. 
+
+Depot 
+
+Referees should never enter the field to judge base scoring. Base scoring 
+happens only at exactly T=0:00. The Referee should make their best 
+judgement at that time and confer with other Referees as needed. 
+
+Figure 23: TELEOP Scoring – Depot Inputs for the Red (Left) and Blue (Right) Scoring Referees 
+
+After the field has come to rest, Referees must check the depot nearest to them and score the 
+appropriate number of artifacts that are over the depot line. 
+
+Fouls 
+
+Referees should continue to enter any fouls communicated to them by the gameplay Referee during the 
+match. Foul counts are shared between AUTO and TELEOP. Both scoring Referees can enter fouls for 
+either alliance, but Referees will not see foul counts entered by other Referees.  
+
+When entering a foul, the Referee should ensure they enter the correct 
+foul type for the correct alliance. 
+
+See AUTO Fouls for screenshots and examples. 
+
+Revision 25-26.2 
+
+20 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Pattern 
+
+After the field has come to rest, artifacts on the ramp contained by the gate are recorded for pattern 
+scoring.  
+
+Starting at the gate (first input, nearest the bottom of the ramp), record the color of each artifact 
+directly on the ramp in the order they are on the ramp by selecting either "green" or "purple," regardless 
+of how they got there. If only 5 artifacts are on the ramp, only 5 colors should be recorded, starting at 
+the gate. The rest (6-9) should remain with the default "none" (white circle). 
+
+See AUTO Pattern Scoring for screenshots and examples. 
+
+Submit TELEOP 
+
+Save any Referee discussions for the review phase, during which AUTO, TELEOP, and fouls can be 
+edited. Clicking "Submit TELEOP" will transition to the Review page.  
+
+If the Referee has not submitted TELEOP within 10 seconds of the period 
+ending, the page will flash yellow, as shown in Figure 25. 
+
+Figure 24: TELEOP - Early Submit 
+
+Figure 25: TELEOP – Late Submit 
+
+Revision 25-26.2 
+
+21 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Scoring Review 
+
+Figure 26: Review Scoring – Pre-Match and AUTO for the Red (Left) and Blue (Right) Scoring Referees 
+
+The Review page for each scoring Referee, as shown in Figure 26 through Figure 28, lists the scoring 
+achievements and fouls entered by that scoring Referee for both AUTO and TELEOP periods. This page 
+is a “shopping cart” for the Referee to review and ensure that all inputs are correct before the final 
+submission.  
+
+Any edits done here will not reflect in the live scores shown on the displays, but will reflect in the final, 
+posted results. Confirm with the gameplay Referee and if needed, the Head Referee, that the correct 
+fouls have been input correctly. Fouls for AUTO and TELEOP are combined and shown at the bottom of 
+the review page. 
+
+Only the Head Referee or Scorekeeper may enter yellow or red cards or 
+record ranking point violations. If any violations resulting in a card or 
+ranking point adjustment has occurred, it must be communicated to the 
+Head Referee and confirmed and entered by them. 
+
+Revision 25-26.2 
+
+22 of 61 
+
+ 
+ 
+ 
+ 
+Once each scoring Referee has finalized the scores, they should click "Submit Final Scores." 
+
+If there is an input error, including if the pattern for either AUTO or 
+TELEOP has been incorrectly input such that the artifacts are not 
+contiguous, then the error will be highlighted with an instructional note 
+and final scores cannot be submitted until this error is resolved, as shown 
+in Figure 29. 
+
+Once both scoring Referees submit their scores, only the scorekeeper can edit the scores. The Head 
+Referee may only continue to edit fouls and violations if they have held the match for review prior to 
+both scoring Referees submitting their scores. 
+
+If a mistake is identified after submitting, the Referee should inform the 
+Head Referee as soon as possible, who can then communicate with the 
+scorekeeper and take appropriate action to rectify scores. 
+
+Special Scoring Inputs for Some DECODE Violations 
+
+Specific exceptions to “score what you see” are outlined below. It is advised that these are input as 
+achieved during the match, and adjusted post-match during Scoring Review:  
+
+•  G401 – if a G401 violation occurs that renders an alliance ineligible for pattern points in Auto, 
+
+Scoring Referees do not enter pattern achievement in Auto (but DO enter artifacts as 
+overflow/classified). 
+
+•  G427 – if a G427 violation occurs, Scoring Referees manually add base scoring to robot(s) 
+
+impacted by the G427 violation. 
+
+Revision 25-26.2 
+
+23 of 61 
+
+ 
+ 
+ 
+Figure 27: Review Scoring – AUTO Pattern & TELEOP for the Red (Left) and Blue (Right) Scoring Referees 
+
+Revision 25-26.2 
+
+24 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 28: Review Scoring – TELEOP Pattern & Fouls for the Red (Left) and Blue (Right) Scoring Referees 
+
+Revision 25-26.2 
+
+25 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 29: Review Scoring – Example Input Error 
+
+Revision 25-26.2 
+
+26 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Resources 
+
+General resources that are useful for events are included in the “Resources” for all logins. This includes 
+the latest version of the Competition Manual. 
+
+In order to access resources, tap the 3 bars in the top right corner of the tablet to expand the header. 
+Select “Resources.” PDF resources will be opened in the device’s default PDF viewer. 
+
+It is important to determine if a PDF viewer has been installed on your 
+tablet device before matches begin, as not all tablets have PDF viewers 
+installed by default. 
+
+Figure 30: FTC Live Expanded Header (3 bars “Hamburger menu” at top right) 
+
+Revision 25-26.2 
+
+27 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 31: FTC Live Resources – Example  
+
+Revision 25-26.2 
+
+28 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Head Referee View 
+
+Overview 
+
+The Head Referee view is intended to provide the Head Referee a concise overview of the event and 
+specific functions: 
+
+•  Monitor and review status and scoring achievements of the active match 
+• 
+Input fouls and cards for the active match 
+•  Hold active match results from being submitted 
+•  Review and add notes for teams to track escalating violations or concerns 
+•  Review and modify notes for Head Referee hosted meetings 
+•  Start and monitor a G301 violation timer 
+•  Review match scoresheets from previous matches 
+•  Reference resources 
+
+The Head Referee view will not allow the Head Referee to: 
+
+Input scoring achievements for an active match 
+
+• 
+•  Modify scores or violations from matches that have already been submitted 
+•  Start randomization 
+•  Start a match 
+•  Post scores from a submitted match 
+
+Access Head Referee View 
+
+Once logged in to a valid Head Referee login, the Head Referee must navigate to the Referee Score 
+Tracking category shown in Figure 32 and select Head Referee.  
+
+At a multi-field event, the Head Referee must select the correct field(s) in order to view the appropriate 
+matches, as shown in Figure 33. 
+
+Figure 32: Head Referee View Option 
+
+Revision 25-26.2 
+
+29 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 33: Head Referee Field Selection 
+
+Figure 34: Head Referee Tablet Initial View 
+
+Revision 25-26.2 
+
+30 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Head Referee Notes 
+
+The Notes tab displays multiple types of notes for Head Referee use. 
+
+All Head Referee Notes are shared between any Head Referees at the event and will be visible to other 
+Head Referees within the same division. To that point: notes should be clear, concise, and effective in 
+communicating escalating violations and other key information.  Match and team notes should refer to 
+specific rule violations (e.g., “G416”), when applicable. 
+
+If the audio situation at the venue allows, the Head Referee can use speech-to-text to quickly input 
+notes. These may require some editing to clarify terms. 
+
+Match Notes 
+
+The Head Referee must record escalating violations and violations that 
+result in impact to ranking point eligibility, ranking point awards, yellow 
+cards, and red cards during the event, per the Head Referee Manual. They 
+may use the Head Referee Notes for this or an independent note taking 
+tool (such as paper and pen). 
+
+Figure 35: Head Referee Notes by Match 
+
+Figure 35 shows the notes by the match. Matches with multiple notes will show that multiple notes are 
+present in the overview. All notes from the match in the detailed view. 
+
+Tap on the match row in order to view the notes in more detail or edit the note, as shown in Figure 36. 
+
+Revision 25-26.2 
+
+31 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 36: Head Referee Match Note Detail/Edit – Q1 Example 
+
+When making notes on a match, it is beneficial to check the box for the team numbers involved in a 
+notable incident or that incurred an escalating violation that should be tracked. This allows the note to 
+be easily cross-referenced in team notes. Team number mentions in the text of the note are not 
+automatically cross referenced. 
+
+Revision 25-26.2 
+
+32 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Team Notes 
+
+Figure 37: Head Referee Notes by Team Example 
+
+Team notes are used to find or edit notes on a team. Team notes do not propagate between events. 
+
+Tap on the team number row in order to view all notes on the team in more detail or edit the notes on 
+the team. From the team summary of notes, tapping on a match will enable input for any team in the 
+match. See Figure 36 as an example. 
+
+Figure 38: Head Referee Notes by Team – Team 1111 Detail Example 
+
+Revision 25-26.2 
+
+33 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Meeting Notes 
+
+Meeting notes include boilerplate templates for key talking points for the Referee Meeting, the Drivers’ 
+Meeting, the Alliance Captains’ Meeting, and a blank page for “Other.”  
+
+These notes are a valuable starting point for talking points during these key, Head Referee led 
+meetings. All of these can be edited for the current event and saved for future reference. 
+
+Figure 39: Example of Referee Meeting Notes & Editing Meeting Notes 
+
+Revision 25-26.2 
+
+34 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Timers 
+
+On the timer tab, as shown in Figure 40, the match timing is displayed, including the current time, when 
+the upcoming matches are scheduled to start, and if that start time has passed without the match 
+starting with the note of “Match start time has passed!”  
+
+The scheduled time for future matches will not update until the prior match has ended. 
+
+G301 – Delay of Match Violation Timer 
+
+The guidance on when to initiate a G301 timer is found in the Competition 
+Manual. The Head Referee should use the timing information found in the 
+Head Referee tablet as one of several factors in determining if a G301 
+timer should be started. Just because the G301 timer is available to be 
+started does not mean it should be started. 
+
+The timer feature enables the Head Referee to quickly judge if the expected match start time has 
+passed, in addition to other G301 considerations and if a G301 timer can be started. The timer cannot 
+be started unless the timing conditions specified in G301 are met – it will be greyed out. However, the 
+Head Referee should ensure that all G301 violation conditions, including the timing condition, are met 
+prior to starting the G301 timer. 
+
+To start the timer, the Head Referee should tap the green “Start 2-Minute Warning” button. The 2-minute 
+timer will then display in red text on the timer tab of the Head Referee tablet, counting down to 0:00. 
+The timer can be restarted with the red “Restart 2-Minute Warning” button shown in Figure 41, if 
+appropriate. 
+
+When a G301 timer has been activated by the Head Referee on the field, the Referee scoring tablets will 
+indicate that a timer is active, with the current timer countdown displayed in a pink header, as shown in 
+Figure 42. Tapping this header will display the timer in a full-screen mode, as shown in Figure 43. This 
+is useful to display near the team to indicate to them how much time is left before an escalation of 
+G301 will occur. 
+
+Revision 25-26.2 
+
+35 of 61 
+
+ 
+ 
+ 
+Figure 40: Head Referee Timers Tab 
+
+Figure 41: Head Referee Timer Tab – Active 2-Minute Warning Timer 
+
+Revision 25-26.2 
+
+36 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 42: Referee Tablet when G301 2-minute timer is active 
+
+Figure 43: Referee Tablet Fullscreen G301 Timer 
+
+Revision 25-26.2 
+
+37 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Scoresheets 
+
+The Head Referee can display scoresheets for previous matches directly on their tablet to aid in 
+Question Box and Referee conference discussions. 
+
+Inputs include Match number – which can be filtered to just Playoff Matches, and Red Alliance, Blue 
+Alliance, or both Alliances. Confirm the Match number, alliance color, and team number are correct 
+when reviewing a scoresheet. 
+
+Scoresheets, such as the one in Figure 44, are designed to display the quantity and type of scoring 
+achievements and fouls, but not the scores or ranking points earned by each alliance. This should help 
+the conversations between Head Referees and others remain objective. 
+
+Any changes to scoring achievements, fouls, or other match results must 
+be input through the Match Control Screen operated by the Scorekeeper. 
+
+Revision 25-26.2 
+
+38 of 61 
+
+ 
+ 
+ 
+Figure 44: Example Scoresheet (Red Alliance) 
+
+Active Match 
+
+Overview 
+
+When a match on the appropriate field is active, the active match tab will display match information, 
+status, scoring achievements, and fouls/violations for the Head Referee. 
+
+AUTO Scores and TELEOP Scores sections should be expanded for complete viewing, but may be 
+collapsed for a greater focus on violations. Additionally, these sections may be toggled between for 
+devices with small screens. 
+
+The Head Referee Active Match tab condenses a large amount of information and multiple functions 
+about the current match into a single screen: 
+
+•  General Match Information: Inform the Head Referee of the current status of the match 
+
+Revision 25-26.2 
+
+39 of 61 
+
+ 
+ 
+ 
+ 
+ 
+•  General Head Referee Functions: Allow basic operations for the display, notes, and match. 
+•  Fouls: Allow the Head Referee to monitor Referee foul inputs and input minor and major fouls. 
+•  AUTO Score Summary: Provide a brief overview of AUTO scoring achievements. 
+•  TELEOP Score Summary: Provide a brief overview of TELEOP scoring achievements. 
+•  Ranking Point Violations: Allow input of Ranking Point impacting fouls and tracking. 
+•  Team List & Cards: Allow viewing of prior input for teams participating in the match and 
+
+assignment of yellow and/or red cards. 
+
+Revision 25-26.2 
+
+40 of 61 
+
+ 
+ 
+ 
+Figure 45: Head Referee Active Match – Overview with Example Inputs 
+
+Revision 25-26.2 
+
+41 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+General Match Information 
+
+The Active Match tab will display the active match on the relevant field, as shown in Figure 46. 
+
+•  Match Number 
+•  Field Number 
+•  Participating Teams (at the bottom) 
+
+o 
+
+o 
+
+If the team number is shown on a yellow background, the team is carrying a yellow card 
+into the match. 
+If the team number is shown with a speech bubble (
+from prior matches. 
+
+), there are notes on the team 
+
+•  Match Status 
+
+o  Unplayed, Randomized, AUTO, Transition, TELEOP, Review 
+
+•  Randomization Motif 
+
+If this is blank, randomization has not occurred. 
+
+o 
+o  Once randomization has occurred, the randomization motif will be displayed gate to 
+
+square with icons displaying GPP, PGP, or PPG and the motif number and AprilTag ID, as 
+shown in Figure 10. 
+
+•  Referee Status  
+
+o  Displays the current status of both the blue and red scoring Referee tablets for the 
+
+current match.  
+
+o  These will display green and “READY” when scoring Referees have input all Pre-Match 
+Setup information and are on the Ready screen, as indicated for red in Figure 47. 
+
+o  These will display in yellow if the scoring Referee is not on the appropriate screen for the 
+match period. For example, in Figure 45 red is still on TELEOP, as indicated by the yellow 
+background behind “TELEOP,” even though the match is complete. This will also occur if 
+the Referee is still on the AUTO screen during TELEOP or on the Pre-Match Setup page 
+after the match has been randomized. 
+
+Figure 46: Head Referee Active Match – Match Information & Head Referee Functions: Initial Setup & Randomized 
+
+Revision 25-26.2 
+
+42 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 47: Head Referee Active Match – Mixed Referee Status Examples 
+
+General Head Referee Functions 
+
+These functions allow the Head Referee to change their display, add notes and hold the match results 
+from being submitted. 
+
+•  Flip Alliances 
+
+o  Tapping this button will flip the red & blue alliances, as displayed on the Head Referee 
+
+tablet.  
+
+o  This function is primarily intended to enable the Head Referee to change the display in 
+order to optimize their intake of information based on where they are standing around 
+the field. 
+
+•  Add Note 
+
+o  This will open the Match Notes pop-up for the current match, enabling quick entry of 
+
+relevant notes. 
+
+•  Review Required? 
+
+o  Tapping this orange button will hold match results from being submitted to the 
+
+o 
+
+scorekeeper, regardless of the state of the scoring Referee tablets. 
+“Review Required?” should not be regularly used. It should always be used in the 
+following situations: 
+
+▪  A scoring Referee has submitted their scoring achievements and/or fouls with an 
+
+error that should be resolved before scores are posted. 
+▪  The Head Referee assigns cards to one or more teams. 
+▪  The Head Referee assesses a Ranking Point impacting violation. 
+▪  The Head Referee identifies a complex issue that will require time to adjudicate. 
+
+Revision 25-26.2 
+
+43 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Fouls 
+
+The Head Referee can view all fouls input by all Referees for the active match and can add minor or 
+major fouls for both alliances using the inputs for each type of foul, as shown in Figure 48. 
+
+When entering a foul, the Referee should ensure they enter the correct 
+foul type for the correct alliance. 
+
+The Head Referee cannot remove fouls input by the scoring Referees from the Head Referee tablet. 
+Removing fouls input by others must be done on the relevant Scoring Referee tablet or with the 
+Scorekeeper. 
+
+To avoid double-counting fouls, Referees should communicate who is 
+inputting the foul(s) if multiple Referees see the foul occur. 
+
+The fouls are always displayed in the order total followed by R/B and the HR input indicating: 
+
+•  Total = the total number of fouls of that type on the alliance, which should equal the sum of the 
+
+below items: 
+
+o  R = the number of fouls of that type put in by the scoring Referee with the red tablet, 
+o  B = the number of fouls of that type put in by the scoring Referee with the blue tablet, & 
+o  HR = the number of fouls of that type put in by the Head Referee, via the inputs. 
+
+The Head Referee should be aware of the total quantity of fouls and 
+violations submitted for each match and work with the Referee crew to 
+ensure that all violations are counted exactly once.  
+
+Figure 48: Head Referee Active Match – Fouls 
+
+Revision 25-26.2 
+
+44 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Additional Violations and Cards 
+
+Scoring Referees cannot input Ranking Point (RP) violations or cards. These must be input by the Head 
+Referee or the Scorekeeper. 
+
+Referees should generally not attempt to manipulate scoring 
+achievements in order to assess violations that award RP or cause an 
+alliance to be ineligible for RP. 
+
+Specific exceptions for DECODE are:  
+G401 – if a G401 violation occurs that renders an alliance ineligible for 
+pattern points in Auto, scoring Referees do not enter pattern achievement 
+in Auto (but DO enter artifacts as overflow/classified). 
+G427 – if a G427 violation occurs, scoring Referees manually add base 
+scoring to robot(s) impacted by the G427 violation. 
+
+At the start of every match, the RP Violations and Cards will be hidden on the Head Referee tablet to 
+prevent accidentally selecting these items, as in Figure 49. The Head Referee must tap either the blue 
+“Enter RP Violations” or “Assign Cards” in order to enter either of these violations. Figure 50 shows both 
+of these sections unhidden.  
+
+Figure 49: Head Referee – Additional Violations (Hidden) 
+
+Figure 50: Head Referee – Additional Violations, Expanded 
+
+Revision 25-26.2 
+
+45 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Ranking Point Violations 
+
+In order to be succinct, the RP violations are indicated by rule number and sub-section. The Head 
+Referee must understand what rule has been violated and check the correct box for the violation for the 
+alliance that violated the rule. Check the box for the team that violated the rule. The scoring system will 
+apply the correct scoring achievement or eligibility adjustment to the match results. These are not final 
+until the review has been submitted. 
+
+Yellow and Red Cards 
+
+The Head Referee should assign cards by tapping the box adjacent to the appropriate team number. 
+The box will cycle through None > YC > 2nd YC > RC > None. These are not final until the review has 
+been submitted. 
+
+Confirm notes on the team number to ensure escalation is happening correctly. A note must be 
+recorded for each card given. 
+
+•  None: No Yellow Card assigned during the Active Match 
+•  YC: The first Yellow Card is assigned during the event phase 
+•  2nd YC: A second (or additional subsequent) Yellow Card is assigned during the event phase 
+•  RC: a Red Card is assigned during the event phase 
+
+The Head Referee must still make the appropriate displays of the Cards to the team(s) that are 
+assigned cards after entering them in the tablet. 
+
+Review Required 
+
+Once either an RP violation has been checked, or a card has been selected, the Head Referee tablet is 
+automatically put into “Review Required” (green box).  
+
+The Head Referee may also manually put the tablet into “Review Required” by tapping the orange 
+button at the center top of the Head Referee tablet, as shown in Figure 45. The orange box will turn 
+green, as shown in Figure 51. 
+
+If the match is in Review for any reason by the Head Referee, the Head 
+Referee must tap the blue “Submit Review” at the bottom of their screen 
+in order to submit the match scores. This is only available after both 
+scoring Referees have submitted their scores.  
+
+Note the Scorekeeper screen shown in Figure 52. 
+
+Revision 25-26.2 
+
+46 of 61 
+
+ 
+ 
+ 
+ 
+Figure 51: Head Referee – Additional Violations Before (Left) and After (Right) the Scoring Referees Submit 
+
+Figure 52: Scorekeeper View of Match Results when Head Referee Holds Match for Review 
+
+Revision 25-26.2 
+
+47 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Re-Randomizing 
+
+Guidance on re-randomizing is provided in the Head Referee Manual. The 
+Scorekeeper is provided with the warning in Figure 53 if randomization is 
+re-done for a match. 
+
+Figure 53: Scorekeeper Prompt when Re-randomizing a Match 
+
+Revision 25-26.2 
+
+48 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Event Day Support 
+
+Please utilize the tools at the event’s disposal, including: 
+
+•  Key Volunteers at the event who are familiar with FTC-Live 
+•  FTC-Live Setup Guide 
+•  Referee Scoring Tablet Guide (this document) 
+
+Additional event day support of issues with the scoring system can be found through the Scorekeeper’s 
+Match Control page, on the Help tab. 
+
+Figure 54: Event Day Support Information 
+
+Revision 25-26.2 
+
+49 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Appendix A: Gameplay Referee Entry (Optional) 
+
+Events that use penalty Referee devices must be familiar with Appendix A: Gameplay Referee Entry 
+(Optional) (this section) of the Referee Scoring Tablet Guide. 
+
+This option was created to streamline Referee logistics during a match. 
+However, it does not remove the requirements that Referee crews call 
+fouls live, input fouls live, or communicate during a match. 
+
+Device Setup 
+
+The Scorekeeper must enable the Penalty Referee Tablets the Settings tab of the Match Control Screen 
+by checking the box next to “Enable Penalty Referee Tablets,” as shown in Figure 55. The Head Referee, 
+Scorekeeper, and Referee crew must be aware of the use of this option. 
+
+Figure 55: Scorekeeper Match Control Setting to Enable Penalty Referee Tablets 
+
+All 4 Referees (2 scoring, 2 penalty) must use input tablets if this option is 
+selected. Enabling the penalty Referee tablet removes foul inputs from 
+the scoring Referee tablets. 
+
+If the penalty Referee tablet entry mode is either enabled or disabled while 
+Referee devices are active, all Referees must exit their Referee pages and 
+re-access them from the FTC Live event home page on the device. They 
+may need to refresh the home page. 
+
+Revision 25-26.2 
+
+50 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Phones are the recommended devices for penalty Referee entry. Personal phones may be used if the 
+event allows such devices on their network; however, gameplay Referee entry devices should follow all 
+other recommendations in Device Setup. 
+
+It is strongly recommended that any phone, including any personal phone, 
+used for gameplay Referee entry during a match has a “retaining” feature 
+such as a lanyard, handle, hand-strap, or circular/ring grip device. 
+
+One gameplay Referee must select the blue penalty Referee entry and one must select the red penalty 
+Referee entry in when this mode is enabled. Referees should stand next to the alliance area that aligns 
+with their device input color. 
+
+Figure 56:  Event Home Page Referee Tracking Options with Penalty Referee 
+
+Multiple instances of the same tablet (e.g., Red Scoring Referee – Field 1, 
+Blue Penalty Referee – All Fields, Head Referee – Field 2) should not be 
+simultaneously opened and active during any MATCH. 
+
+Gameplay Referee Entry 
+
+The penalty Referee devices will allow gameplay Referees to input major and minor fouls for both 
+alliances live, as they occur. The user interface has been designed to fit well on a phone for 
+ambidextrous use, prioritizing foul entry, but allowing for foul removal, as required. Tapping anywhere 
+on the wide red or blue “increment” buttons will increase the foul count. 
+
+Gameplay Referees cannot input scoring achievements, RP-impacting violations, or Cards. 
+
+Gameplay Referees should input fouls that occur that they call on their side of the field. The Referees 
+should know from the Referee meeting who is responsible for calling and inputting fouls in which area 
+of the field. 
+
+If multiple Referees (e.g., both the Head Referee and the blue gameplay 
+Referee) call the same foul, they should have an established 
+understanding of who should input the foul and/or communicate who will 
+enter that foul through pointing at the person who should enter it. 
+
+Revision 25-26.2 
+
+51 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Gameplay Referees should prioritize calling rule violations live with visual 
+and/or verbal cues. They may also enter fouls during the match, soon 
+after the violation occurs and is called. 
+
+Gameplay Referees should not miss action on the field for the sake of 
+inputting fouls into their device. They should time foul entry around the 
+action that occurs on the field and minimize the time spent looking at 
+their device for entry. 
+
+Pre-Match Setup 
+
+Each gameplay Referee participating in a match must select the active match. They are not required to 
+provide any other inputs prior to the match start. 
+
+Figure 57: Match Selection – Match Available for the Red (Left) and Blue (Right) Penalty Referees 
+
+Figure 58: Ready for Match Screen – Not Randomized – for the Red (Left) and Blue (Right) Penalty Referees 
+
+Revision 25-26.2 
+
+52 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 59: Ready for Match Screen – Randomized – for the Red (Left) and Blue (Right) Penalty Referees 
+
+Revision 25-26.2 
+
+53 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+AUTO 
+
+The gameplay Referees will input fouls observed & called during the AUTO period of the match by 
+incrementing fouls with the large colored and labeled buttons on their device. Fouls can be removed 
+with the grey decrease button found directly under the red/blue button for the foul type. 
+
+Figure 60: AUTO Penalty Referee Input Screens for the Red (Left) and Blue (Right) 
+
+The penalty Referee screen will automatically advance from AUTO to TELEOP at the end of AUTO 
+without user input; therefore, the AUTO screen does not feature a “Submit AUTO” button.  
+
+The number of fouls will carryover between AUTO and TELEOP, as fouls 
+are cumulative over a match. 
+
+Revision 25-26.2 
+
+54 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+TELEOP 
+
+The gameplay Referee should continue to enter fouls as they occur throughout TELEOP.  
+
+If a gameplay Referee tries to submit TELEOP prior to the end of TELEOP, it will not work and they will 
+be alerted, as shown in Figure 62, and TELEOP will not submit. Once TELEOP has ended, they must use 
+the "Submit TELEOP" button, which will transition to the Review page.  
+
+If the Referee has not submitted TELEOP within 10 seconds of the period 
+ending, the page will flash yellow, as shown in Figure 63. 
+
+Figure 61: TELEOP Penalty Referee Input Screens for the Red (Left) and Blue (Right) 
+
+Revision 25-26.2 
+
+55 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 62: TELEOP – Early Submission Alert 
+
+Figure 63: TELEOP – Penalty Referee Late Submission Warning 
+
+Revision 25-26.2 
+
+56 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Review 
+
+The Review screen for each gameplay Referee displays the fouls entered by that gameplay Referee for 
+both AUTO and TELEOP periods and allows them to review and adjust foul counts during a Referee 
+conference before the final submission. Any edits done on the review screen will not reflect in the live 
+scores shown on the displays, but will reflect in the final posted results. Confirm with the scoring 
+Referee and the Head Referee that the correct fouls have been input correctly, without double-counting. 
+
+Gameplay Referees must ensure that the Head Referee inputs any RP-
+impacting violations and any Cards.  
+
+Gameplay Referees must ensure that scoring Referees adjust any scoring 
+achievements due to violations (e.g., G427 Base Scoring awards, G401 
+AUTO Pattern points), when applicable. 
+
+Each gameplay Referee must “Submit Final Scores” once any review is complete. 
+
+The gameplay Referees must submit final scores for each match, whether 
+or not they record any fouls. Otherwise, it will hangup the match 
+submission. 
+
+Revision 25-26.2 
+
+57 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 64: Review Penalty Referee Input Screens for the Red (Left) and Blue (Right) 
+
+Revision 25-26.2 
+
+58 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+Impact on Other Devices 
+
+When the penalty Referee devices are enabled, the following changes will occur to the other Referee 
+devices and Scorekeeper view. 
+
+Scoring Referee 
+
+Scoring Referees will no longer have foul entry included on their tablets. This means the gameplay 
+Referees and the Head Referee must input all Fouls on their devices. 
+
+Figure 65: Scoring Referee Tablet - AUTO without Foul Input 
+
+Figure 66: Scoring Referee Tablet without Foul Input 
+
+Revision 25-26.2 
+
+59 of 61 
+
+ 
+ 
+ 
+ 
+ 
+Figure 67: Scoring Referee Tablet Review Screen without Foul Input 
+
+Head Referee 
+
+The Head Referee tablet will feature an additional row of statuses to capture all four devices set for the 
+active match. 
+
+The “Foul input” line is now indicating the fouls input by the penalty Referee devices instead of the 
+scoring Referee devices. 
+
+Figure 68: Head Referee Tablet with Scoring and Penalty Referee Tablet Statuses 
+
+The gameplay Referees must submit each match, whether or not they 
+record any fouls. Otherwise, it will hangup the match submission. 
+
+Revision 25-26.2 
+
+60 of 61 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Scorekeeper 
+
+The Scorekeeper will be able to view all four in-match Referee device statuses. These are shown with a 
+horizontal split across the tablet status indication. Penalty tablets are on the bottom, scoring tablets 
+are on the top. Orange indicates a late submission from a phase. Green indicates the tablet is on the 
+correct phase or that the review has been submitted post-match. Orange indicates the tablet is on a 
+prior match phase. 
+
+Figure 69: Scorekeeper Indicator for Tablet Status (Examples) 
+
+Revision 25-26.2 
+
+61 of 61 
+
+ 
+ 
+ 
+ 
+ 
+

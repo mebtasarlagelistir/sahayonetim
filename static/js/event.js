@@ -27,8 +27,6 @@ const eventFields = [
   "teleop_seconds",
   "endgame_seconds",
   "match_cycle_seconds",
-  "allow_remote_scoring",
-  "scoring_notes",
 ];
 
 let originalEventCode = "";
@@ -49,16 +47,7 @@ let originalEventCode = "";
  */
 async function loadEvent() {
   try {
-    const res = await fetch("/api/event");
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!res.ok) {
-      showToast("Etkinlik bilgileri yüklenemedi", "error");
-      return;
-    }
-    const data = await res.json();
+    const data = await apiGet("/api/event");
 
     // Null check'ler - element yoksa hata vermemesi için
     if (qs("event_name")) qs("event_name").value = data.name || "";
@@ -88,17 +77,38 @@ async function loadEvent() {
     if (qs("endgame_seconds")) qs("endgame_seconds").value = data.schedule?.endgame_seconds ?? 30;
     if (qs("match_cycle_seconds")) qs("match_cycle_seconds").value = data.schedule?.match_cycle_seconds ?? 150;
 
-    if (qs("allow_remote_scoring")) qs("allow_remote_scoring").checked = !!data.scoring?.allow_remote_scoring;
-    if (qs("scoring_notes")) qs("scoring_notes").value = data.scoring?.notes || "";
-
-    loadCustomFields(data.custom_fields || []);
     if (typeof updateStepStatuses === "function") {
       updateStepStatuses(data);
     }
     updateMatchCycle();
+    updateEventContextBanner(data);
   } catch (err) {
     console.error("Load event error:", err);
     showToast("Etkinlik bilgileri yüklenirken hata oluştu", "error");
+  }
+}
+
+/**
+ * Etkinlik seçimi bağlamını banner'da gösterir ve kaydetmeyi kontrol eder
+ * @param {Object} eventData - Etkinlik verisi
+ */
+function updateEventContextBanner(eventData) {
+  const banner = qs("event_context_banner");
+  const nameEl = qs("event_context_name");
+  const selector = qs("event_selector");
+  const saveBtn = qs("save-event");
+  const selectedName = selector?.selectedOptions?.[0]?.textContent?.trim() || "";
+  const eventName = selectedName || eventData?.name || "";
+  const hasEvent = eventName && eventName !== "Etkinlik yok - Yeni oluşturun";
+  if (nameEl) {
+    nameEl.textContent = eventName || "Etkinlik seçilmedi";
+  }
+  if (banner) {
+    banner.classList.toggle("warning", !hasEvent);
+    banner.classList.toggle("ok", hasEvent);
+  }
+  if (saveBtn) {
+    saveBtn.disabled = !hasEvent;
   }
 }
 
@@ -114,48 +124,45 @@ async function loadEvent() {
  * - Esnek alanlar (custom fields)
  */
 function collectEvent() {
-  const divisions = qs("divisions")
-    .value.split(",")
+  const divisionsRaw = qs("divisions")?.value || "";
+  const divisions = divisionsRaw
+    .split(",")
     .map((d) => d.trim())
     .filter(Boolean);
 
   return {
-    name: qs("event_name").value.trim(),
-    code: qs("event_code").value.trim(),
-    season: qs("season").value.trim(),
+    name: qs("event_name")?.value?.trim() || "",
+    code: qs("event_code")?.value?.trim() || "",
+    season: qs("season")?.value?.trim() || "",
     location: {
-      venue: qs("venue").value.trim(),
-      city: qs("city").value.trim(),
-      country: qs("country").value.trim(),
+      venue: qs("venue")?.value?.trim() || "",
+      city: qs("city")?.value?.trim() || "",
+      country: qs("country")?.value?.trim() || "",
     },
     dates: {
-      start: qs("start_date").value,
-      end: qs("end_date").value,
-      timezone: qs("timezone").value.trim(),
+      start: qs("start_date")?.value || "",
+      end: qs("end_date")?.value || "",
+      timezone: qs("timezone")?.value?.trim() || "Europe/Istanbul",
     },
     organizer: {
-      organization: qs("org_name").value.trim(),
-      contact_name: qs("contact_name").value.trim(),
-      email: qs("contact_email").value.trim(),
-      phone: qs("contact_phone").value.trim(),
+      organization: qs("org_name")?.value?.trim() || "",
+      contact_name: qs("contact_name")?.value?.trim() || "",
+      email: qs("contact_email")?.value?.trim() || "",
+      phone: qs("contact_phone")?.value?.trim() || "",
     },
     format: {
       divisions: divisions.length ? divisions : ["Genel"],
-      fields: Number(qs("fields").value || 1),
-      teams_per_alliance: Number(qs("teams_per_alliance").value || 2),
-      alliances: Number(qs("alliances").value || 2),
+      fields: Number(qs("fields")?.value || 1),
+      teams_per_alliance: Number(qs("teams_per_alliance")?.value || 2),
+      alliances: Number(qs("alliances")?.value || 2),
     },
     schedule: {
-      auto_seconds: Number(qs("auto_seconds").value || 0),
-      teleop_seconds: Number(qs("teleop_seconds").value || 120),
-      endgame_seconds: Number(qs("endgame_seconds").value || 30),
-      match_cycle_seconds: Number(qs("match_cycle_seconds").value || 150),
+      auto_seconds: Number(qs("auto_seconds")?.value || 0),
+      teleop_seconds: Number(qs("teleop_seconds")?.value || 120),
+      endgame_seconds: Number(qs("endgame_seconds")?.value || 30),
+      match_cycle_seconds: Number(qs("match_cycle_seconds")?.value || 150),
     },
-    scoring: {
-      allow_remote_scoring: qs("allow_remote_scoring").checked,
-      notes: qs("scoring_notes").value.trim(),
-    },
-    custom_fields: collectCustomFields(),
+    scoring: {},
   };
 }
 
@@ -171,6 +178,11 @@ function collectEvent() {
  */
 async function saveEvent() {
   const payload = collectEvent();
+  const selector = qs("event_selector");
+  if (selector && !Number(selector.value || 0)) {
+    showToast("Önce 'Yeni' ile etkinlik oluşturun ve seçin.", "warning");
+    return;
+  }
   
   // Validations
   if (!validateEventCode(payload.code)) {
@@ -194,7 +206,9 @@ async function saveEvent() {
       "Etkinlik kodu değiştirildi. Bu değişiklik varsayılan kullanıcı hesaplarını etkileyebilir. Devam etmek istiyor musunuz?"
     );
     if (!confirmed) {
-      qs("event_code").value = originalEventCode;
+      if (qs("event_code")) {
+        qs("event_code").value = originalEventCode;
+      }
       return;
     }
   }
@@ -203,31 +217,22 @@ async function saveEvent() {
   setButtonLoading(button, true);
   
   try {
-    const res = await fetch("/api/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
+    await apiPost("/api/event", payload);
+    originalEventCode = payload.code; // Update stored code
+    showToast("Etkinlik başarıyla kaydedildi", "success");
+    if (typeof loadEvents === "function") {
+      await loadEvents();
     }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
+    updateEventContextBanner(payload);
+    // Adım durumunu güncelle
+    if (typeof setStepStatus === "function") {
+      setStepStatus("step-event", "Done");
     }
-    
-    if (res.ok) {
-      originalEventCode = payload.code; // Update stored code
-      showToast("Etkinlik başarıyla kaydedildi", "success");
-      if (typeof loadUsers === "function") {
-        loadUsers(); // Refresh user list if event code changed
-      }
-    } else {
-      const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-      showToast(`Kaydetme başarısız: ${error.error || res.statusText}`, "error");
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
+    }
+    if (typeof loadUsers === "function") {
+      loadUsers(); // Refresh user list if event code changed
     }
   } catch (err) {
     console.error("Save event error:", err);
@@ -235,60 +240,6 @@ async function saveEvent() {
   } finally {
     setButtonLoading(button, false);
   }
-}
-
-/**
- * Özel alanları yükler ve tabloya ekler
- * @param {Array} fields - Özel alan listesi [{key, value}, ...]
- */
-function loadCustomFields(fields) {
-  const table = qs("custom_table");
-  if (!table) return;
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  fields.forEach((field) => addCustomRow(field.key || "", field.value || ""));
-}
-
-/**
- * Özel alanları formdan toplar
- * @returns {Array} Özel alan listesi [{key, value}, ...]
- */
-function collectCustomFields() {
-  const table = qs("custom_table");
-  if (!table) return [];
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return [];
-  const rows = tbody.querySelectorAll("tr");
-  const fields = [];
-  rows.forEach((row) => {
-    const key = row.querySelector('input[data-field="key"]')?.value.trim() || "";
-    const value = row.querySelector('input[data-field="value"]')?.value.trim() || "";
-    if (key || value) {
-      fields.push({ key, value });
-    }
-  });
-  return fields;
-}
-
-/**
- * Özel alan satırı ekler
- * @param {string} key - Alan anahtarı
- * @param {string} value - Alan değeri
- */
-function addCustomRow(key = "", value = "") {
-  const table = qs("custom_table");
-  if (!table) return;
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return;
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td><input type="text" data-field="key" value="${escapeHtml(key)}" placeholder="Anahtar" /></td>
-    <td><input type="text" data-field="value" value="${escapeHtml(value)}" placeholder="Değer" /></td>
-    <td><button type="button">Sil</button></td>
-  `;
-  tbody.appendChild(tr);
-  tr.querySelector("button").addEventListener("click", () => tr.remove());
 }
 
 /**
@@ -310,30 +261,69 @@ function updateMatchCycle() {
  */
 async function loadEvents() {
   try {
-    const res = await fetch("/api/events");
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!res.ok) {
-      showToast("Etkinlikler yüklenemedi", "error");
-      return;
-    }
-    const events = await res.json();
+    const events = await apiGet("/api/events");
     const selector = qs("event_selector");
     if (!selector) return;
     selector.innerHTML = "";
+    let hasActive = false;
+    
+    if (!events || events.length === 0) {
+      // Etkinlik yoksa placeholder ekle
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Etkinlik yok - Yeni oluşturun";
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      selector.appendChild(placeholder);
+      return;
+    }
+    
     events.forEach((event) => {
       const option = document.createElement("option");
       option.value = String(event.id);
       option.textContent = event.name || `Etkinlik ${event.id}`;
       if (event.active) {
         option.selected = true;
+        hasActive = true;
       }
       selector.appendChild(option);
     });
+    const storedId = window.localStorage?.getItem("active_event_id");
+    if (!hasActive && storedId && selector.querySelector(`option[value="${storedId}"]`)) {
+      selector.value = storedId;
+      try {
+        await apiPost("/api/events/active", { id: Number(storedId) });
+        window.localStorage?.setItem("active_event_id", storedId);
+      } catch (err) {
+        console.error("Set active event from storage error:", err);
+      }
+    } else if (!hasActive && events.length > 0) {
+      const fallbackId = String(events[0].id);
+      selector.value = fallbackId;
+      try {
+        await apiPost("/api/events/active", { id: Number(fallbackId) });
+        window.localStorage?.setItem("active_event_id", fallbackId);
+      } catch (err) {
+        console.error("Set active event fallback error:", err);
+      }
+    } else if (hasActive) {
+      const activeOption = selector.selectedOptions?.[0];
+      if (activeOption?.value) {
+        window.localStorage?.setItem("active_event_id", activeOption.value);
+      }
+    }
   } catch (err) {
     console.error("Load events error:", err);
     showToast("Etkinlikler yüklenirken hata oluştu", "error");
+    const selector = qs("event_selector");
+    if (selector) {
+      selector.innerHTML = "";
+      const errorOption = document.createElement("option");
+      errorOption.value = "";
+      errorOption.textContent = "Hata: Etkinlikler yüklenemedi";
+      errorOption.disabled = true;
+      errorOption.selected = true;
+      selector.appendChild(errorOption);
+    }
   }
 }

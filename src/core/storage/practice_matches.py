@@ -64,7 +64,7 @@ class PracticeMatchesStorage:
         
         query = """
             SELECT id, match_number, field_number, field_name, match_date, match_time, 
-                   red_alliance, blue_alliance, status, red_score, blue_score, surrogate_teams, notes
+                   red_alliance, blue_alliance, status, red_score, blue_score, surrogate_teams, scoring_data, notes
             FROM practice_matches 
             WHERE event_id = ?
         """
@@ -99,7 +99,8 @@ class PracticeMatchesStorage:
                 "red_score": row[9],
                 "blue_score": row[10],
                 "surrogate_teams": json.loads(row[11]) if row[11] else [],
-                "notes": row[12] or "",
+                "scoring_data": json.loads(row[12]) if row[12] else {},
+                "notes": row[13] or "",
             }
             for row in rows
         ]
@@ -188,6 +189,7 @@ class PracticeMatchesStorage:
         red_score: int | None = None,
         blue_score: int | None = None,
         surrogate_teams: List[str] | None = None,
+        scoring_data: Dict[str, Any] | None = None,
         notes: str | None = None,
     ) -> None:
         """
@@ -244,6 +246,9 @@ class PracticeMatchesStorage:
         if surrogate_teams is not None:
             updates.append("surrogate_teams = ?")
             params.append(json.dumps(surrogate_teams))
+        if scoring_data is not None:
+            updates.append("scoring_data = ?")
+            params.append(json.dumps(scoring_data))
         if notes is not None:
             updates.append("notes = ?")
             params.append(notes)

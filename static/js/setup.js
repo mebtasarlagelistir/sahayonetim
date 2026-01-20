@@ -15,10 +15,7 @@ const steps = [
   { id: "step-practice-matches", title: "Deneme Maçları", status: "Not Started" },
   { id: "step-match-schedule", title: "Sıralama Maç Takvimi", status: "Not Started" },
   { id: "step-wifi", title: "WiFi Kanal Atama", status: "Not Started" },
-  { id: "step-pit-map", title: "Pit Haritası", status: "Optional" },
   { id: "step-awards", title: "Ödül Yönetimi", status: "Not Started" },
-  { id: "step-advancement", title: "Yükselme Raporu", status: "Not Started" },
-  { id: "step-send-results", title: "Sonuçları Gönder", status: "Not Started" },
   { id: "step-archive", title: "Arşiv İndir", status: "Not Started" },
 ];
 
@@ -31,15 +28,14 @@ async function loadStep(step) {
   if (!contentContainer) return;
   
   try {
-    const res = await fetch(`/api/setup/step/${step}`);
-    if (!res.ok) {
+    const response = await fetchWithRetry(`/api/setup/step/${step}`, { method: "GET" });
+    const html = await response.text();
+    if (!html) {
       contentContainer.innerHTML = `<div class="card" style="padding: 32px; text-align: center; color: #f44336;">
         <p>Adım yüklenirken hata oluştu</p>
       </div>`;
       return;
     }
-    
-    const html = await res.text();
     contentContainer.innerHTML = html;
     
     // Adım yüklendikten sonra ilgili event listener'ları ve verileri yükle
@@ -77,7 +73,7 @@ async function initializeStep(step) {
       // Grid görünümü için varsayılan tarihi ayarla
       if (qs("grid_view_date") && !qs("grid_view_date").value) {
         try {
-          const event = await fetch("/api/event").then(r => r.ok ? r.json() : {}).catch(() => ({}));
+          const event = await apiGet("/api/event").catch(() => ({}));
           if (event.dates?.start) {
             qs("grid_view_date").value = event.dates.start;
           }
@@ -98,6 +94,17 @@ async function initializeStep(step) {
       if (typeof loadMatchSchedule === "function") await loadMatchSchedule();
       setupMatchScheduleListeners();
       break;
+    case "wifi":
+      if (typeof loadWifiSettings === "function") await loadWifiSettings();
+      if (typeof setupWifiListeners === "function") setupWifiListeners();
+      break;
+    case "awards":
+      if (typeof loadAwards === "function") await loadAwards();
+      if (typeof setupAwardsListeners === "function") setupAwardsListeners();
+      break;
+    case "archive":
+      if (typeof setupArchiveListeners === "function") setupArchiveListeners();
+      break;
   }
 }
 
@@ -105,9 +112,6 @@ async function initializeStep(step) {
  * Event adımı için event listener'ları kurar
  */
 function setupEventListeners() {
-  if (qs("save-event")) {
-    qs("save-event").addEventListener("click", saveEvent);
-  }
   if (qs("auto_seconds")) {
     qs("auto_seconds").addEventListener("input", updateMatchCycle);
   }
@@ -116,9 +120,6 @@ function setupEventListeners() {
   }
   if (qs("endgame_seconds")) {
     qs("endgame_seconds").addEventListener("input", updateMatchCycle);
-  }
-  if (qs("add_custom")) {
-    qs("add_custom").addEventListener("click", () => addCustomRow());
   }
   // Validasyon listener'ları
   if (qs("event_code")) {
@@ -175,6 +176,82 @@ function setupTeamsListeners() {
   }
   if (qs("seed_teams")) {
     qs("seed_teams").addEventListener("click", seedTeams);
+  }
+}
+
+/**
+ * Bulunulan adımı tespit eder (hash veya varsayılan)
+ * @returns {string} Adım adı (event, teams, accounts, vb.)
+ */
+function getCurrentSetupStep() {
+  const hash = window.location.hash.replace("#", "");
+  if (!hash) return "event";
+  return hash.replace("step-", "");
+}
+
+/**
+ * Header'daki "Etkinliği Kaydet" butonunu aktif adıma bağlar
+ */
+function setupHeaderSave() {
+  const saveBtn = qs("save-event");
+  if (!saveBtn) return;
+  saveBtn.addEventListener("click", saveCurrentSetupStep);
+}
+
+/**
+ * Aktif adımı kaydeder (tek tuşla yanlış adımı kaydetmeyi engeller)
+ */
+async function saveCurrentSetupStep() {
+  const step = getCurrentSetupStep();
+  if (qs("event_selector") && !Number(qs("event_selector").value || 0)) {
+    showToast("Önce 'Yeni' ile etkinlik oluşturun ve seçin.", "warning");
+    return;
+  }
+  switch (step) {
+    case "event":
+      if (typeof saveEvent === "function") {
+        await saveEvent();
+      }
+      break;
+    case "teams":
+      if (typeof saveTeams === "function") {
+        await saveTeams();
+      }
+      break;
+    case "accounts":
+      showToast("Kullanıcılar anlık kaydedilir.", "info");
+      break;
+    case "inspection-schedule":
+      if (typeof saveInspectionDurations === "function" && qs("save_inspection_durations")) {
+        await saveInspectionDurations();
+      }
+      if (typeof saveInspectionPrintNote === "function" && qs("save_inspection_print_note")) {
+        await saveInspectionPrintNote();
+      }
+      break;
+    case "practice-matches":
+      if (typeof savePracticeSettings === "function" && qs("save_practice_settings")) {
+        await savePracticeSettings();
+      }
+      break;
+    case "match-schedule":
+      if (typeof saveMatchScheduleSettings === "function" && qs("save_match_settings")) {
+        await saveMatchScheduleSettings();
+      }
+      break;
+    case "wifi":
+      if (typeof saveWifiSettings === "function" && qs("wifi_save_settings")) {
+        await saveWifiSettings();
+      }
+      break;
+    case "awards":
+      if (typeof saveAwards === "function" && qs("save_awards")) {
+        await saveAwards();
+      }
+      break;
+    default:
+      showToast("Bu adımda kaydedilecek bir ayar yok.", "info");
+      break;
   }
 }
 
@@ -376,7 +453,26 @@ function setupMatchScheduleListeners() {
     qs("apply_match_bulk_update").addEventListener("click", bulkUpdateMatchSchedule);
   }
   if (qs("print_match_schedule")) {
-    qs("print_match_schedule").addEventListener("click", () => window.print());
+    qs("print_match_schedule").addEventListener("click", () => {
+      if (typeof setMatchView === "function") {
+        setMatchView("list");
+      }
+      window.print();
+    });
+  }
+  if (qs("match_stage_activate")) {
+    qs("match_stage_activate").addEventListener("click", async () => {
+      setMatchStageButtons(true);
+      toggleMatchStageUI(true);
+      await saveMatchScheduleSettings();
+    });
+  }
+  if (qs("match_stage_deactivate")) {
+    qs("match_stage_deactivate").addEventListener("click", async () => {
+      setMatchStageButtons(false);
+      toggleMatchStageUI(false);
+      await saveMatchScheduleSettings();
+    });
   }
   if (qs("match_view_list")) {
     qs("match_view_list").addEventListener("click", () => setMatchView("list"));
@@ -459,6 +555,9 @@ function setupInspectionListeners() {
   }
   if (qs("save_inspection_durations")) {
     qs("save_inspection_durations").addEventListener("click", saveInspectionDurations);
+  }
+  if (qs("save_inspection_print_note")) {
+    qs("save_inspection_print_note").addEventListener("click", saveInspectionPrintNote);
   }
   if (qs("view_list")) {
     qs("view_list").addEventListener("click", () => switchInspectionView("list"));
@@ -547,21 +646,232 @@ function setStepStatus(stepId, status) {
 }
 
 /**
+ * Tüm setup adımlarının durumunu kontrol eder ve günceller
+ */
+async function checkAllStepStatuses() {
+  try {
+    // Etkinlik bilgilerini kontrol et
+    try {
+      const eventData = await apiGet("/api/event");
+      updateStepStatuses(eventData);
+    } catch (err) {
+      console.error("Event check error:", err);
+    }
+    
+    // Takımları kontrol et
+    try {
+      const teams = await apiGet("/api/teams");
+      updateTeamStatus(teams.length);
+    } catch (err) {
+      console.error("Teams check error:", err);
+    }
+    
+    // Kullanıcıları kontrol et
+    try {
+      const users = await apiGet("/api/users");
+      if (typeof updateAccountStatus === "function") {
+        updateAccountStatus(users.length);
+      }
+    } catch (err) {
+      console.error("Users check error:", err);
+    }
+    
+    // İnceleme slotlarını kontrol et
+    try {
+      const slots = await apiGet("/api/inspection-slots");
+      if (slots && slots.length > 0) {
+        setStepStatus("step-inspection-schedule", "Done");
+        setStepCount("step-inspection-schedule", slots.length);
+      }
+    } catch (err) {
+      console.error("Inspection slots check error:", err);
+    }
+    
+    // Deneme maçlarını kontrol et
+    try {
+      const practiceMatches = await apiGet("/api/practice-matches");
+      if (practiceMatches && practiceMatches.length > 0) {
+        setStepStatus("step-practice-matches", "Done");
+        setStepCount("step-practice-matches", practiceMatches.length);
+      }
+    } catch (err) {
+      console.error("Practice matches check error:", err);
+    }
+    
+    // Sıralama maç takvimini kontrol et
+    try {
+      const matches = await apiGet("/api/match-schedule");
+      if (matches && matches.length > 0) {
+        setStepStatus("step-match-schedule", "Done");
+        setStepCount("step-match-schedule", matches.length);
+      }
+    } catch (err) {
+      console.error("Match schedule check error:", err);
+    }
+    
+    // WiFi ayarlarını kontrol et
+    try {
+      const wifiData = await apiGet("/api/wifi/settings");
+      if (wifiData && wifiData.assignments && Object.keys(wifiData.assignments).length > 0) {
+        setStepStatus("step-wifi", "Done");
+        const assignmentCount = Object.keys(wifiData.assignments).length;
+        setStepCount("step-wifi", assignmentCount);
+      }
+    } catch (err) {
+      console.error("WiFi settings check error:", err);
+    }
+    
+    // Ödülleri kontrol et
+    try {
+      const awards = await apiGet("/api/awards");
+      if (awards && awards.length > 0) {
+        setStepStatus("step-awards", "Done");
+        setStepCount("step-awards", awards.length);
+      }
+    } catch (err) {
+      console.error("Awards check error:", err);
+    }
+    
+    // İlerleme göstergesini güncelle
+    updateProgressIndicator();
+    
+    // Maç kontrol sayfasına hazır olup olmadığını kontrol et
+    checkMatchControlReadiness();
+    
+  } catch (err) {
+    console.error("Check step statuses error:", err);
+  }
+}
+
+/**
+ * İlerleme göstergesini günceller
+ */
+function updateProgressIndicator() {
+  const requiredSteps = [
+    "step-event",
+    "step-accounts",
+    "step-teams",
+    "step-match-schedule",
+    "step-wifi"
+  ];
+  
+  let completedCount = 0;
+  let totalCount = steps.length;
+  
+  steps.forEach(step => {
+    const statusEl = document.querySelector(`[data-step="${step.id}"]`);
+    if (statusEl) {
+      const status = statusEl.textContent.trim();
+      if (status === "Done") {
+        completedCount++;
+      }
+    }
+  });
+  
+  const percentage = Math.round((completedCount / totalCount) * 100);
+  
+  // Progress bar'ı güncelle
+  const progressFill = qs("setup-progress-fill");
+  const progressText = qs("setup-progress-text");
+  const completedStepsEl = qs("completed-steps");
+  
+  if (progressFill) {
+    progressFill.style.width = `${percentage}%`;
+  }
+  if (progressText) {
+    progressText.textContent = `${percentage}%`;
+  }
+  if (completedStepsEl) {
+    completedStepsEl.textContent = completedCount;
+  }
+}
+
+/**
+ * Maç kontrol sayfasına hazır olup olmadığını kontrol eder
+ */
+async function checkMatchControlReadiness() {
+  try {
+    const requirements = {
+      event: false,
+      teams: false,
+      accounts: false,
+      matchSchedule: false,
+      wifi: false
+    };
+    
+    // Etkinlik kontrolü
+    try {
+      const eventData = await apiGet("/api/event");
+      requirements.event = !!(eventData.name && eventData.code && eventData.format?.fields);
+    } catch (err) {
+      console.error("Event check error:", err);
+    }
+    
+    // Takımlar kontrolü
+    try {
+      const teams = await apiGet("/api/teams");
+      requirements.teams = teams.length > 0;
+    } catch (err) {
+      console.error("Teams check error:", err);
+    }
+    
+    // Kullanıcılar kontrolü (en az 1 hakem)
+    try {
+      const users = await apiGet("/api/users");
+      const hasReferee = users.some(u => u.role && u.role.toLowerCase().includes("hakem"));
+      requirements.accounts = hasReferee;
+    } catch (err) {
+      console.error("Users check error:", err);
+    }
+    
+    // Maç takvimi kontrolü
+    try {
+      const matches = await apiGet("/api/match-schedule");
+      const qualificationMatches = matches.filter(m => m.match_type === "qualification");
+      requirements.matchSchedule = qualificationMatches.length > 0;
+    } catch (err) {
+      console.error("Match schedule check error:", err);
+    }
+    
+    // WiFi kontrolü
+    try {
+      const wifiData = await apiGet("/api/wifi/settings");
+      requirements.wifi = !!(wifiData.assignments && Object.keys(wifiData.assignments).length > 0);
+    } catch (err) {
+      console.error("WiFi check error:", err);
+    }
+    
+    // Tüm gereksinimler karşılandı mı?
+    const allReady = Object.values(requirements).every(v => v === true);
+    
+    const readyIndicator = qs("match-control-ready");
+    if (readyIndicator) {
+      if (allReady) {
+        readyIndicator.style.display = "block";
+      } else {
+        readyIndicator.style.display = "none";
+      }
+    }
+    
+    return { ready: allReady, requirements };
+    
+  } catch (err) {
+    console.error("Check match control readiness error:", err);
+    return { ready: false, requirements: {} };
+  }
+}
+
+/**
  * Adım durumlarını etkinlik verilerine göre günceller
  * @param {Object} eventData - Etkinlik verisi
  */
 function updateStepStatuses(eventData) {
   // Etkinlik durumu
-  if (eventData.name && eventData.code) {
+  if (eventData.name || eventData.code) {
     setStepStatus("step-event", "Done");
+  } else {
+    setStepStatus("step-event", "Not Started");
   }
-  
-  // Takım durumu
-  if (eventData.teams && eventData.teams.length > 0) {
-    updateTeamStatus(eventData.teams.length);
-  }
-  
-  // Diğer adımlar için durum güncellemeleri buraya eklenebilir
 }
 
 /**
@@ -596,11 +906,28 @@ function setStepCount(stepId, count) {
  */
 async function initializeSetup() {
   renderSteps();
+  setupHeaderSave();
   if (typeof loadUserRole === "function") {
     await loadUserRole(); // Önce kullanıcı rolünü yükle
   }
   if (typeof loadEvents === "function") {
     await loadEvents();
+  }
+  
+  // Header'ı güncelle (dashboard.js'teki fonksiyonlar)
+  try {
+    const eventData = await apiGet("/api/event");
+    if (typeof updateEventStatus === "function") {
+      updateEventStatus(eventData);
+    }
+    if (typeof loadEventPhase === "function") {
+      await loadEventPhase();
+    }
+    if (typeof startClock === "function") {
+      startClock();
+    }
+  } catch (err) {
+    console.error("Setup header initialization error:", err);
   }
   
   // URL hash'inden veya varsayılan olarak 'event' adımını yükle
@@ -619,15 +946,31 @@ async function initializeSetup() {
       "practice-matches": "practice-matches",
       "match-schedule": "match-schedule",
       "wifi": "wifi",
-      "pit-map": "pit-map",
       "awards": "awards",
-      "advancement": "advancement",
-      "send-results": "send-results",
       "archive": "archive",
     };
     step = stepMap[stepName] || "event";
   }
   await loadStep(step);
+  
+  // Tüm adım durumlarını kontrol et ve güncelle
+  await checkAllStepStatuses();
+  
+  // Maç kontrol sayfasına geçiş butonu
+  const goToMatchControlBtn = qs("go-to-match-control");
+  if (goToMatchControlBtn) {
+    goToMatchControlBtn.addEventListener("click", async () => {
+      if (typeof canProceedToMatchControl === "function") {
+        const canProceed = await canProceedToMatchControl();
+      if (canProceed) {
+        // Maç kontrol sayfasına yönlendir
+        window.location.href = "/match-control";
+      }
+      } else {
+        window.location.href = "/dashboard";
+      }
+    });
+  }
   
   // Sidebar'daki adım linklerine tıklama event listener'ı ekle
   document.addEventListener("click", async (e) => {
@@ -649,10 +992,7 @@ async function initializeSetup() {
           "practice-matches": "practice-matches",
           "match-schedule": "match-schedule",
           "wifi": "wifi",
-          "pit-map": "pit-map",
           "awards": "awards",
-          "advancement": "advancement",
-          "send-results": "send-results",
           "archive": "archive",
         };
         const routeStep = stepMap[stepName] || stepName;
@@ -674,12 +1014,10 @@ async function initializeSetup() {
         "sponsors": "sponsors",
         "judging": "judging",
         "inspection-schedule": "inspection-schedule",
+        "practice-matches": "practice-matches",
         "match-schedule": "match-schedule",
         "wifi": "wifi",
-        "pit-map": "pit-map",
         "awards": "awards",
-        "advancement": "advancement",
-        "send-results": "send-results",
         "archive": "archive",
       };
       const routeStep = stepMap[stepName] || stepName;
@@ -702,17 +1040,43 @@ async function initializeSetup() {
       const eventId = Number(event.target.value);
       if (eventId) {
         try {
-          const res = await fetch("/api/events/active", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: eventId }),
-          });
-          if (res.ok) {
-            if (typeof loadEvent === "function") await loadEvent();
-            if (typeof loadTeams === "function") await loadTeams();
-            if (typeof loadUsers === "function") await loadUsers();
-          } else {
-            showToast("Etkinlik değiştirilemedi", "error");
+          await apiPost("/api/events/active", { id: eventId });
+          try {
+            window.localStorage?.setItem("active_event_id", String(eventId));
+          } catch (err) {
+            console.warn("Active event localStorage set failed:", err);
+          }
+          // Mevcut adımı yeniden yükle (etkinlik verileri güncellensin)
+          const hash = window.location.hash.replace("#", "");
+          if (hash) {
+            const stepName = hash.replace("step-", "");
+            const stepMap = {
+              "event": "event",
+              "teams": "teams",
+              "accounts": "accounts",
+              "sponsors": "sponsors",
+              "judging": "judging",
+              "inspection-schedule": "inspection-schedule",
+              "practice-matches": "practice-matches",
+              "match-schedule": "match-schedule",
+              "wifi": "wifi",
+              "awards": "awards",
+              "archive": "archive",
+            };
+            const routeStep = stepMap[stepName] || stepName;
+            await loadStep(routeStep);
+          }
+          // Header'ı güncelle
+          try {
+            const eventData = await apiGet("/api/event");
+            if (typeof updateEventStatus === "function") {
+              updateEventStatus(eventData);
+            }
+            if (typeof loadEventPhase === "function") {
+              await loadEventPhase();
+            }
+          } catch (err) {
+            console.error("Update header error:", err);
           }
         } catch (err) {
           console.error("Change event error:", err);
@@ -729,21 +1093,12 @@ async function initializeSetup() {
       const name = window.prompt("Etkinlik adı", "Yeni Etkinlik");
       if (!name) return;
       try {
-        const res = await fetch("/api/events", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          showToast("Yeni etkinlik oluşturuldu", "success");
-          if (typeof loadEvents === "function") await loadEvents();
-          if (typeof loadEvent === "function") await loadEvent();
-          if (typeof loadTeams === "function") await loadTeams();
-          if (typeof loadUsers === "function") await loadUsers();
-        } else {
-          const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-          showToast(`Etkinlik oluşturulamadı: ${error.error || res.statusText}`, "error");
-        }
+        await apiPost("/api/events", { name });
+        showToast("Yeni etkinlik oluşturuldu", "success");
+        if (typeof loadEvents === "function") await loadEvents();
+        if (typeof loadEvent === "function") await loadEvent();
+        if (typeof loadTeams === "function") await loadTeams();
+        if (typeof loadUsers === "function") await loadUsers();
       } catch (err) {
         showToast(`Hata: ${err.message}`, "error");
       }
@@ -768,19 +1123,12 @@ async function initializeSetup() {
       if (!confirmed) return;
       
       try {
-        const res = await fetch(`/api/events/${eventId}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          showToast("Etkinlik başarıyla silindi", "success");
-          if (typeof loadEvents === "function") await loadEvents();
-          if (typeof loadEvent === "function") await loadEvent();
-          if (typeof loadTeams === "function") await loadTeams();
-          if (typeof loadUsers === "function") await loadUsers();
-        } else {
-          const error = await res.json().catch(() => ({ error: "Bilinmeyen hata" }));
-          showToast(`Silme başarısız: ${error.error || res.statusText}`, "error");
-        }
+        await apiDelete(`/api/events/${eventId}`);
+        showToast("Etkinlik başarıyla silindi", "success");
+        if (typeof loadEvents === "function") await loadEvents();
+        if (typeof loadEvent === "function") await loadEvent();
+        if (typeof loadTeams === "function") await loadTeams();
+        if (typeof loadUsers === "function") await loadUsers();
       } catch (err) {
         console.error("Delete event error:", err);
         showToast(`Hata: ${err.message}`, "error");

@@ -9,15 +9,12 @@
  */
 async function loadMatchScheduleSettings() {
   try {
-    const [eventRes, settingsRes] = await Promise.all([
-      fetch("/api/event"),
-      fetch("/api/match-settings"),
+    const [event, settings] = await Promise.all([
+      apiGet("/api/event"),
+      apiGet("/api/match-settings").catch(() => ({}))
     ]);
-    if (!eventRes.ok) return;
-    const event = await eventRes.json();
     const format = event.format || {};
     const schedule = event.schedule || {};
-    const settings = settingsRes.ok ? await settingsRes.json() : {};
 
     const fieldCount = Number(format.fields || 1);
     const teamsPerAlliance = Number(format.teams_per_alliance || 2);
@@ -30,6 +27,8 @@ async function loadMatchScheduleSettings() {
 
     // Varsayılan başlangıç tarihi/saati
     updateMatchFieldOptions(fieldCount);
+    setMatchStageButtons(settings.stage_active !== false);
+    toggleMatchStageUI(settings.stage_active !== false);
     populateMatchTimeWindows(settings.time_windows || [], event.dates?.start || "");
     populateMatchBreaks(settings.breaks || [], event.dates?.start || "");
     renderMatchBreaksList(settings.breaks || []);
@@ -73,21 +72,11 @@ async function loadMatchSchedule() {
     const date = qs("filter_match_date")?.value || "";
     const field = qs("filter_match_field")?.value || "";
 
-    const params = new URLSearchParams();
-    if (date) params.append("date", date);
-    if (field) params.append("field", field);
+    const params = {};
+    if (date) params.date = date;
+    if (field) params.field = field;
 
-    const res = await fetch(`/api/match-schedule?${params.toString()}`);
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!res.ok) {
-      showToast("Maç takvimi yüklenirken hata oluştu", "error");
-      return;
-    }
-
-    const matches = await res.json();
+    const matches = await apiGet("/api/match-schedule", params);
     const table = qs("match_schedule_table");
     if (!table) return;
     const tbody = table.querySelector("tbody");
@@ -177,18 +166,13 @@ async function generateMatchSchedule() {
       return;
     }
 
-    const res = await fetch("/api/match-schedule/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.error || "Otomatik takvim oluşturulamadı", "error");
-      return;
-    }
+    const data = await apiPost("/api/match-schedule/generate", payload);
     showToast(`Oluşturulan maç sayısı: ${data.created_count}`, "success");
     await loadMatchSchedule();
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
+    }
   } catch (err) {
     console.error("Generate match schedule error:", err);
     showToast("Otomatik takvim oluşturulamadı", "error");
@@ -221,16 +205,7 @@ async function createMatchSchedule() {
       return;
     }
 
-    const res = await fetch("/api/match-schedule", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.error || "Maç eklenemedi", "error");
-      return;
-    }
+    await apiPost("/api/match-schedule", payload);
     showToast("Maç eklendi", "success");
     await loadMatchSchedule();
   } catch (err) {
@@ -241,12 +216,7 @@ async function createMatchSchedule() {
 
 async function deleteMatchSchedule(matchId) {
   try {
-    const res = await fetch(`/api/match-schedule/${matchId}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.error || "Maç silinemedi", "error");
-      return;
-    }
+    await apiDelete(`/api/match-schedule/${matchId}`);
     showToast("Maç silindi", "success");
     await loadMatchSchedule();
   } catch (err) {
@@ -272,16 +242,7 @@ async function bulkUpdateMatchSchedule() {
       field_number: qs("bulk_match_field")?.value || "",
     };
 
-    const res = await fetch("/api/match-schedule/bulk-update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.error || "Toplu güncelleme başarısız", "error");
-      return;
-    }
+    const data = await apiPost("/api/match-schedule/bulk-update", payload);
     showToast(`Güncellenen maç sayısı: ${data.updated_count}`, "success");
     await loadMatchSchedule();
   } catch (err) {
@@ -297,24 +258,76 @@ function parseTeamList(rawValue) {
     .filter(Boolean);
 }
 
+function setMatchStageButtons(active) {
+  const container = qs("match_stage_controls");
+  const activateBtn = qs("match_stage_activate");
+  const deactivateBtn = qs("match_stage_deactivate");
+  if (!container || !activateBtn || !deactivateBtn) return;
+  container.dataset.active = active ? "true" : "false";
+  activateBtn.classList.toggle("active", active);
+  deactivateBtn.classList.toggle("active", !active);
+  activateBtn.style.backgroundColor = active ? "#2e7d32" : "";
+  activateBtn.style.color = active ? "#fff" : "";
+  activateBtn.style.border = active ? "none" : "";
+  deactivateBtn.style.backgroundColor = !active ? "#c62828" : "";
+  deactivateBtn.style.color = !active ? "#fff" : "";
+  deactivateBtn.style.border = !active ? "none" : "";
+}
+
+function getMatchStageActive() {
+  const container = qs("match_stage_controls");
+  if (!container) return true;
+  return container.dataset.active !== "false";
+}
+
+function toggleMatchStageUI(active) {
+  const container = qs("step-match-schedule");
+  if (!container) return;
+  const inputs = container.querySelectorAll("input, select, button, textarea");
+  inputs.forEach((el) => {
+    if (el.id === "match_stage_activate") return;
+    if (el.id === "match_stage_deactivate") return;
+    if (el.id === "save_match_settings") return;
+    if (el.id === "match_view_list") return;
+    if (el.id === "match_view_grid") return;
+    if (el.id === "match_grid_date") return;
+    if (el.id === "match_grid_start_time") return;
+    if (el.id === "match_grid_end_time") return;
+    if (el.id === "match_grid_slot_width") return;
+    el.disabled = !active;
+  });
+  if (!active) {
+    showToast("Sıralama maçları aşaması pasif", "warning");
+  }
+}
+
 function setMatchView(mode) {
   const listView = qs("match_list_view");
   const gridView = qs("match_grid_view");
   const listBtn = qs("match_view_list");
   const gridBtn = qs("match_view_grid");
-  if (!listView || !gridView || !listBtn || !gridBtn) return;
 
   if (mode === "grid") {
-    listView.style.display = "none";
-    gridView.style.display = "block";
-    gridBtn.classList.add("active");
-    listBtn.classList.remove("active");
+    if (listView) listView.style.display = "none";
+    if (gridView) gridView.style.display = "block";
+    listBtn?.classList.remove("active");
+    gridBtn?.classList.add("active");
+    // Grid tarihi boşsa, ilk saat aralığından veya bugünden set et
+    const gridDate = qs("match_grid_date");
+    if (gridDate && !gridDate.value) {
+      const windows = collectMatchTimeWindows();
+      if (windows.length && windows[0].date) {
+        gridDate.value = windows[0].date;
+      } else {
+        gridDate.value = new Date().toISOString().split("T")[0];
+      }
+    }
     renderMatchGrid();
   } else {
-    gridView.style.display = "none";
-    listView.style.display = "block";
-    listBtn.classList.add("active");
-    gridBtn.classList.remove("active");
+    if (gridView) gridView.style.display = "none";
+    if (listView) listView.style.display = "block";
+    listBtn?.classList.add("active");
+    gridBtn?.classList.remove("active");
   }
 }
 
@@ -325,20 +338,16 @@ async function saveMatchScheduleSettings() {
     const payload = {
       time_windows: collectMatchTimeWindows(),
       breaks: collectMatchBreaks(),
+      stage_active: getMatchStageActive(),
     };
-    const res = await fetch("/api/match-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast(data.error || "Ayarlar kaydedilemedi", "error");
-      return;
-    }
+    await apiPost("/api/match-settings", payload);
     showToast("Ayarlar kaydedildi", "success");
     renderMatchBreaksList(payload.breaks);
     updateMatchGridDefaults("", payload.time_windows);
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
+    }
   } catch (err) {
     console.error("Save match settings error:", err);
     showToast("Ayarlar kaydedilemedi", "error");
@@ -366,12 +375,13 @@ function addMatchTimeWindow() {
 function addMatchBreak() {
   const container = qs("match_breaks");
   if (!container) return;
+  const defaultDate = getFirstMatchWindowDate();
   const group = document.createElement("div");
   group.className = "break-group";
   group.style.cssText =
     "display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px;";
   group.innerHTML = `
-    <input type="date" class="match-break-date" />
+    <input type="date" class="match-break-date" value="${defaultDate}" />
     <input type="text" class="match-break-label" placeholder="Örn: Öğle" />
     <input type="time" class="match-break-start" value="12:00" />
     <input type="time" class="match-break-end" value="13:00" />
@@ -395,8 +405,9 @@ function collectMatchTimeWindows() {
 
 function collectMatchBreaks() {
   const breaks = [];
+  const fallbackDate = getFirstMatchWindowDate();
   document.querySelectorAll("#match_breaks .break-group").forEach((group) => {
-    const date = group.querySelector(".match-break-date")?.value || "";
+    const date = group.querySelector(".match-break-date")?.value || fallbackDate;
     const label = group.querySelector(".match-break-label")?.value || "";
     const start = group.querySelector(".match-break-start")?.value || "";
     const end = group.querySelector(".match-break-end")?.value || "";
@@ -405,6 +416,16 @@ function collectMatchBreaks() {
     }
   });
   return breaks;
+}
+
+/**
+ * İlk zaman penceresinin tarihini döndürür (mola için varsayılan).
+ * @returns {string} Tarih (YYYY-MM-DD) veya boş string
+ */
+function getFirstMatchWindowDate() {
+  const firstWindow = document.querySelector("#match_time_windows .time-window-group");
+  if (!firstWindow) return "";
+  return firstWindow.querySelector(".match-window-date")?.value || "";
 }
 
 function populateMatchTimeWindows(windows, defaultDate) {
@@ -479,86 +500,153 @@ function updateMatchGridDefaults(defaultDate, timeWindows) {
   }
 }
 
-async function renderMatchGrid() {
+async function renderMatchGrid(allowFallback = true) {
   const gridContainer = qs("match_schedule_grid");
   if (!gridContainer) return;
 
-  const selectedDate = qs("match_grid_date")?.value;
+  const selectedDateRaw = qs("match_grid_date")?.value;
+  const selectedDate = normalizeGridDate(selectedDateRaw);
   if (!selectedDate) return;
-
-  const res = await fetch(`/api/match-schedule?date=${selectedDate}`);
-  if (!res.ok) return;
-  const matches = await res.json();
-
-  const fieldCount = Number(qs("match_field_count")?.value || 1);
-  const startTime = qs("match_grid_start_time")?.value || "09:00";
-  const endTime = qs("match_grid_end_time")?.value || "18:00";
-  const slotWidth = Number(qs("match_grid_slot_width")?.value || 10);
-  const matchCycleMinutes = Number(qs("match_cycle_minutes")?.value || 10);
-
-  const timeSlots = [];
-  const [startHour, startMin] = startTime.split(":").map(Number);
-  const [endHour, endMin] = endTime.split(":").map(Number);
-  let currentTime = new Date(2000, 0, 1, startHour, startMin);
-  const endDateTime = new Date(2000, 0, 1, endHour, endMin);
-  while (currentTime <= endDateTime) {
-    const timeStr = `${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")}`;
-    timeSlots.push(timeStr);
-    currentTime = new Date(currentTime.getTime() + slotWidth * 60000);
+  if (qs("match_grid_date") && qs("match_grid_date").value !== selectedDate) {
+    qs("match_grid_date").value = selectedDate;
   }
 
-  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
-    <thead><tr>
-      <th style="position: sticky; left: 0; background: #f5f6fa; z-index: 5; padding: 6px; border: 1px solid #e1e4ee; width: 80px; text-align: left;">Saha</th>`;
-
-  timeSlots.forEach((t) => {
-    html += `<th style="padding: 6px; border: 1px solid #e1e4ee; width: 60px; text-align: center; background: #f5f6fa; font-size: 10px;">${t}</th>`;
-  });
-  html += `</tr></thead><tbody>`;
-
-  for (let field = 1; field <= fieldCount; field += 1) {
-    html += `<tr data-field-number="${field}">`;
-    html += `<td style="position: sticky; left: 0; background: #ffffff; z-index: 4; padding: 6px; border: 1px solid #e1e4ee; font-weight: 600; width: 80px; font-size: 11px;">Saha ${field}</td>`;
-
-    let lastMatchEnd = -1;
-    timeSlots.forEach((timeSlot) => {
-      const [h, m] = timeSlot.split(":").map(Number);
-      const startMinutes = h * 60 + m;
-      if (startMinutes < lastMatchEnd) return;
-      lastMatchEnd = -1;
-
-      const match = matches.find((mt) => {
-        if (mt.field_number !== field) return false;
-        const [mh, mm] = mt.match_time.split(":").map(Number);
-        const mtStart = mh * 60 + mm;
-        return mtStart >= startMinutes && mtStart < startMinutes + slotWidth;
-      });
-
-      if (match) {
-        const [mh, mm] = match.match_time.split(":").map(Number);
-        const mtStart = mh * 60 + mm;
-        const mtEnd = mtStart + matchCycleMinutes;
-        const colspan = Math.max(1, Math.ceil(matchCycleMinutes / slotWidth));
-        lastMatchEnd = mtEnd;
-        const surrogateTeams = match.surrogate_teams || [];
-        const redTeams = (match.red_alliance || [])
-          .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
-          .join(", ");
-        const blueTeams = (match.blue_alliance || [])
-          .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
-          .join(", ");
-        html += `<td style="padding: 2px 4px; border: 1px solid #e1e4ee; background: #2D5AF0; color: white; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          colspan="${colspan}"
-          title="${escapeHtml(match.match_number || "")} • ${escapeHtml(redTeams)} / ${escapeHtml(blueTeams)}">
-          ${escapeHtml(String(match.match_number || ""))} • ${escapeHtml(redTeams)} / ${escapeHtml(blueTeams)}
-        </td>`;
-      } else {
-        html += `<td style="padding: 2px; border: 1px solid #e1e4ee; background: #ffffff;"></td>`;
+  try {
+    const matches = await apiGet("/api/match-schedule", { date: selectedDate });
+    if (!matches.length) {
+      if (allowFallback) {
+        try {
+          const allMatches = await apiGet("/api/match-schedule");
+          const firstDate = allMatches?.[0]?.match_date;
+          if (firstDate && firstDate !== selectedDate && qs("match_grid_date")) {
+            qs("match_grid_date").value = firstDate;
+            await renderMatchGrid(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Match grid fallback error:", err);
+        }
       }
-    });
-    html += `</tr>`;
-  }
+      gridContainer.textContent = "Seçilen tarih için maç bulunamadı.";
+      return;
+    }
 
-  html += `</tbody></table>`;
-  gridContainer.innerHTML = html;
+    const fieldCount = Number(qs("match_field_count")?.value || 1);
+    const startTime = qs("match_grid_start_time")?.value || "09:00";
+    const endTime = qs("match_grid_end_time")?.value || "18:00";
+    const slotWidth = Number(qs("match_grid_slot_width")?.value || 10);
+    const matchCycleMinutes = Number(qs("match_cycle_minutes")?.value || 10);
+
+    const timeSlots = [];
+    const [startHour, startMin] = startTime.split(":").map(Number);
+    const [endHour, endMin] = endTime.split(":").map(Number);
+    let currentTime = new Date(2000, 0, 1, startHour, startMin);
+    const endDateTime = new Date(2000, 0, 1, endHour, endMin);
+    while (currentTime <= endDateTime) {
+      const timeStr = `${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")}`;
+      timeSlots.push(timeStr);
+      currentTime = new Date(currentTime.getTime() + slotWidth * 60000);
+    }
+
+    let html = `<table style="width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed;">
+      <thead><tr>
+        <th style="position: sticky; left: 0; background: #f5f6fa; z-index: 5; padding: 6px; border: 1px solid #e1e4ee; width: 80px; text-align: left;">Saha</th>`;
+
+    timeSlots.forEach((t) => {
+      html += `<th style="padding: 6px; border: 1px solid #e1e4ee; width: 60px; text-align: center; background: #f5f6fa; font-size: 10px;">${t}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    for (let field = 1; field <= fieldCount; field += 1) {
+      html += `<tr data-field-number="${field}">`;
+      html += `<td style="position: sticky; left: 0; background: #ffffff; z-index: 4; padding: 6px; border: 1px solid #e1e4ee; font-weight: 600; width: 80px; font-size: 11px;">Saha ${field}</td>`;
+
+      let lastMatchEnd = -1;
+      timeSlots.forEach((timeSlot) => {
+        const [h, m] = timeSlot.split(":").map(Number);
+        const startMinutes = h * 60 + m;
+        if (startMinutes < lastMatchEnd) return;
+        lastMatchEnd = -1;
+
+        const match = matches.find((mt) => {
+          const mtField = Number(mt.field_number);
+          if (!Number.isFinite(mtField) || mtField !== field) return false;
+          const parts = String(mt.match_time || "").split(":");
+          if (parts.length < 2) return false;
+          const mh = Number(parts[0]);
+          const mm = Number(parts[1]);
+          if (!Number.isFinite(mh) || !Number.isFinite(mm)) return false;
+          const mtStart = mh * 60 + mm;
+          return mtStart >= startMinutes && mtStart < startMinutes + slotWidth;
+        });
+
+        if (match) {
+          const [mh, mm] = match.match_time.split(":").map(Number);
+          const mtStart = mh * 60 + mm;
+          const mtEnd = mtStart + matchCycleMinutes;
+          const colspan = Math.max(1, Math.ceil(matchCycleMinutes / slotWidth));
+          lastMatchEnd = mtEnd;
+          const surrogateTeams = match.surrogate_teams || [];
+          const redTeams = (match.red_alliance || [])
+            .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+            .join(", ");
+          const blueTeams = (match.blue_alliance || [])
+            .map((t) => `${t}${surrogateTeams.includes(t) ? " (S)" : ""}`)
+            .join(", ");
+          const matchLabel = escapeHtml(String(match.match_number || ""));
+          html += `<td style="padding: 2px 4px; border: 1px solid #e1e4ee; background: #2D5AF0; color: white; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            colspan="${colspan}"
+            title="${matchLabel} • ${escapeHtml(redTeams)} / ${escapeHtml(blueTeams)}">
+            ${matchLabel} • ${escapeHtml(redTeams)} / ${escapeHtml(blueTeams)}
+          </td>`;
+        } else {
+          html += `<td style="padding: 2px; border: 1px solid #e1e4ee; background: #ffffff;"></td>`;
+        }
+      });
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table>`;
+    gridContainer.innerHTML = html;
+  } catch (err) {
+    console.error("Render match grid error:", err);
+    gridContainer.textContent = "Maç takvimi yüklenemedi.";
+  }
+}
+
+function normalizeGridDate(value) {
+  if (!value) return "";
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("-")) {
+    const parts = trimmed.split("-");
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map((p) => p.trim());
+      if (y && m && d) {
+        return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+    }
+    return trimmed;
+  }
+  if (trimmed.includes("/")) {
+    const parts = value.split("/");
+    if (parts.length === 3) {
+      const [p1, p2, p3] = parts.map((p) => p.trim());
+      if (p1 && p2 && p3) {
+        // TR format: DD/MM/YYYY
+        return `${p3.padStart(4, "0")}-${p2.padStart(2, "0")}-${p1.padStart(2, "0")}`;
+      }
+    }
+  }
+  if (trimmed.includes(".")) {
+    const parts = value.split(".");
+    if (parts.length === 3) {
+      const [p1, p2, p3] = parts.map((p) => p.trim());
+      if (p1 && p2 && p3) {
+        // TR format with dots: DD.MM.YYYY
+        return `${p3.padStart(4, "0")}-${p2.padStart(2, "0")}-${p1.padStart(2, "0")}`;
+      }
+    }
+  }
+  return trimmed;
 }

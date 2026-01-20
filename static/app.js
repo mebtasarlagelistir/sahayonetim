@@ -21,10 +21,16 @@
 
 // DOMContentLoaded event handler
 document.addEventListener("DOMContentLoaded", async () => {
-  // Setup sayfasını başlat
-  if (typeof initializeSetup === "function") {
+  const page = document.body?.dataset?.page || "";
+  if (page === "dashboard" && typeof initializeDashboard === "function") {
+    await initializeDashboard();
+    return;
+  }
+  if (page === "setup" && typeof initializeSetup === "function") {
     await initializeSetup();
-  } else {
-    console.error("setup.js modülü yüklenemedi!");
+    return;
+  }
+  if (page === "screens" && typeof initializeScreensPage === "function") {
+    await initializeScreensPage();
   }
 });

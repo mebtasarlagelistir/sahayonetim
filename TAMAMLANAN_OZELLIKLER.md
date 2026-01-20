@@ -56,7 +56,7 @@
   - Etkinlik Yöneticisi: Sadece kendi etkinliği, etkinlik değiştirme yok, tüm bölümleri görebilir
   - Hakem: Sadece Skorlama bölümünü görebilir, görüntüleme modu
   - Mufettis: Sadece İnceleme Programı ve Jüri/İnceleme Takibi bölümlerini görebilir, görüntüleme modu
-  - Seremoni: Sadece Ödüller ve Yükselme Raporu bölümlerini görebilir, görüntüleme modu
+  - Seremoni: Sadece Ödüller bölümünü görebilir, görüntüleme modu
 - ✅ Rol bazlı bölüm gösterimi (updateSectionsForRole)
 - ✅ API endpoint koruması (@require_login, @require_admin, @require_event_manager)
 - ✅ Frontend UI kontrolü (butonlar/inputlar devre dışı)
@@ -113,9 +113,56 @@
 ### 10. Dokümantasyon
 - ✅ README.md (proje genel bakış)
 - ✅ DEVELOPMENT.md (geliştirici rehberi)
+- ✅ SCORING_SYSTEM_README.md (puanlama sistemi) ⭐ YENİ
+- ✅ API_DOKUMANTASYONU.md (API endpoint'leri) ⭐ YENİ
+- ✅ PROJE_DURUM_RAPORU.md (proje durumu) ⭐ YENİ
+- ✅ STORAGE_MODULES_README.md (veritabanı modülleri)
 - ✅ Kod içi docstring'ler (Python)
 - ✅ JSDoc yorumları (JavaScript)
 - ✅ Modüler yapı açıklamaları
+
+### 11. Maç Kontrol Sistemi ⭐ YENİ (2026-01-18 Güncellemesi)
+- ✅ Gerçek zamanlı timer
+- ✅ Maç durumu yönetimi (autonomous, driver_controlled, end_game, post_match)
+- ✅ Kompakt arayüz tasarımı
+- ✅ Takım durumu işaretleme (Ready, Yellow Card, Red Card, DQ, Robot Missing)
+- ✅ Detaylı puanlama sistemi (İstanbul ve Su oyunu)
+- ✅ Maç sonuçlarını görüntüleme ve düzenleme
+- ✅ Tek seferde bir maç başlatma kontrolü
+- ✅ Audience display desteği
+- ✅ Önizleme modu (`POST /api/match-control/preview`)
+- ✅ Match source desteği (schedule/practice)
+- ✅ Hakem girişlerini anlık görme (SSE ile)
+
+### 12. Modüler Puanlama Sistemi ⭐ YENİ
+- ✅ Config-based puanlama kuralları
+- ✅ Otonom (OKS) puanlama kuralları
+- ✅ Sürücü Kontrollü (SKS) puanlama kuralları
+- ✅ Cezalandırma sistemi (Sarı Kart, Major Penalty, Kırmızı Kart)
+- ✅ Rakip alana puan verme desteği
+- ✅ Kolay güncellenebilir yapı (sadece config.py güncellemesi)
+
+### 13. Hakem Paneli ⭐ YENİ (2026-01-18 Güncellemesi)
+- ✅ 3 Ayrı Hakem Ekranı:
+  - `/referee/red` - Kırmızı İttifak Hakemi
+  - `/referee/blue` - Mavi İttifak Hakemi
+  - `/head-referee` - Baş Hakem (maç kontrol ekranına gitmez)
+- ✅ Tablet için optimize edilmiş arayüz
+- ✅ İttifak bazlı puanlama (her hakem sadece kendi ittifakını puanlar)
+- ✅ Detaylı skorlama formu (OTONOM + SÜRÜCÜ KONTROLLÜ + CEZALAR)
+- ✅ "Maç Girişini Bitir" butonu (submit durumu)
+- ✅ Gerçek zamanlı skor senkronizasyonu (SSE)
+- ✅ Aktif maç otomatik algılama (match-control ile senkronize)
+- ✅ Önizleme modu desteği (hakem tabletleri önizleme maçını görebilir)
+- ✅ Hakem meta sistemi (submitted/approved durumları)
+- ✅ Baş hakem onay sistemi (her iki hakem tamamladıktan sonra)
+
+### 14. Gerçek Zamanlı Senkronizasyon ⭐ YENİ
+- ✅ Server-Sent Events (SSE) desteği
+- ✅ Tüm cihazlarda anlık skor güncelleme
+- ✅ Otomatik yeniden bağlanma
+- ✅ Skor güncelleme yayınlama
+- ✅ RealtimeScoreManager modülü
 
 ## 🔍 Kontrol Edilmesi Gerekenler
 
@@ -142,12 +189,12 @@
 
 ## 📊 İstatistikler
 
-- **Toplam API Endpoint:** 27
-- **Python Fonksiyon/Sınıf:** 37
-- **JavaScript Fonksiyon/Değişken:** 204
-- **Veritabanı Tablosu:** 3 (events, teams, users)
-- **HTML Sayfa:** 2 (login, setup)
-- **Rol Sayısı:** 5+ (admin, etkinlik_yoneticisi, hakem, mufettis, seremoni, saha_yoneticisi, vb.)
+- **Toplam API Endpoint:** 50+
+- **Python Modülü:** 25+
+- **JavaScript Modülü:** 15
+- **Veritabanı Tablosu:** 8 (events, teams, users, inspection_slots, practice_matches, match_schedule, wifi_channels, awards)
+- **HTML Sayfa:** 15+ (login, dashboard, setup, match_control, referee_panel, vb.)
+- **Rol Sayısı:** 10+ (admin, etkinlik_yoneticisi, bas_hakem, hakem_*, mufettis_*, seremoni_*, saha_yoneticisi_*, vb.)
 
 ## ✅ Test Edilmesi Gerekenler
 
@@ -155,7 +202,7 @@
 2. ✅ Etkinlik yöneticisi ile sınırlı erişim
 3. ✅ Hakem kullanıcısı ile sadece Skorlama bölümü görünüyor
 4. ✅ Mufettis kullanıcısı ile sadece İnceleme Programı ve Jüri/İnceleme Takibi görünüyor
-5. ✅ Seremoni kullanıcısı ile sadece Ödüller ve Yükselme Raporu görünüyor
+5. ✅ Seremoni kullanıcısı ile sadece Ödüller görünüyor
 6. ✅ QR kod ile giriş
 7. ✅ Çoklu etkinlik yönetimi
 8. ✅ Takım yönetimi

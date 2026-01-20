@@ -37,11 +37,23 @@ Bu dosya, gönüllü geliştiriciler için detaylı bir rehberdir.
 
 ### Dosya Organizasyonu
 
-- **app_web.py**: Flask uygulaması, tüm HTTP route'ları
-- **src/core/storage.py**: Veritabanı işlemleri (CRUD)
+- **app_web.py**: Flask uygulaması, Blueprint kayıtları
+- **routes/**: Route modülleri (Blueprint'ler)
+  - `match_control.py`: Maç kontrol sistemi ⭐
+  - `referee_panel.py`: Hakem paneli ⭐
+  - `inspection.py`: İnceleme programı
+  - `practice_matches.py`: Deneme maçları
+  - `match_schedule.py`: Resmi maç takvimi
+  - `wifi.py`: WiFi kanal atama
+  - `archive.py`: Arşiv yönetimi
+- **src/core/storage/**: Modüler veritabanı işlemleri (CRUD)
+- **src/core/scoring/**: Modüler puanlama sistemi ⭐
+  - `config.py`: Puanlama kuralları
+  - `calculator.py`: Skor hesaplama
+  - `realtime.py`: Gerçek zamanlı senkronizasyon
 - **src/core/config.py**: Yapılandırma yönetimi
 - **src/core/event_setup.py**: Veri yapıları ve şemalar
-- **static/app.js**: İstemci tarafı JavaScript
+- **static/js/**: İstemci tarafı JavaScript modülleri
 - **templates/**: HTML şablonları
 
 ## 🔧 Modül Sorumlulukları
@@ -353,6 +365,14 @@ SELECT * FROM events;
 3. **Commit**: `git commit -m "Açıklayıcı mesaj"`
 4. **Push**: `git push origin feature/yeni-ozellik`
 5. **Pull Request oluştur**
+
+## 🧾 Agent Kayıtları
+
+Cursor agent tarafından yapılan değişiklikler `AGENT_LOG.md` dosyasında tutulur.
+Son değişikliklerin özeti burada ve detaylar dosyada bulunur.
+
+- 2026-01-18: FTC Benzeri Hakem Paneli Sistemi (3 ekran, submit/approve, önizleme modu)
+- 2026-01-17: WiFi Kanal Atama (API + UI + frontend + event default)
 
 ## 📚 Kaynaklar
 

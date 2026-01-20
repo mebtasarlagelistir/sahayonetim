@@ -16,19 +16,13 @@ async function loadInspectionSlots() {
     const date = qs("filter_inspection_date")?.value || "";
     const status = qs("filter_inspection_status")?.value || "";
     
-    const params = new URLSearchParams();
-    if (team) params.append("team", team);
-    if (type) params.append("type", type);
-    if (date) params.append("date", date);
-    if (status) params.append("status", status);
+    const params = {};
+    if (team) params.team = team;
+    if (type) params.type = type;
+    if (date) params.date = date;
+    if (status) params.status = status;
     
-    const res = await fetch(`/api/inspection-slots?${params.toString()}`);
-    if (!res.ok) {
-      showToast("İnceleme slotları yüklenirken hata oluştu", "error");
-      return;
-    }
-    
-    const slots = await res.json();
+    const slots = await apiGet("/api/inspection-slots", params);
     const table = qs("inspection_slots_table");
     if (!table) return;
     const tbody = table.querySelector("tbody");
@@ -64,8 +58,8 @@ async function loadInspectionSlots() {
              <td>${escapeHtml(slot.slot_time)}</td>
              <td>${slot.duration_minutes} dk</td>
              <td>${escapeHtml(slot.station_name || "")}</td>
-             <td>${escapeHtml(slot.inspector_name || "")}</td>
-             <td>
+             <td class="print-hide">${escapeHtml(slot.inspector_name || "")}</td>
+             <td class="print-hide">
                <select data-slot-id="${slot.id}" data-field="status" class="status-select">
                  <option value="scheduled" ${slot.status === "scheduled" ? "selected" : ""}>Planlandı</option>
                  <option value="completed" ${slot.status === "completed" ? "selected" : ""}>Tamamlandı</option>
@@ -75,7 +69,7 @@ async function loadInspectionSlots() {
                  <option value="no_show" ${slot.status === "no_show" ? "selected" : ""}>Gelmedi</option>
                </select>
              </td>
-             <td>
+             <td class="print-hide">
                <input type="text" data-slot-id="${slot.id}" data-field="notes" 
                       value="${escapeHtml(slot.notes || "")}" placeholder="Notlar" />
              </td>
@@ -150,36 +144,14 @@ async function bulkUpdateInspectionSlots() {
   try {
     setButtonLoading(qs("apply_inspection_bulk_update"), true);
     
-    const res = await fetch("/api/inspection-slots/bulk-update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        slot_ids: selectedIds,
-        slot_date: slotDate || undefined,
-        slot_time: slotTime || undefined,
-        status: status || undefined,
-        station_name: stationName || undefined,
-        inspector_name: inspectorName || undefined,
-      }),
+    await apiPost("/api/inspection-slots/bulk-update", {
+      slot_ids: selectedIds,
+      slot_date: slotDate || undefined,
+      slot_time: slotTime || undefined,
+      status: status || undefined,
+      station_name: stationName || undefined,
+      inspector_name: inspectorName || undefined,
     });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      showToast(data.error || "Toplu güncelleme sırasında hata oluştu", "error");
-      return;
-    }
-    
-    const data = await res.json();
     showToast(`${data.updated_count} slot güncellendi`, "success");
     await loadInspectionSlots();
     if (qs("inspection_grid_view")?.style.display !== "none") {
@@ -215,36 +187,16 @@ async function createInspectionSlot() {
   try {
     setButtonLoading(qs("add_inspection_slot"), true);
     
-    const res = await fetch("/api/inspection-slots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        team_number: teamNumber,
-        inspection_type: inspectionType,
-        slot_date: slotDate,
-        slot_time: slotTime,
-        duration_minutes: duration,
-        station_name: stationName,
-        inspector_name: inspectorName,
-        status: "scheduled",
-      }),
+    await apiPost("/api/inspection-slots", {
+      team_number: teamNumber,
+      inspection_type: inspectionType,
+      slot_date: slotDate,
+      slot_time: slotTime,
+      duration_minutes: duration,
+      station_name: stationName,
+      inspector_name: inspectorName,
+      status: "scheduled",
     });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Slot oluşturulurken hata oluştu", "error");
-      return;
-    }
     
     showToast("İnceleme slotu oluşturuldu", "success");
     
@@ -275,27 +227,7 @@ async function createInspectionSlot() {
  */
 async function updateInspectionSlot(slotId, updates) {
   try {
-    const res = await fetch(`/api/inspection-slots/${slotId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Slot güncellenirken hata oluştu", "error");
-      return;
-    }
+    await apiPost(`/api/inspection-slots/${slotId}`, updates);
     
     // Sessizce güncelle (toast gösterme)
     await loadInspectionSlots();
@@ -316,19 +248,7 @@ async function updateInspectionSlot(slotId, updates) {
  */
 async function deleteInspectionSlot(slotId) {
   try {
-    const res = await fetch(`/api/inspection-slots/${slotId}`, {
-      method: "DELETE",
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
+    await apiDelete(`/api/inspection-slots/${slotId}`);
     
     if (!res.ok) {
       const data = await res.json();
@@ -401,43 +321,25 @@ async function generateInspectionSlots() {
   try {
     setButtonLoading(qs("generate_inspection_slots"), true);
     
-    const res = await fetch("/api/inspection-slots/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        start_date: startDate,
-        start_time: startTime,
-        inspection_types: inspectionTypes,
-        break_minutes: breakMinutes,
-        inspector_names: inspectorNames,
-        station_names: stationNames,
-        sort_order: sortOrder,
-        clear_existing: qs("inspection_clear_existing")?.checked || false,
-      }),
+    const data = await apiPost("/api/inspection-slots/generate", {
+      start_date: startDate,
+      start_time: startTime,
+      inspection_types: inspectionTypes,
+      break_minutes: breakMinutes,
+      inspector_names: inspectorNames,
+      station_names: stationNames,
+      sort_order: sortOrder,
+      clear_existing: qs("inspection_clear_existing")?.checked || false,
     });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Takvim oluşturulurken hata oluştu", "error");
-      return;
-    }
-    
-    const data = await res.json();
     showToast(`${data.created_count} inceleme slotu oluşturuldu`, "success");
     await loadInspectionSlots();
     // Grid görünümündeyse yeniden render et
     if (qs("inspection_grid_view")?.style.display !== "none") {
       await renderInspectionGrid();
+    }
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
     }
   } catch (err) {
     console.error("Generate inspection slots error:", err);
@@ -460,27 +362,7 @@ async function deleteAllInspectionSlots() {
   try {
     setButtonLoading(qs("delete_all_inspection_slots"), true);
     
-    const res = await fetch("/api/inspection-slots", {
-      method: "DELETE",
-    });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Slotlar silinirken hata oluştu", "error");
-      return;
-    }
-    
-    const data = await res.json();
+    const data = await apiDelete("/api/inspection-slots");
     showToast(`${data.deleted_count} inceleme slotu silindi`, "success");
     await loadInspectionSlots();
     // Grid görünümündeyse yeniden render et
@@ -504,13 +386,10 @@ async function updateInspectionDuration() {
   
   // Süreleri API'den al
   try {
-    const res = await fetch("/api/inspection-settings");
-    if (res.ok) {
-      const data = await res.json();
-      const durationInput = qs("new_inspection_duration");
-      if (durationInput) {
-        durationInput.value = data.type_durations[type] || 15;
-      }
+    const data = await apiGet("/api/inspection-settings");
+    const durationInput = qs("new_inspection_duration");
+    if (durationInput) {
+      durationInput.value = data.type_durations[type] || 15;
     }
   } catch (err) {
     console.error("Load inspection settings error:", err);
@@ -524,10 +403,7 @@ async function updateInspectionDuration() {
  */
 async function loadInspectionDurations() {
   try {
-    const res = await fetch("/api/inspection-settings");
-    if (!res.ok) return;
-    
-    const data = await res.json();
+    const data = await apiGet("/api/inspection-settings");
     const durations = data.type_durations || {
       hardware: 20,
       size: 10,
@@ -553,6 +429,10 @@ async function loadInspectionDurations() {
       const type = checkbox.dataset.inspectionType;
       checkbox.checked = selectedTypes.includes(type);
     });
+    
+    if (qs("inspection_print_note")) {
+      qs("inspection_print_note").value = data.print_note || "";
+    }
   } catch (err) {
     console.error("Load inspection durations error:", err);
     showToast("İnceleme süreleri yüklenirken hata oluştu", "error");
@@ -582,38 +462,41 @@ async function saveInspectionDurations() {
   try {
     setButtonLoading(qs("save_inspection_durations"), true);
     
-    const res = await fetch("/api/inspection-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        type_durations: durations,
-        selected_types: selectedTypes 
-      }),
+    await apiPost("/api/inspection-settings", {
+      type_durations: durations,
+      selected_types: selectedTypes
     });
-    
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    if (res.status === 403) {
-      const error = await res.json().catch(() => ({ message: "Bu işlem için yetkiniz yok" }));
-      showToast(error.message || "Bu işlem için yetkiniz yok", "error");
-      return;
-    }
-    
-    if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error || "Süreler kaydedilirken hata oluştu", "error");
-      return;
-    }
-    
+
     showToast("İnceleme tipi süreleri kaydedildi", "success");
     await loadInspectionDurations(); // UI'ı güncelle
+    // Adım durumunu güncelle
+    if (typeof checkAllStepStatuses === "function") {
+      await checkAllStepStatuses();
+    }
   } catch (err) {
     console.error("Save inspection durations error:", err);
     showToast("Süreler kaydedilirken hata oluştu", "error");
   } finally {
     setButtonLoading(qs("save_inspection_durations"), false);
+  }
+}
+
+/**
+ * Yazdırma notunu kaydeder
+ */
+async function saveInspectionPrintNote() {
+  const printNote = qs("inspection_print_note")?.value || "";
+  try {
+    setButtonLoading(qs("save_inspection_print_note"), true);
+    await apiPost("/api/inspection-settings", {
+      print_note: printNote
+    });
+    showToast("Yazdırma notu kaydedildi", "success");
+  } catch (err) {
+    console.error("Save inspection print note error:", err);
+    showToast("Yazdırma notu kaydedilirken hata oluştu", "error");
+  } finally {
+    setButtonLoading(qs("save_inspection_print_note"), false);
   }
 }
 
@@ -628,14 +511,11 @@ async function renderInspectionGrid() {
   // Eğer tarih seçilmemişse, varsayılan olarak bugünün tarihini veya etkinliğin başlangıç tarihini kullan
   if (!selectedDate) {
     try {
-      const eventRes = await fetch("/api/event");
-      if (eventRes.ok) {
-        const event = await eventRes.json();
-        if (event.dates?.start) {
-          selectedDate = event.dates.start;
-          if (qs("grid_view_date")) {
-            qs("grid_view_date").value = selectedDate;
-          }
+      const event = await apiGet("/api/event");
+      if (event.dates?.start) {
+        selectedDate = event.dates.start;
+        if (qs("grid_view_date")) {
+          qs("grid_view_date").value = selectedDate;
         }
       }
     } catch (err) {
@@ -655,40 +535,34 @@ async function renderInspectionGrid() {
   }
   
   // Slotları yükle
-  const res = await fetch(`/api/inspection-slots?date=${selectedDate}`);
-  if (!res.ok) {
-    gridContainer.innerHTML = "<p style='padding: 16px; text-align: center; color: #f44336;'>Slotlar yüklenirken hata oluştu</p>";
-    return;
-  }
+  try {
+    const slots = await apiGet("/api/inspection-slots", { date: selectedDate });
+    
+    // Takımları al
+    const teams = await apiGet("/api/teams");
   
-  const slots = await res.json();
-  
-  // Takımları al
-  const teamsRes = await fetch("/api/teams");
-  const teams = teamsRes.ok ? await teamsRes.json() : [];
-  
-  // Zaman aralığını belirle
-  const startTime = qs("grid_start_time")?.value || "08:00";
-  const endTime = qs("grid_end_time")?.value || "20:00";
-  const slotWidth = Number(qs("grid_slot_width")?.value || 15);
-  
-  // Zaman slotlarını oluştur
-  const timeSlots = [];
-  const [startHour, startMin] = startTime.split(":").map(Number);
-  const [endHour, endMin] = endTime.split(":").map(Number);
-  let currentTime = new Date(2000, 0, 1, startHour, startMin);
-  const endDateTime = new Date(2000, 0, 1, endHour, endMin);
-  
-  while (currentTime <= endDateTime) {
-    const timeStr = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
-    timeSlots.push(timeStr);
-    currentTime = new Date(currentTime.getTime() + slotWidth * 60000);
-  }
-  
-  // İnceleme tipi renkleri
-  const typeColors = {
-    hardware: "#e74c3c",    // Kırmızı
-    size: "#3498db",        // Mavi
+    // Zaman aralığını belirle
+    const startTime = qs("grid_start_time")?.value || "08:00";
+    const endTime = qs("grid_end_time")?.value || "20:00";
+    const slotWidth = Number(qs("grid_slot_width")?.value || 15);
+    
+    // Zaman slotlarını oluştur
+    const timeSlots = [];
+    const [startHour, startMin] = startTime.split(":").map(Number);
+    const [endHour, endMin] = endTime.split(":").map(Number);
+    let currentTime = new Date(2000, 0, 1, startHour, startMin);
+    const endDateTime = new Date(2000, 0, 1, endHour, endMin);
+    
+    while (currentTime <= endDateTime) {
+      const timeStr = `${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")}`;
+      timeSlots.push(timeStr);
+      currentTime = new Date(currentTime.getTime() + slotWidth * 60000);
+    }
+    
+    // İnceleme tipi renkleri
+    const typeColors = {
+      hardware: "#e74c3c",    // Kırmızı
+      size: "#3498db",        // Mavi
     safety: "#2ecc71",      // Yeşil
     software: "#f39c12",    // Turuncu
     weight: "#9b59b6",      // Mor
@@ -859,6 +733,11 @@ async function renderInspectionGrid() {
       }
     });
   });
+  } catch (err) {
+    console.error("Render inspection grid error:", err);
+    gridContainer.innerHTML =
+      "<p style='padding: 16px; text-align: center; color: #666;'>İnceleme takvimi yüklenemedi</p>";
+  }
 }
 
 /**
@@ -921,7 +800,7 @@ function removeInspectionStation(groupElement) {
 /**
  * İnceleme programını yazdırır
  */
-function printInspectionSchedule() {
+async function printInspectionSchedule() {
   const printArea = qs("inspection_slots_print_area");
   if (!printArea) {
     showToast("Yazdırılacak içerik bulunamadı", "error");
@@ -935,15 +814,17 @@ function printInspectionSchedule() {
     return;
   }
   
-  // Etkinlik bilgilerini al
-  fetch("/api/event")
-    .then(res => res.ok ? res.json() : {})
-    .then(event => {
-      const eventName = event.name || "Etkinlik";
-      const eventCode = event.code || "";
+  try {
+    const [event, settings] = await Promise.all([
+      apiGet("/api/event").catch(() => ({})),
+      apiGet("/api/inspection-settings").catch(() => ({})),
+    ]);
+    const eventName = event.name || "Etkinlik";
+    const eventCode = event.code || "";
+    const note = settings.print_note || "";
       
-      // Yazdırma için HTML oluştur
-      printWindow.document.write(`
+    // Yazdırma için HTML oluştur
+    printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
@@ -1004,6 +885,9 @@ function printInspectionSchedule() {
               .no-print {
                 display: none !important;
               }
+              .print-hide {
+                display: none !important;
+              }
             }
           </style>
         </head>
@@ -1013,6 +897,7 @@ function printInspectionSchedule() {
             <p><strong>Etkinlik:</strong> ${escapeHtml(eventName)} ${eventCode ? `(${escapeHtml(eventCode)})` : ""}</p>
             <p><strong>Tarih:</strong> ${new Date().toLocaleDateString("tr-TR")}</p>
           </div>
+          ${note ? `<p style="margin: 0 0 12px 0; font-size: 11px; color: #333;">${escapeHtml(note)}</p>` : ""}
           ${printArea.innerHTML}
           <div class="print-footer">
             <p>Bu belge ${new Date().toLocaleString("tr-TR")} tarihinde yazdırılmıştır.</p>
@@ -1021,16 +906,15 @@ function printInspectionSchedule() {
         </html>
       `);
       
-      printWindow.document.close();
-      
-      // Yazdırma penceresini aç ve yazdır
-      setTimeout(() => {
-        printWindow.print();
-      }, 250);
-    })
-    .catch(err => {
-      console.error("Print error:", err);
-      showToast("Yazdırma sırasında hata oluştu", "error");
-      printWindow.close();
-    });
+    printWindow.document.close();
+    
+    // Yazdırma penceresini aç ve yazdır
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  } catch (err) {
+    console.error("Print error:", err);
+    showToast("Yazdırma sırasında hata oluştu", "error");
+    printWindow.close();
+  }
 }

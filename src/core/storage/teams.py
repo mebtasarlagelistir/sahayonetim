@@ -67,11 +67,11 @@ class TeamsStorage:
         Not:
             - Önce mevcut takımlar silinir, sonra yenileri eklenir
             - Boş takımlar (tüm alanlar boş) kaydedilmez
-            - Aktif etkinlik yoksa yeni etkinlik oluşturulur
+            - Aktif etkinlik yoksa hata fırlatılır (yanlışlıkla yeni etkinlik oluşmasın)
         """
         event_id = self.get_active_event_id()
         if event_id is None:
-            event_id = self.create_event("Yeni Etkinlik")
+            raise ValueError("Aktif etkinlik bulunamadı")
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM teams WHERE event_id = ?", (event_id,))
             # Boş takımları filtrele
