@@ -27,6 +27,7 @@ Bağımlılıklar:
 from pathlib import Path
 import base64
 import logging
+import os
 import secrets
 import socket
 
@@ -149,27 +150,78 @@ def create_app() -> Flask:
     base_path = Path(__file__).resolve().parent
     config = Config(base_path=base_path)
     
+    # Ortam tespiti (development/production)
+    # FLASK_ENV environment variable ile kontrol edilir
+    # Varsayılan: development (güvenlik için)
+    flask_env = os.environ.get("FLASK_ENV", "development").lower()
+    is_production = flask_env == "production"
+    is_development = not is_production
+    
     # Logging yapılandırması
     (base_path / 'logs').mkdir(exist_ok=True)
+    
+    # Production modunda logging seviyesini optimize et
+    log_level = logging.WARNING if is_production else logging.INFO
+    
+    # Geliştirme modunda Werkzeug uyarılarını filtrele
+    class DevelopmentServerFilter(logging.Filter):
+        """Geliştirme sunucu uyarılarını filtreler"""
+        def filter(self, record):
+            # Werkzeug'un development server uyarısını filtrele
+            if "WARNING: This is a development server" in record.getMessage():
+                return False
+            return True
+    
+    # Logging handler'ları oluştur
+    handlers = [
+        logging.FileHandler(base_path / 'logs' / 'app.log', encoding='utf-8')
+    ]
+    
+    # Console handler - geliştirme modunda uyarıları filtrele
+    console_handler = logging.StreamHandler()
+    if is_development:
+        console_handler.addFilter(DevelopmentServerFilter())
+    handlers.append(console_handler)
+    
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(base_path / 'logs' / 'app.log', encoding='utf-8'),
-            logging.StreamHandler()
-        ]
+        handlers=handlers
     )
+    
+    # Production modunda bazı logger'ları daha yüksek seviyeye ayarla
+    if is_production:
+        # SSE ve realtime logger'larını WARNING seviyesine ayarla
+        logging.getLogger('routes.match_control').setLevel(logging.WARNING)
+        logging.getLogger('src.core.match_state').setLevel(logging.WARNING)
+        logging.getLogger('src.core.scoring.realtime').setLevel(logging.WARNING)
+    
+    # Werkzeug logger'ını da filtrele (geliştirme modunda)
+    if is_development:
+        werkzeug_logger = logging.getLogger('werkzeug')
+        werkzeug_logger.addFilter(DevelopmentServerFilter())
+    
     logger = logging.getLogger(__name__)
-    logger.info("MEMSKOR uygulaması başlatılıyor...")
+    logger.info(f"MEMSKOR uygulaması başlatılıyor... (Ortam: {flask_env})")
     
     app = Flask(
         __name__,
         template_folder=str(base_path / "templates"),
         static_folder=str(base_path / "static"),
     )
+    
+    # Ortam bazlı yapılandırma
+    app.config["ENV"] = flask_env
+    app.config["DEBUG"] = is_development
+    
     # Geliştirme modunda template'lerin otomatik yeniden yüklenmesi
-    app.config["TEMPLATES_AUTO_RELOAD"] = True
-    app.jinja_env.auto_reload = True
+    if is_development:
+        app.config["TEMPLATES_AUTO_RELOAD"] = True
+        app.jinja_env.auto_reload = True
+    else:
+        # Production'da performans için kapat
+        app.config["TEMPLATES_AUTO_RELOAD"] = False
+        app.jinja_env.auto_reload = False
     app.secret_key = _load_secret_key(base_path)
     datastore = DataStore(base_path=base_path)
     datastore.migrate_from_config(config.data)
@@ -900,5 +952,44 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
+    """
+    Flask uygulamasını çalıştırır.
+    
+    Ortam Kontrolü:
+        - FLASK_ENV=development (varsayılan): Geliştirme modu, debug açık
+        - FLASK_ENV=production: Üretim modu, debug kapalı
+        
+    Not: Üretim ortamında WSGI sunucusu kullanılmalıdır (örn: gunicorn, waitress)
+    
+    Örnek kullanım:
+        # Geliştirme
+        python app_web.py
+        
+        # Üretim (WSGI sunucusu ile)
+        gunicorn -w 4 -b 0.0.0.0:5000 app_web:application
+    """
     application = create_app()
-    application.run(host="127.0.0.1", port=5000, debug=True)
+    
+    # Ortam tespiti
+    flask_env = os.environ.get("FLASK_ENV", "development").lower()
+    is_production = flask_env == "production"
+    
+    if is_production:
+        # Üretim modunda direkt çalıştırmayı önle
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "ÜRETİM MODU: Bu script doğrudan çalıştırılmamalı. "
+            "Lütfen bir WSGI sunucusu kullanın (örn: gunicorn, waitress)."
+        )
+        logger.info("Örnek: gunicorn -w 4 -b 0.0.0.0:5000 app_web:application")
+        # Yine de çalıştır ama uyarı ver
+        application.run(host="0.0.0.0", port=5000, debug=False)
+    else:
+        # Geliştirme modu - aynı ağdaki diğer cihazlardan erişim için 0.0.0.0 kullan
+        local_ip = _get_local_ip()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Sunucu başlatılıyor...")
+        logger.info(f"Yerel erişim: http://127.0.0.1:5000")
+        if local_ip != "127.0.0.1":
+            logger.info(f"Ağ erişimi: http://{local_ip}:5000")
+        application.run(host="0.0.0.0", port=5000, debug=True)

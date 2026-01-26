@@ -15,6 +15,13 @@ from flask import jsonify, render_template, request
 # Bağlı ekranlar (memory)
 _screen_registry: Dict[str, Dict[str, Any]] = {}
 
+# Global preview ayarı (tüm ekranlar için, kayıtlı olmasalar bile)
+_global_preview: Dict[str, Any] = {
+    "override_view": None,
+    "override_until": None,
+    "override_payload": None,
+}
+
 
 def _get_global_screen_settings(datastore) -> Dict[str, Any]:
     event_data = datastore.get_event()
@@ -127,18 +134,54 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager):
         override_until = screen.get("override_until")
         override_payload = screen.get("override_payload")
         now = time.time()
-        if override_view and override_until and now <= override_until:
+        
+        # ÖNEMLİ: Önce ekran-spesifik override'ı kontrol et
+        # override_until None ise süresiz (sadece "Maçı Göster" ile temizlenir)
+        screen_override_active = False
+        if override_view:
+            if override_until is None:
+                # Süresiz preview (sadece "Maçı Göster" ile temizlenir)
+                screen_override_active = True
+            elif now <= override_until:
+                # Süreli preview (henüz süresi dolmamış)
+                screen_override_active = True
+        
+        # Eğer ekran-spesifik override yoksa veya süresi dolmuşsa, global preview'ı kontrol et
+        if not screen_override_active:
+            global_override_view = _global_preview.get("override_view")
+            global_override_until = _global_preview.get("override_until")
+            global_override_payload = _global_preview.get("override_payload")
+            
+            # ÖNEMLİ: Global preview varsa ve payload geçerliyse kullan
+            # payload None değilse ve boş dict değilse kullan
+            if global_override_view and global_override_payload and isinstance(global_override_payload, dict) and global_override_payload.get("match"):
+                if global_override_until is None:
+                    # Süresiz global preview
+                    override_view = global_override_view
+                    override_until = None
+                    override_payload = global_override_payload
+                    screen_override_active = True
+                elif now <= global_override_until:
+                    # Süreli global preview (henüz süresi dolmamış)
+                    override_view = global_override_view
+                    override_until = global_override_until
+                    override_payload = global_override_payload
+                    screen_override_active = True
+        
+        # Active view'ı belirle
+        if screen_override_active:
             active_view = override_view
         elif follow_global:
             active_view = global_settings.get("active_view", "match")
         else:
             active_view = desired_view
+        
         return jsonify(
             {
                 "active_view": active_view,
                 "overlay_enabled": global_settings.get("overlay_enabled", False),
                 "overlay_text": global_settings.get("overlay_text", ""),
-                "preview_payload": override_payload if override_view and override_until and now <= override_until else None,
+                "preview_payload": override_payload if screen_override_active else None,
             }
         )
 
@@ -160,6 +203,23 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager):
         _screen_registry[screen_id] = screen
         return jsonify({"ok": True})
 
+    @bp.post("/api/screens/close")
+    @require_login
+    @require_event_manager
+    def close_screen():
+        """
+        Bir ekranı kapatır (registry'den siler).
+        Bu, server yükünü azaltmak için kullanılabilir.
+        """
+        data = request.get_json(force=True) or {}
+        screen_id = (data.get("screen_id") or "").strip()
+        if not screen_id:
+            return jsonify({"error": "screen_id gerekli"}), 400
+        if screen_id in _screen_registry:
+            _screen_registry.pop(screen_id, None)
+            return jsonify({"ok": True, "message": "Ekran kapatıldı"})
+        return jsonify({"error": "Ekran bulunamadı"}), 404
+
     @bp.post("/api/screens/preview")
     @require_login
     @require_event_manager
@@ -171,6 +231,30 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager):
         duration_seconds = int(data.get("duration_seconds") or 30)
         global_settings = _get_global_screen_settings(datastore)
         now = time.time()
+        
+        # Global preview ayarını güncelle (tüm ekranlar için, kayıtlı olmasalar bile)
+        if mode == "live":
+            _global_preview["override_view"] = None
+            _global_preview["override_until"] = None
+            _global_preview["override_payload"] = None
+        else:
+            # ÖNEMLİ: Payload boş değilse ve geçerli bir match içeriyorsa ayarla
+            if payload and isinstance(payload, dict) and payload.get("match"):
+                _global_preview["override_view"] = view
+                # duration_seconds = 0 ise süresiz (sadece "Maçı Göster" ile temizlenir)
+                if duration_seconds == 0:
+                    _global_preview["override_until"] = None  # None = süresiz
+                else:
+                    _global_preview["override_until"] = now + duration_seconds
+                _global_preview["override_payload"] = payload
+                # Debug log
+                logger.info(f"Global preview ayarlandı: view={view}, match={payload.get('match', {}).get('match_number', 'N/A')}, duration={'süresiz' if duration_seconds == 0 else duration_seconds}")
+            else:
+                # Payload geçersizse hata döndür
+                logger.warning(f"Geçersiz preview payload: payload={payload}")
+                return jsonify({"error": "Geçersiz preview payload - match bilgisi eksik"}), 400
+        
+        # Kayıtlı ekranlara da preview gönder
         for screen_id, screen in _screen_registry.items():
             desired_view = screen.get("desired_view") or "match"
             follow_global = bool(screen.get("follow_global", False))
@@ -181,7 +265,11 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager):
                     screen["override_payload"] = None
                 else:
                     screen["override_view"] = view
-                    screen["override_until"] = now + duration_seconds
+                    # duration_seconds = 0 ise süresiz (sadece "Maçı Göster" ile temizlenir)
+                    if duration_seconds == 0:
+                        screen["override_until"] = None  # None = süresiz
+                    else:
+                        screen["override_until"] = now + duration_seconds
                     screen["override_payload"] = payload
                 _screen_registry[screen_id] = screen
         return jsonify({"ok": True})

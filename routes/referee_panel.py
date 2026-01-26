@@ -202,6 +202,16 @@ def register_referee_panel_routes(bp, datastore, require_login):
             # scoring_data'yı veritabanında sakla (ittifak bazlı)
             persisted = match.get("scoring_data") if isinstance(match.get("scoring_data"), dict) else {}
             persisted[alliance] = scoring_data
+            
+            # ÖNEMLİ: team_statuses formatını koru (match control ile tutarlılık)
+            # Referee panel'den gelen scoring_data içinde team_statuses varsa, onu birleştir
+            if "team_statuses" in scoring_data and isinstance(scoring_data["team_statuses"], dict):
+                if "team_statuses" not in persisted:
+                    persisted["team_statuses"] = {}
+                # Mevcut team_statuses'i koru, sadece güncellenen ittifakı güncelle
+                persisted["team_statuses"][alliance] = scoring_data["team_statuses"].get(alliance, {})
+                # scoring_data'dan team_statuses'i kaldır (çünkü zaten persisted'e eklendi)
+                # Ama scoring_data[alliance] içinde tutmaya devam ediyoruz (geriye dönük uyumluluk)
 
             # Hakem daha önce submit ettiyse, yeni girişte submit'i düşür
             current_meta = _get_referee_meta(match)

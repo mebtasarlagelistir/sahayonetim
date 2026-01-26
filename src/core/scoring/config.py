@@ -4,8 +4,17 @@ Puanlama Konfigürasyon Modülü
 Oyun puanlama kurallarını tanımlar. Bu dosya kolayca güncellenebilir
 ve farklı oyunlar için yeniden yapılandırılabilir.
 
-Modülerlik: Yeni puanlama kategorileri eklemek veya mevcut kuralları
-değiştirmek için sadece bu dosyayı güncellemek yeterlidir.
+Modülerlik: 
+- Yeni puanlama kategorileri eklemek veya mevcut kuralları değiştirmek için 
+  sadece bu dosyayı güncellemek yeterlidir
+- Frontend'deki constants.js (SCORING_CONSTANTS) ile senkronize tutulmalıdır
+- Puanlama kuralları değiştiğinde hem backend hem frontend güncellenmelidir
+
+İstanbul ve Su Oyunu Puanlama Kuralları:
+- OKS (Otonom): Başlangıç alanını terk (3), Bent 1 (4), Bent 2 doğru (6), 
+  Bent 2 yanlış (3), Bent 3 doğru (8), Bent 3 yanlış (4), Sarnıç (7)
+- SKS (Sürücü Kontrollü): Bent 1 (2), Bent 2 doğru (4), Bent 2 yanlış (3),
+  Bent 3 doğru (6), Bent 3 yanlış (4), Sarnıç (5), Kaynak giriş (2), Tırmanma (15)
 """
 
 from typing import Dict, List, Optional

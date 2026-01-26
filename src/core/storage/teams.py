@@ -41,7 +41,7 @@ class TeamsStorage:
         event_id = self.get_active_event_id()
         if event_id is None:
             return []
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT number, name, school, city, category FROM teams WHERE event_id = ?",
                 (event_id,),
@@ -72,7 +72,7 @@ class TeamsStorage:
         event_id = self.get_active_event_id()
         if event_id is None:
             raise ValueError("Aktif etkinlik bulunamadı")
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM teams WHERE event_id = ?", (event_id,))
             # Boş takımları filtrele
             valid_teams = [

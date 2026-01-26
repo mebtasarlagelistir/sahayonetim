@@ -66,31 +66,47 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3, delay = 1000, b
  * @param {number} maxRetries - Maksimum deneme sayısı
  * @returns {Promise<Object>} JSON response
  */
-async function apiCall(url, options = {}, maxRetries = window.NETWORK_CONSTANTS.API_RETRY_MAX) {
+async function apiCall(url, options = {}, maxRetries = window.NETWORK_CONSTANTS?.API_RETRY_MAX || 3) {
   try {
+    console.log(`apiCall: ${options.method || "GET"} ${url}`);
     const response = await fetchWithRetry(url, options, maxRetries);
+    
+    console.log(`apiCall: Response status ${response.status} for ${url}`);
     
     // 401 Unauthorized - Giriş sayfasına yönlendir
     if (response.status === 401) {
-      window.location.href = "/login";
+      console.warn(`apiCall: 401 Unauthorized for ${url} - Login sayfasına yönlendiriliyor`);
+      // Sadece JSON response bekleniyorsa yönlendir (HTML response'lar için değil)
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        window.location.href = "/login";
+      }
       throw new Error("Unauthorized");
     }
     
     // 403 Forbidden - Yetki hatası
     if (response.status === 403) {
       const error = await response.json().catch(() => ({}));
+      console.warn(`apiCall: 403 Forbidden for ${url}:`, error);
       throw new Error(error.error || "Bu işlem için yetkiniz yok");
     }
     
     // JSON response'u parse et
     if (response.ok) {
-      return await response.json();
+      const jsonData = await response.json();
+      console.log(`apiCall: Success for ${url}:`, jsonData);
+      return jsonData;
     } else {
       const error = await response.json().catch(() => ({}));
+      console.error(`apiCall: Error response for ${url} (${response.status}):`, error);
       throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
     }
   } catch (error) {
     console.error(`API call error (${url}):`, error);
+    // Network hatası mı yoksa HTTP hatası mı kontrol et
+    if (error.message && !error.message.includes("HTTP")) {
+      console.error(`apiCall: Network error for ${url} - Bağlantı hatası olabilir`);
+    }
     throw error;
   }
 }

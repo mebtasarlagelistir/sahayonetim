@@ -71,14 +71,17 @@ function updateEventStatus(eventData) {
   const statusIndicator = qs("status-indicator");
   const eventNameDisplay = qs("event-name-display");
   
-  if (!statusIndicator || !eventNameDisplay) return;
+  if (!statusIndicator || !eventNameDisplay) {
+    console.warn("updateEventStatus: status-indicator veya event-name-display elementi bulunamadı");
+    return;
+  }
   
-  // Etkinlik adını göster
-  const eventName = eventData.name || "Etkinlik seçilmedi";
+  // Etkinlik adını göster (null/undefined kontrolü)
+  const eventName = (eventData && eventData.name) ? eventData.name : "Etkinlik seçilmedi";
   eventNameDisplay.textContent = eventName;
   
   // Aktif durumunu kontrol et (etkinlik varsa aktif sayılır)
-  const isActive = eventData.name && eventData.name !== "Etkinlik seçilmedi";
+  const isActive = eventData && eventData.name && eventData.name !== "Etkinlik seçilmedi";
   
   if (isActive) {
     statusIndicator.classList.add("active");
@@ -91,10 +94,14 @@ function updateEventStatus(eventData) {
   }
   
   // Etkinlik tarih ve saat bilgisini güncelle
-  updateEventDateTime(eventData);
+  if (typeof updateEventDateTime === "function") {
+    updateEventDateTime(eventData);
+  }
   
   // Etkinlik fazını yükle
-  loadEventPhase();
+  if (typeof loadEventPhase === "function") {
+    loadEventPhase();
+  }
 }
 
 /**
@@ -304,9 +311,19 @@ function bindComingSoonLinks() {
  * - Etkinlik silme
  */
 function setupEventSwitcher() {
+  console.log("dashboard.js: setupEventSwitcher çağrıldı");
   const eventSelector = qs("event_selector");
+  console.log("dashboard.js: event_selector bulundu mu?", !!eventSelector);
+  console.log("dashboard.js: event_selector elementi:", eventSelector);
+  
+  // Global scope'a da ekle (match_control.js için)
+  if (typeof window !== "undefined") {
+    window.setupEventSwitcher = setupEventSwitcher;
+  }
   if (eventSelector) {
+    console.log("dashboard.js: Event selector'a change listener ekleniyor...");
     eventSelector.addEventListener("change", async (event) => {
+      console.log("dashboard.js: Event selector change event tetiklendi, value:", event.target.value);
       const eventId = Number(event.target.value);
       if (!eventId) return;
       try {
@@ -327,8 +344,11 @@ function setupEventSwitcher() {
   }
 
   const newEventBtn = qs("new_event");
+  console.log("dashboard.js: new_event butonu bulundu mu?", !!newEventBtn);
   if (newEventBtn) {
+    console.log("dashboard.js: new_event butonuna click listener ekleniyor...");
     newEventBtn.addEventListener("click", async () => {
+      console.log("dashboard.js: new_event butonuna tıklandı");
       const name = window.prompt("Etkinlik adı", "Yeni Etkinlik");
       if (!name) return;
       try {
@@ -346,8 +366,11 @@ function setupEventSwitcher() {
   }
 
   const deleteEventBtn = qs("delete_event");
+  console.log("dashboard.js: delete_event butonu bulundu mu?", !!deleteEventBtn);
   if (deleteEventBtn) {
+    console.log("dashboard.js: delete_event butonuna click listener ekleniyor...");
     deleteEventBtn.addEventListener("click", async () => {
+      console.log("dashboard.js: delete_event butonuna tıklandı");
       const selector = qs("event_selector");
       const eventId = Number(selector?.value);
       if (!eventId) {
@@ -374,8 +397,11 @@ function setupEventSwitcher() {
   }
 
   const clearAllEventsBtn = qs("clear_all_events");
+  console.log("dashboard.js: clear_all_events butonu bulundu mu?", !!clearAllEventsBtn);
   if (clearAllEventsBtn) {
+    console.log("dashboard.js: clear_all_events butonuna click listener ekleniyor...");
     clearAllEventsBtn.addEventListener("click", async () => {
+      console.log("dashboard.js: clear_all_events butonuna tıklandı");
       const confirmed = window.confirm(
         "TÜM ETKİNLİKLERİ SİLMEK İSTEDİĞİNİZDEN EMİN MİSİNİZ?\n\nBu işlem geri alınamaz ve tüm etkinlikler, takımlar ve ilgili veriler silinecektir."
       );
@@ -393,6 +419,8 @@ function setupEventSwitcher() {
       }
     });
   }
+  
+  console.log("dashboard.js: setupEventSwitcher tamamlandı - tüm event listener'lar kuruldu");
 }
 
 /**
@@ -473,6 +501,73 @@ async function loadEventStatistics() {
 }
 
 /**
+ * Kullanıcı rolüne göre dashboard bölümlerini göster/gizle
+ * 
+ * Baş hakem rolü için sadece şu bölümler görünür:
+ * - İnceleme
+ * - Hakem Skorlama
+ * - FTA/CSA Araçları
+ * 
+ * Diğer tüm bölümler gizlenir.
+ * Ayrıca header'daki event switcher ve yönetim butonları da gizlenir.
+ */
+function updateDashboardSectionsForRole() {
+  // currentUserRole global değişkeninden al (users.js'den)
+  if (typeof currentUserRole === "undefined" || !currentUserRole) return;
+  
+  const roleLower = currentUserRole.toLowerCase();
+  const isHeadReferee = roleLower.includes("baş_hakem") || 
+                        roleLower.includes("bas_hakem") || 
+                        roleLower.includes("head_referee") ||
+                        roleLower === "baş hakem" ||
+                        roleLower === "bas hakem";
+  
+  if (!isHeadReferee) {
+    // Baş hakem değilse, tüm bölümleri göster
+    document.querySelectorAll(".dashboard-section").forEach(section => {
+      section.style.display = "";
+    });
+    // Header butonlarını göster
+    const eventSwitcher = document.querySelector(".event-switcher");
+    if (eventSwitcher) {
+      eventSwitcher.style.display = "";
+    }
+    return;
+  }
+  
+  // Baş hakem için sadece belirli bölümleri göster
+  const sections = document.querySelectorAll(".dashboard-section");
+  sections.forEach(section => {
+    const heading = section.querySelector("h2");
+    if (!heading) {
+      section.style.display = "none";
+      return;
+    }
+    
+    const headingText = heading.textContent.trim();
+    const allowedSections = ["İnceleme", "Hakem Skorlama", "FTA/CSA Araçları"];
+    
+    if (allowedSections.includes(headingText)) {
+      section.style.display = "";
+    } else {
+      section.style.display = "none";
+    }
+  });
+  
+  // Baş hakem için event switcher'ı gizle (yönetim yetkisi yok)
+  const eventSwitcher = document.querySelector(".event-switcher");
+  if (eventSwitcher) {
+    eventSwitcher.style.display = "none";
+  }
+  
+  // Baş hakem için "Kurulum" butonunu gizle
+  const setupLink = document.querySelector('a[href="/setup"]');
+  if (setupLink) {
+    setupLink.style.display = "none";
+  }
+}
+
+/**
  * Dashboard'u başlatır ve tüm gerekli verileri yükler
  * 
  * Yapılan işlemler:
@@ -482,6 +577,7 @@ async function loadEventStatistics() {
  * - Etkinlik seçiciyi yapılandırır
  * - "Yakında" linklerini bağlar
  * - Canlı saati başlatır
+ * - Rol bazlı bölüm görünürlüğünü ayarlar
  * 
  * @returns {Promise<void>}
  */
@@ -495,6 +591,9 @@ async function initializeDashboard() {
   await loadEventSummary();
   setupEventSwitcher();
   bindComingSoonLinks();
+  
+  // Rol bazlı bölüm görünürlüğünü ayarla
+  updateDashboardSectionsForRole();
   
   // Canlı saati başlat
   startClock();

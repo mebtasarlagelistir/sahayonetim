@@ -3,6 +3,12 @@ Puanlama Hesaplama Modülü
 
 Bu modül puanlama verilerini alır ve toplam skorları hesaplar.
 Modüler yapı sayesinde puanlama kuralları kolayca güncellenebilir.
+
+Modüler Yapı:
+- Puanlama kuralları ScoringConfig'den alınır (src/core/scoring/config.py)
+- Kuralları değiştirmek için sadece config dosyasını güncellemek yeterlidir
+- Farklı oyunlar için bu modül genişletilebilir
+- Frontend'deki constants.js ile senkronize tutulmalıdır
 """
 
 from typing import Dict, Optional

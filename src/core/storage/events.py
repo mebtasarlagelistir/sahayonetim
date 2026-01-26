@@ -35,7 +35,7 @@ class EventsStorage:
         event_id = self.get_active_event_id()
         if event_id is None:
             return defaults
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT data FROM events WHERE id = ?",
                 (event_id,),
@@ -64,7 +64,7 @@ class EventsStorage:
         if event_id is None:
             raise ValueError("Aktif etkinlik bulunamadı")
         payload = json.dumps(data, ensure_ascii=False)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 "UPDATE events SET data = ?, name = ? WHERE id = ?",
                 (payload, data.get("name", ""), event_id),
@@ -79,7 +79,7 @@ class EventsStorage:
             List[Dict]: Etkinlik listesi
             [{"id": 1, "name": "Etkinlik Adı", "active": true}, ...]
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT id, name, active FROM events ORDER BY id").fetchall()
         return [
             {"id": row[0], "name": row[1], "active": bool(row[2])} for row in rows
@@ -95,7 +95,7 @@ class EventsStorage:
         Returns:
             int | None: Etkinlik ID'si veya None
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT id FROM events WHERE name = ?",
                 (name,),
@@ -112,7 +112,7 @@ class EventsStorage:
         Returns:
             int: Takım sayısı
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT COUNT(*) FROM teams WHERE event_id = ?",
                 (event_id,),
@@ -126,7 +126,7 @@ class EventsStorage:
         Returns:
             int | None: Aktif etkinlik ID'si veya None
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute("SELECT id FROM events WHERE active = 1").fetchone()
         return int(row[0]) if row else None
     
@@ -141,7 +141,7 @@ class EventsStorage:
             - Önce tüm etkinliklerin active değeri 0 yapılır
             - Sonra belirtilen etkinlik active = 1 yapılır
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("UPDATE events SET active = 0")
             conn.execute("UPDATE events SET active = 1 WHERE id = ?", (event_id,))
             conn.commit()
@@ -164,7 +164,7 @@ class EventsStorage:
         data = _merge_defaults(data or {}, base)
         data["name"] = name
         payload = json.dumps(data, ensure_ascii=False)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO events (name, data, active) VALUES (?, ?, 0)",
                 (name, payload),
@@ -186,7 +186,7 @@ class EventsStorage:
             - Takımlar otomatik silinir (CASCADE delete)
             - Eğer silinen etkinlik aktif ise, başka bir etkinlik aktif yapılır
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             # Check if event exists
             row = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
             if not row:
@@ -226,7 +226,7 @@ class EventsStorage:
             - Önce mevcut takımlar silinir, sonra yenileri eklenir
             - Boş takımlar (tüm alanlar boş) kaydedilmez
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM teams WHERE event_id = ?", (event_id,))
             # Boş takımları filtrele
             valid_teams = [

@@ -82,7 +82,7 @@ class RealtimeScoreManager:
         Args:
             match_key: Maç anahtarı
             alliance: "red" veya "blue"
-            scoring_data: Puanlama verileri
+            scoring_data: Puanlama verileri (team_statuses içerebilir)
             updated_by: Güncellemeyi yapan kullanıcı (opsiyonel)
         """
         if match_key not in self._active_scores:
@@ -91,6 +91,13 @@ class RealtimeScoreManager:
         self._active_scores[match_key][alliance] = scoring_data
         self._active_scores[match_key]["last_updated"] = datetime.now().isoformat()
         self._active_scores[match_key]["updated_by"] = updated_by
+        
+        # team_statuses'i ayrı olarak sakla (match control için)
+        if "team_statuses" in scoring_data and isinstance(scoring_data["team_statuses"], dict):
+            if "team_statuses" not in self._active_scores[match_key]:
+                self._active_scores[match_key]["team_statuses"] = {}
+            # Mevcut team_statuses'i koru, sadece güncellenen ittifakı güncelle
+            self._active_scores[match_key]["team_statuses"][alliance] = scoring_data["team_statuses"].get(alliance, {})
         
         # Tüm bağlı cihazlara bildir
         self._broadcast_update(match_key, alliance, scoring_data)

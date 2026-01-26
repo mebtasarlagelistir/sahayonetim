@@ -32,6 +32,20 @@
           <p id="assigned_field">Saha: -</p>
           <p id="assigned_teams">Takımlar: -</p>
         </div>
+        
+        <!-- Robot Hazırlık Durumu -->
+        <div class="referee-robot-status-section" id="referee_robot_status" style="display: none;">
+          <h4>Robot Hazırlık Durumu</h4>
+          <div class="referee-robot-status-grid" id="referee_robot_status_grid">
+            <!-- Robot durum butonları JavaScript ile dinamik olarak eklenecek -->
+          </div>
+        </div>
+        
+        <!-- Maç Timer -->
+        <div class="match-timer-referee" id="referee_match_timer" style="display: none;">
+          <div class="timer-state" id="referee_timer_state">-</div>
+          <div class="timer-display" id="referee_timer_display">00:00</div>
+        </div>
         <div class="match-assignment-status" id="referee_submit_status" style="display: none;"></div>
       </div>
 
@@ -306,7 +320,14 @@
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/constants.js"></script>
     <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/users.js"></script>
     <script src="/static/js/dashboard.js"></script>
+    <!-- Referee Panel Modülleri (sıralama önemli) -->
+    <script src="/static/js/referee_panel_core.js"></script>
+    <script src="/static/js/referee_panel_scoring.js"></script>
+    <script src="/static/js/referee_panel_robot_status.js"></script>
+    <script src="/static/js/referee_panel_sse.js"></script>
+    <script src="/static/js/referee_panel_ui.js"></script>
     <script src="/static/js/referee_panel.js"></script>
     <script src="/static/app.js"></script>
   </body>

@@ -6,10 +6,30 @@
 
 /**
  * Element seçici - getElementById kısayolu
+ * 
+ * Global olarak kullanılabilir, tüm modüller bu fonksiyonu kullanabilir.
+ * Element bulunamazsa null döner (hata vermez).
+ * 
  * @param {string} id - Element ID'si
  * @returns {HTMLElement|null} Element veya null
  */
-const qs = (id) => document.getElementById(id);
+// qs fonksiyonunu global scope'da tanımla (window objesine ekle)
+// Eğer zaten tanımlı değilse tanımla (diğer dosyalarda çift tanımı önlemek için)
+(function() {
+  if (typeof window.qs === "undefined") {
+       window.qs = function(id) {
+         const element = document.getElementById(id);
+         // Sadece kritik olmayan elementler için uyarı ver
+         // (match_control sayfasında bazı elementler opsiyonel)
+         // (referee_panel sayfasında event_selector ve new_event yok)
+         // (users_table sadece setup sayfasında var)
+         if (!element && !id.match(/^(match_list|next_match_info|field_selector|match_type_selector|event_selector|new_event|delete_event|users_table)$/)) {
+           console.warn(`Element bulunamadı: #${id}`);
+         }
+         return element;
+       };
+  }
+})();
 
 /**
  * Kullanıcıya bildirim mesajı gösterir (toast notification)

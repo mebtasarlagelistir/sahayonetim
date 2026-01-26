@@ -52,6 +52,9 @@ const NETWORK_CONSTANTS = {
  * UI ile ilgili sabitler
  */
 const UI_CONSTANTS = {
+  // Referee panel check interval
+  REFEREE_PANEL_CHECK_INTERVAL: 5000, // 5 saniye
+  
   // Toast mesaj süreleri (ms)
   TOAST_DURATION_SUCCESS: 3000,
   TOAST_DURATION_ERROR: 5000,
@@ -62,10 +65,7 @@ const UI_CONSTANTS = {
   CLOCK_UPDATE_INTERVAL: 1000, // 1 saniye
   
   // Event summary refresh interval
-  EVENT_SUMMARY_REFRESH_INTERVAL: 30000, // 30 saniye
-  
-  // Referee panel check interval
-  REFEREE_PANEL_CHECK_INTERVAL: 5000 // 5 saniye
+  EVENT_SUMMARY_REFRESH_INTERVAL: 30000 // 30 saniye
 };
 
 /**

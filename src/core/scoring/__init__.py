@@ -7,5 +7,6 @@ Kolayca güncellenebilir ve genişletilebilir yapıdadır.
 
 from .calculator import ScoreCalculator
 from .config import ScoringConfig
+from .ranking_points import RankingPointsCalculator
 
-__all__ = ["ScoreCalculator", "ScoringConfig"]
+__all__ = ["ScoreCalculator", "ScoringConfig", "RankingPointsCalculator"]

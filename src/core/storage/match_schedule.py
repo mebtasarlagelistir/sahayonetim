@@ -72,7 +72,7 @@ class MatchScheduleStorage:
 
         query += " ORDER BY match_date, match_time, field_number, match_number"
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
 
         return [
@@ -136,7 +136,7 @@ class MatchScheduleStorage:
         if event_id is None:
             raise ValueError("Aktif etkinlik bulunamadı")
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.execute(
                 """
                 INSERT INTO match_schedule
@@ -232,13 +232,13 @@ class MatchScheduleStorage:
         params.append(match_id)
         query = f"UPDATE match_schedule SET {', '.join(updates)} WHERE id = ?"
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(query, params)
             conn.commit()
 
     def delete_match(self, match_id: int) -> None:
         """Resmi maçı siler."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM match_schedule WHERE id = ?", (match_id,))
             conn.commit()
 
@@ -251,7 +251,7 @@ class MatchScheduleStorage:
         if event_id is None:
             return
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM match_schedule WHERE event_id = ?", (event_id,))
             conn.commit()
 
@@ -288,7 +288,7 @@ class MatchScheduleStorage:
             query += " AND id != ?"
             params.append(exclude_match_id)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
 
         for row in rows:

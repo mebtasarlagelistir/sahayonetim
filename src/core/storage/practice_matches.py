@@ -82,7 +82,7 @@ class PracticeMatchesStorage:
         
         query += " ORDER BY match_date, match_time, field_number"
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         
         return [
@@ -148,7 +148,7 @@ class PracticeMatchesStorage:
         if event_id is None:
             raise ValueError("Aktif etkinlik bulunamadı")
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.execute(
                 """
                 INSERT INTO practice_matches 
@@ -259,7 +259,7 @@ class PracticeMatchesStorage:
         params.append(match_id)
         query = f"UPDATE practice_matches SET {', '.join(updates)} WHERE id = ?"
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(query, params)
             conn.commit()
     
@@ -270,7 +270,7 @@ class PracticeMatchesStorage:
         Args:
             match_id: Silinecek maç ID'si
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM practice_matches WHERE id = ?", (match_id,))
             conn.commit()
     
@@ -288,7 +288,7 @@ class PracticeMatchesStorage:
         if event_id is None:
             return
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM practice_matches WHERE event_id = ?", (event_id,))
             conn.commit()
     
@@ -340,7 +340,7 @@ class PracticeMatchesStorage:
             query += " AND id != ?"
             params.append(exclude_match_id)
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         
         event_data = self.get_event()

@@ -37,7 +37,7 @@ class UsersStorage:
         
         Admin kullanıcısı tüm etkinlikler için geçerlidir.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             # Admin kullanıcısı var mı kontrol et (event_id IS NULL)
             row = conn.execute(
                 "SELECT 1 FROM users WHERE username = 'admin' AND event_id IS NULL"
@@ -66,7 +66,7 @@ class UsersStorage:
         if event_id is None:
             event_id = self.get_active_event_id()
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             if include_password:
                 if event_id is not None:
                     rows = conn.execute(
@@ -139,7 +139,7 @@ class UsersStorage:
         
         password_hash = generate_password_hash(password)
         token = secrets.token_urlsafe(24)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO users (username, password_hash, role, login_token, password_plain, event_id) VALUES (?, ?, ?, ?, ?, ?)",
                 (username, password_hash, role, token, password, event_id),
@@ -154,7 +154,7 @@ class UsersStorage:
         Returns:
             int: Silinen kullanıcı sayısı
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.execute(
                 "DELETE FROM users WHERE event_id IS NULL AND LOWER(username) != 'admin'"
             )
@@ -168,7 +168,7 @@ class UsersStorage:
         Returns:
             int: Silinen kullanıcı sayısı
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.execute(
                 "DELETE FROM users WHERE event_id IS NOT NULL AND event_id NOT IN (SELECT id FROM events)"
             )
@@ -182,7 +182,7 @@ class UsersStorage:
         
         password_hash = generate_password_hash(password)
         token = secrets.token_urlsafe(24)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             if event_id is not None:
                 conn.execute(
                     "UPDATE users SET password_hash = ?, password_plain = ?, login_token = ? WHERE username = ? AND event_id = ?",
@@ -217,7 +217,7 @@ class UsersStorage:
         if event_id is None:
             event_id = self.get_active_event_id()
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT password_hash FROM users WHERE username = ? AND event_id IS NULL",
                 (username,),
@@ -237,7 +237,7 @@ class UsersStorage:
     
     def authenticate_token(self, token: str) -> str | None:
         """Token ile kullanıcı kimlik doğrulaması yapar."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT username FROM users WHERE login_token = ?",
                 (token,),
@@ -246,7 +246,7 @@ class UsersStorage:
     
     def get_user_role(self, username: str) -> str | None:
         """Kullanıcının rolünü getirir."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT role FROM users WHERE username = ? AND event_id IS NULL",
                 (username,),
@@ -265,7 +265,7 @@ class UsersStorage:
     
     def get_user_event_id(self, username: str) -> int | None:
         """Kullanıcının bağlı olduğu etkinlik ID'sini getirir."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT event_id FROM users WHERE username = ?",
                 (username,),
@@ -282,7 +282,7 @@ class UsersStorage:
         if event_id is None:
             event_id = self.get_active_event_id()
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             if event_id is not None:
                 conn.execute(
                     "DELETE FROM users WHERE username = ? AND event_id = ?",
@@ -298,7 +298,7 @@ class UsersStorage:
         if event_id is None:
             return
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 "DELETE FROM users WHERE event_id = ?",
                 (event_id,)
@@ -336,7 +336,7 @@ class UsersStorage:
             "seremoni_3",
         ]
         created: List[Dict[str, str]] = []
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             existing = {
                 row[0]
                 for row in conn.execute(

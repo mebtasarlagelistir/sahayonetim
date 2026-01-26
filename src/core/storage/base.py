@@ -2,6 +2,11 @@
 Temel Veritabanı İşlemleri Modülü
 
 Bu modül veritabanı şeması oluşturma, migrasyon ve temel yardımcı fonksiyonları içerir.
+
+Performans Optimizasyonları:
+- Connection pooling (12+ eşzamanlı cihaz için)
+- WAL mode (Write-Ahead Logging)
+- Thread-safe bağlantı yönetimi
 """
 
 from __future__ import annotations
@@ -13,6 +18,7 @@ from typing import Any, Dict
 
 from ..event_setup import default_config_dict
 from werkzeug.security import generate_password_hash
+from .connection_pool import get_connection_pool
 
 
 def _merge_defaults(data: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
@@ -45,10 +51,25 @@ class BaseStorage:
         """
         self.base_path = base_path or Path(__file__).resolve().parents[3]
         self.db_path = self.base_path / "src" / "resources" / "data.db"
+        
+        # Connection pool oluştur (12+ cihaz için optimize edilmiş)
+        # Pool size: 8 optimal (4 hakem + 4 seyirci + 4 jüri + match control)
+        self._connection_pool = get_connection_pool(self.db_path, pool_size=8)
+        
         self._init_db()
         self._migrate_legacy_schema()
         self._ensure_user_event_column()
         # ensure_default_admin UsersStorage'da olacak, burada çağrılmayacak
+    
+    def _get_connection(self):
+        """
+        Connection pool'dan bağlantı alır (context manager).
+        
+        Kullanım:
+            with self._get_connection() as conn:
+                conn.execute("SELECT ...")
+        """
+        return self._connection_pool.get_connection()
     
     def _init_db(self) -> None:
         """
@@ -65,7 +86,8 @@ class BaseStorage:
         Not: Bu metod sadece tabloları oluşturur, veri eklemez.
         """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
+        # Connection pool kullan (performans için)
+        with self._get_connection() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -185,7 +207,7 @@ class BaseStorage:
             - event (tekil) -> events (çoğul)
             - teams (event_id yok) -> teams (event_id var)
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             tables = {
                 row[0]
                 for row in conn.execute(
@@ -247,7 +269,7 @@ class BaseStorage:
     
     def _ensure_user_token_column(self) -> None:
         """users tablosuna login_token ve password_plain kolonlarını ekler (migration)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()
             ]
@@ -269,7 +291,7 @@ class BaseStorage:
         Mevcut kullanıcılar için event_id NULL kalır (admin ve eski kullanıcılar).
         Yeni kullanıcılar aktif etkinlik ID'si ile oluşturulur.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()
             ]
@@ -312,7 +334,7 @@ class BaseStorage:
         İstasyon isimleri (örneğin "İstasyon 1", "Grup A") hangi grup müfettişin
         hangi takımlara bakacağını belirlemek için kullanılır.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(inspection_slots)").fetchall()
             ]
@@ -326,7 +348,7 @@ class BaseStorage:
         
         Saha ismi, saha numarasına ek olarak gösterilir (örn: "Saha A").
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(practice_matches)").fetchall()
             ]
@@ -340,7 +362,7 @@ class BaseStorage:
         
         Surrogate takımlar JSON array olarak saklanır.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(practice_matches)").fetchall()
             ]
@@ -352,7 +374,7 @@ class BaseStorage:
         """
         practice_matches tablosuna scoring_data kolonu ekler (migration).
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(practice_matches)").fetchall()
             ]
@@ -366,7 +388,7 @@ class BaseStorage:
 
         Surrogate takımlar JSON array olarak saklanır.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(match_schedule)").fetchall()
             ]
@@ -378,7 +400,7 @@ class BaseStorage:
         """
         match_schedule tablosuna scoring_data kolonu ekler (migration).
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(match_schedule)").fetchall()
             ]
@@ -388,7 +410,7 @@ class BaseStorage:
     
     def is_empty(self) -> bool:
         """Veritabanının boş olup olmadığını kontrol eder."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             event_row = conn.execute("SELECT 1 FROM events LIMIT 1").fetchone()
             team_row = conn.execute("SELECT 1 FROM teams LIMIT 1").fetchone()
         return not event_row and not team_row

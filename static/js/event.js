@@ -261,13 +261,38 @@ function updateMatchCycle() {
  */
 async function loadEvents() {
   try {
+    console.log("loadEvents: Başlatılıyor...");
     const events = await apiGet("/api/events");
+    console.log("loadEvents: API'den gelen events:", events);
     const selector = qs("event_selector");
-    if (!selector) return;
+    console.log("loadEvents: event_selector elementi:", selector);
+    if (!selector) {
+      console.warn("loadEvents: event_selector elementi bulunamadı - bu sayfada event selector yok olabilir");
+      // Tüm select elementlerini kontrol et
+      const allSelects = document.querySelectorAll("select");
+      console.log("loadEvents: Sayfadaki tüm select elementleri:", allSelects);
+      return;
+    }
+    console.log(`loadEvents: ${events?.length || 0} etkinlik yüklendi, dropdown'a ekleniyor...`);
+    console.log(`loadEvents: events tipi:`, typeof events, "Array mi?", Array.isArray(events));
+    console.log(`loadEvents: events içeriği:`, events);
+    
     selector.innerHTML = "";
     let hasActive = false;
     
-    if (!events || events.length === 0) {
+    // events array kontrolü - eğer array değilse array'e çevir
+    let eventsArray = events;
+    if (!Array.isArray(events)) {
+      console.warn("loadEvents: events array değil, dönüştürülüyor...", events);
+      if (events && typeof events === 'object') {
+        eventsArray = Object.values(events);
+      } else {
+        eventsArray = [];
+      }
+    }
+    
+    if (!eventsArray || eventsArray.length === 0) {
+      console.log("loadEvents: Etkinlik yok, placeholder ekleniyor...");
       // Etkinlik yoksa placeholder ekle
       const placeholder = document.createElement("option");
       placeholder.value = "";
@@ -278,16 +303,28 @@ async function loadEvents() {
       return;
     }
     
-    events.forEach((event) => {
+    console.log(`loadEvents: ${eventsArray.length} etkinlik işleniyor...`);
+    eventsArray.forEach((event, index) => {
+      console.log(`loadEvents: Etkinlik ${index + 1} işleniyor:`, event);
       const option = document.createElement("option");
       option.value = String(event.id);
       option.textContent = event.name || `Etkinlik ${event.id}`;
       if (event.active) {
         option.selected = true;
         hasActive = true;
+        console.log(`loadEvents: Aktif etkinlik bulundu: id=${event.id}, name=${event.name}`);
       }
       selector.appendChild(option);
+      console.log(`loadEvents: Option eklendi - id=${event.id}, name=${event.name}, active=${event.active}`);
     });
+    console.log(`loadEvents: Toplam ${eventsArray.length} option eklendi, hasActive=${hasActive}`);
+    console.log(`loadEvents: Dropdown'daki option sayısı:`, selector.options.length);
+    console.log("loadEvents: Dropdown'daki option'lar:", Array.from(selector.options).map(opt => ({ value: opt.value, text: opt.textContent })));
+    
+    // Dropdown'ın görünür olduğunu kontrol et
+    const computedStyle = window.getComputedStyle(selector);
+    console.log("loadEvents: Dropdown görünür mü?", computedStyle.display !== "none" && computedStyle.visibility !== "hidden");
+    console.log("loadEvents: Dropdown disabled mı?", selector.disabled);
     const storedId = window.localStorage?.getItem("active_event_id");
     if (!hasActive && storedId && selector.querySelector(`option[value="${storedId}"]`)) {
       selector.value = storedId;

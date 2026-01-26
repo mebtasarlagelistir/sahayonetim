@@ -30,11 +30,46 @@ body {
   border: 1px solid #e1e4ee;
   border-radius: 6px;
   background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.screen-item.screen-active {
+  border-color: #4caf50;
+  background: #f1f8f4;
+}
+
+.screen-item.screen-inactive {
+  border-color: #ff9800;
+  background: #fff8f0;
+  opacity: 0.8;
 }
 
 .screen-name {
   font-weight: 600;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.screen-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.screen-status-badge.active {
+  background: #4caf50;
+  color: #ffffff;
+}
+
+.screen-status-badge.inactive {
+  background: #ff9800;
+  color: #ffffff;
 }
 
 .screen-meta {
@@ -69,105 +104,684 @@ body {
   padding: 24px;
 }
 
+/* VS Preview aktifken container padding'ini kaldır */
+.audience-container.vs-preview-active {
+  padding: 0;
+  gap: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* VS Preview mode için body ayarları */
+body.vs-preview-mode {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body.vs-preview-mode .audience-container {
+  padding: 0;
+  margin: 0;
+  height: 100vh;
+  width: 100vw;
+}
+
 .audience-panel {
-  background: #111624;
-  border-radius: 12px;
-  padding: 24px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: calc(100vh - 48px);
+}
+
+/* VS Preview için özel panel ayarı - 16:9 ekranlar */
+#audience_vs_preview.audience-panel {
+  padding: 0;
+  border-radius: 0;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.audience-panel h1 {
+  font-size: 36px;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 32px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
 }
 
 .audience-scoreboard {
   display: grid;
-  grid-template-columns: 1fr 220px 1fr;
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: stretch;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .audience-alliance {
-  padding: 16px;
-  border-radius: 12px;
+  padding: 32px 24px;
+  border-radius: 16px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.audience-alliance::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .audience-alliance.blue {
-  background: #1e3a8a;
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+  border: 2px solid rgba(59, 130, 246, 0.5);
+}
+
+.audience-alliance.blue::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
 .audience-alliance.red {
-  background: #7f1d1d;
+  background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+  border: 2px solid rgba(239, 68, 68, 0.5);
+}
+
+.audience-alliance.red::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%);
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+
+.alliance-title {
+  font-size: 24px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  position: relative;
+  z-index: 1;
 }
 
 .alliance-score {
-  font-size: 48px;
-  font-weight: 700;
-  margin: 8px 0;
+  font-size: 72px;
+  font-weight: 900;
+  margin: 16px 0;
+  text-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
+  transition: transform 0.3s ease;
+}
+
+.alliance-score.updating {
+  transform: scale(1.1);
+  animation: score-update 0.5s ease;
+}
+
+@keyframes score-update {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.alliance-teams {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 12px;
+  opacity: 0.95;
+  position: relative;
+  z-index: 1;
+  line-height: 1.6;
 }
 
 .audience-timer {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 200px;
+  padding: 0 16px;
+  position: relative;
+}
+
+.timer-label {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  color: #fbbf24;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .timer-value {
-  font-size: 42px;
-  font-weight: 700;
+  font-size: 64px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+  text-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 0 24px rgba(251, 191, 36, 0.4);
+  line-height: 1;
+  margin-bottom: 8px;
+  transition: color 0.3s ease;
+}
+
+.timer-value.warning {
+  color: #fbbf24;
+  animation: timer-warning 1s ease-in-out infinite;
+}
+
+.timer-value.critical {
+  color: #ef4444;
+  animation: timer-critical 0.5s ease-in-out infinite;
+}
+
+@keyframes timer-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes timer-critical {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.timer-meta {
+  font-size: 14px;
+  color: #cbd5e1;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .audience-up-next {
-  margin-top: 16px;
-  font-size: 16px;
-  color: #cbd5f5;
+  margin-top: 32px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
+  border-radius: 16px;
+  font-size: 18px;
+  color: #cbd5e1;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.audience-up-next::before {
+  content: '⏭️ ';
+  margin-right: 8px;
+  font-size: 20px;
+}
+
+/* VS Preview Sayfası - 16:9 Ekranlar İçin Optimize Edilmiş ve Scale Edilebilir */
+.vs-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  padding: 3vh 4vw;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+/* 16:9 aspect ratio için container'ı scale et */
+body.vs-preview-mode .vs-container {
+  /* Aspect ratio hesaplama */
+  --aspect-ratio: 16 / 9;
+  --viewport-width: 100vw;
+  --viewport-height: 100vh;
+  --calculated-width: min(100vw, calc(100vh * var(--aspect-ratio)));
+  --calculated-height: min(100vh, calc(100vw / var(--aspect-ratio)));
+  
+  width: var(--calculated-width);
+  height: var(--calculated-height);
+  left: calc((100vw - var(--calculated-width)) / 2);
+  top: calc((100vh - var(--calculated-height)) / 2);
+}
+
+.vs-header {
+  text-align: center;
+  margin-bottom: 4vh;
+  flex-shrink: 0;
+}
+
+.vs-match-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5vh;
+}
+
+.vs-match-name {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(251, 191, 36, 0.3);
+  letter-spacing: 3px;
+  margin-bottom: 0.5vh;
+  text-transform: uppercase;
+}
+
+.vs-match-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5vw;
+  flex-wrap: wrap;
+}
+
+.vs-match-type {
+  font-size: clamp(1.5rem, 2.5vw, 2.5rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+.vs-match-separator {
+  font-size: clamp(1.5rem, 2.5vw, 2.5rem);
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 300;
+}
+
+.vs-match-number {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  letter-spacing: 4px;
+}
+
+.vs-match-field {
+  font-size: clamp(1.5rem, 2.5vw, 2.5rem);
+  font-weight: 600;
+  color: #cbd5e1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.vs-content {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: clamp(3vw, 5vw, 8vw);
+  align-items: center;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 2vw;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.vs-alliance {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2vh, 3vh, 4vh);
+  padding: clamp(2vh, 3vh, 4vh) clamp(2vw, 3vw, 4vw);
+  border-radius: clamp(1rem, 2vw, 1.5rem);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vs-alliance:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.vs-alliance.vs-red {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.3) 0%, rgba(185, 28, 28, 0.2) 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.vs-alliance.vs-blue {
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(37, 99, 235, 0.2) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.vs-alliance-title {
+  font-size: 36px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.vs-alliance.vs-red .vs-alliance-title {
+  color: #fca5a5;
+}
+
+.vs-alliance.vs-blue .vs-alliance-title {
+  color: #93c5fd;
+}
+
+.vs-teams {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5vh, 2vh, 2.5vh);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.vs-team-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: clamp(0.8rem, 1.5vw, 1.2rem);
+  padding: clamp(1.5vh, 2.5vh, 3vh) clamp(1.5vw, 2.5vw, 3vw);
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  flex-shrink: 0;
+}
+
+.vs-team-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.vs-team-number {
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  font-weight: 900;
+  margin-bottom: clamp(0.5vh, 1vh, 1.5vh);
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+  letter-spacing: 2px;
+  line-height: 1.2;
+}
+
+.vs-team-name {
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  font-weight: 700;
+  margin-bottom: clamp(0.3vh, 0.5vh, 0.8vh);
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+.vs-team-school {
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
+  color: #cbd5e1;
+  font-weight: 500;
+  opacity: 0.9;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.vs-text {
+  font-size: clamp(5rem, 10vw, 9rem);
+  font-weight: 900;
+  color: #fbbf24;
+  text-shadow: 
+    0 0 20px rgba(251, 191, 36, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.5);
+  letter-spacing: clamp(0.3rem, 0.8vw, 0.8rem);
+  animation: pulse 2s ease-in-out infinite;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* Responsive - 16:9 ekranlar için optimize edilmiş */
+@media (max-width: 1200px) {
+  .vs-content {
+    grid-template-columns: 1fr;
+    gap: clamp(2vh, 3vh, 4vh);
+  }
+  
+  .vs-divider {
+    order: -1;
+  }
+}
+
+/* Dikey ekranlar için (mobil) */
+@media (max-width: 768px) and (orientation: portrait) {
+  .vs-container {
+    padding: 2vh 3vw;
+    aspect-ratio: auto;
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .vs-header {
+    margin-bottom: 3vh;
+  }
+  
+  .vs-content {
+    grid-template-columns: 1fr;
+    gap: 3vh;
+  }
 }
 
 .audience-results {
-  margin-top: 16px;
-  background: #0f172a;
-  border-radius: 12px;
-  padding: 16px;
+  margin-top: 32px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slide-up 0.5s ease;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .audience-results-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 20px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
 }
 
 .audience-results-winner {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 12px;
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 24px;
+  text-align: center;
   color: #fbbf24;
+  text-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(251, 191, 36, 0.4);
+  animation: winner-glow 2s ease-in-out infinite;
+}
+
+@keyframes winner-glow {
+  0%, 100% {
+    text-shadow: 
+      0 4px 12px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(251, 191, 36, 0.4);
+  }
+  50% {
+    text-shadow: 
+      0 4px 12px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(251, 191, 36, 0.6);
+  }
 }
 
 .audience-results-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 24px;
 }
 
 .audience-results-card {
-  background: #141b2d;
-  border-radius: 10px;
-  padding: 12px;
+  background: rgba(20, 27, 45, 0.8);
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.audience-results-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.5;
+}
+
+.audience-results-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .audience-results-card.blue {
-  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.audience-results-card.blue::before {
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
 }
 
 .audience-results-card.red {
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.audience-results-card.red::before {
+  background: linear-gradient(90deg, transparent, #ef4444, transparent);
 }
 
 .results-label {
-  font-weight: 600;
-  margin-bottom: 6px;
+  font-weight: 800;
+  font-size: 20px;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .results-line {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
-  margin: 2px 0;
-  color: #e2e8f0;
+  align-items: center;
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.results-line:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.results-line span {
+  font-weight: 700;
+  font-size: 18px;
+  color: #fbbf24;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .audience-overlay {
@@ -290,6 +904,120 @@ body {
   background: #e3f2fd;
   color: #1976d2;
   padding: 2px 8px;
+}
+
+/* Baş Hakem Tab'ları */
+.head-referee-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e1e4ee;
+  padding-bottom: 8px;
+}
+
+.head-referee-tabs .tab-button {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -10px;
+  transition: all 0.2s ease;
+}
+
+.head-referee-tabs .tab-button:hover {
+  color: #1976d2;
+}
+
+.head-referee-tabs .tab-button.active {
+  color: #1976d2;
+  border-bottom-color: #1976d2;
+  font-weight: 600;
+}
+
+/* Baş Hakem Geçmiş Maçlar */
+.match-history-filters,
+.team-history-search {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.match-history-filters label,
+.team-history-search label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.match-history-filters select,
+.team-history-search input {
+  padding: 6px 10px;
+  border: 1px solid #e1e4ee;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.match-item-cards {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+}
+
+.cards-red, .cards-blue {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f5f6fa;
+}
+
+.cards-red {
+  border-left: 3px solid #ef4444;
+}
+
+.cards-blue {
+  border-left: 3px solid #3b82f6;
+}
+
+.score-winner {
+  font-weight: 600;
+  color: #4caf50;
+  margin-left: 12px;
+}
+
+.team-cards-summary {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+  padding: 16px;
+  background: #f5f6fa;
+  border-radius: 8px;
+}
+
+.card-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2328;
+}
   border-radius: 12px;
   font-size: 11px;
   font-weight: 500;
@@ -988,7 +1716,14 @@ body {
 }
 
 .match-item.completed {
-  opacity: 0.7;
+  background: #fff3e0; /* Turuncu arka plan */
+  border-color: #ff9800; /* Turuncu kenarlık */
+  opacity: 1; /* Opacity'yi kaldırdık, arka plan rengi yeterli */
+}
+
+.match-item.completed:hover {
+  background: #ffe0b2; /* Hover durumunda daha açık turuncu */
+  border-color: #f57c00;
 }
 
 .match-item-header {
@@ -1009,6 +1744,13 @@ body {
   border-radius: 3px;
   background: #e1e4ee;
   color: #666;
+}
+
+/* Tamamlanmış maçlar için durum etiketi */
+.match-item.completed .match-status {
+  background: #ff9800;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .match-item-info {
@@ -1160,6 +1902,35 @@ body {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+}
+
+/* Hakem paneli timer */
+.match-timer-referee {
+  margin: 12px 0;
+  padding: 12px;
+  background: #f5f6fa;
+  border-radius: 8px;
+  border: 1px solid #e1e4ee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-timer-referee .timer-state {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  letter-spacing: 0.5px;
+}
+
+.match-timer-referee .timer-display {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: "Courier New", monospace;
+  color: #1f2328;
+  line-height: 1;
 }
 
 .compact-state-label {
@@ -1425,6 +2196,93 @@ body {
 
 .btn-success:hover {
   background: #45a049;
+}
+
+/* Baş hakem detaylı skorlama - Yan Yana Görünüm */
+.head-referee-scores-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1200px) {
+  .head-referee-scores-side-by-side {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Baş hakem detaylı skorlama bölümleri */
+.head-referee-alliance-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e1e4ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.head-referee-alliance-section:last-child {
+  margin-bottom: 0;
+}
+
+.head-referee-alliance-section-compact {
+  padding: 12px;
+  border: 1px solid #e1e4ee;
+  border-radius: 8px;
+  background: #ffffff;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.head-referee-alliance-section .alliance-title-red,
+.head-referee-alliance-section-compact .alliance-title-red {
+  color: #d32f2f;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.head-referee-alliance-section .alliance-title-blue,
+.head-referee-alliance-section-compact .alliance-title-blue {
+  color: #1976d2;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.head-referee-scoring-form {
+  margin-bottom: 16px;
+}
+
+.head-referee-scoring-form-compact {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.head-referee-scoring-form-compact .scoring-group {
+  margin-bottom: 12px;
+}
+
+.head-referee-scoring-form-compact .group-header {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.head-referee-scoring-form-compact .score-field-compact {
+  font-size: 13px;
+  padding: 4px 6px;
+  width: 60px;
+}
+
+.head-referee-scoring-form-compact .btn-score-plus,
+.head-referee-scoring-form-compact .btn-score-minus {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+.referee-actions-compact {
+  margin-top: 12px;
+  text-align: center;
 }
 
 .head-referee-status-grid {
@@ -1974,6 +2832,127 @@ body {
   background: #ff9800;
   color: white;
   border-color: #ff9800;
+}
+
+/* Hakem paneli robot durum butonları */
+.referee-robot-status-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: #f5f6fa;
+  border-radius: 8px;
+  border: 1px solid #e1e4ee;
+}
+
+.referee-robot-status-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2328;
+}
+
+.referee-robot-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.referee-robot-status-item {
+  background: white;
+  border: 1px solid #e1e4ee;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.referee-robot-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e1e4ee;
+}
+
+.referee-robot-team-number {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1f2328;
+}
+
+.referee-robot-label {
+  font-size: 11px;
+  color: #666;
+}
+
+.referee-robot-status-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.referee-robot-status-btn {
+  flex: 1;
+  min-width: 36px;
+  padding: 6px 8px;
+  border: 1px solid #cfd3df;
+  background: #f5f6fa;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.referee-robot-status-btn:hover {
+  background: #e1e4ee;
+  border-color: #c4c9d8;
+}
+
+.referee-robot-status-btn.active {
+  background: #3f51b5;
+  color: white;
+  border-color: #3f51b5;
+}
+
+.referee-robot-status-btn[data-status="yellow"].active {
+  background: #ffc107;
+  color: #1f2328;
+  border-color: #ffc107;
+}
+
+.referee-robot-status-btn[data-status="red"].active {
+  background: #f44336;
+  color: white;
+  border-color: #f44336;
+}
+
+.referee-robot-status-btn[data-status="dq"].active {
+  background: #9e9e9e;
+  color: white;
+  border-color: #9e9e9e;
+}
+
+.referee-robot-status-btn[data-status="ry"].active {
+  background: #ff9800;
+  color: white;
+  border-color: #ff9800;
+}
+
+.referee-robot-status-btn.referee-robot-bypass {
+  background: #fff3e0;
+  border-color: #ffcc80;
+  color: #e65100;
+}
+
+.referee-robot-status-btn.referee-robot-bypass:hover {
+  background: #ffe0b2;
+  border-color: #ffb74d;
+}
+
+.referee-robot-status-btn.referee-robot-bypass.active {
+  background: #ff6f00;
+  color: white;
+  border-color: #ff6f00;
 }
 
 .alliance-teams-list {
@@ -2757,4 +3736,548 @@ textarea.error {
   color: #f44336;
   font-size: 12px;
   margin-top: 4px;
+}
+
+/* ============================================================================
+   SKOR DÜZENLE EKRANI - İyileştirilmiş Liste Görünümü
+   ============================================================================ */
+
+/* Skor düzenleme maç kartları */
+.score-edit-match-card {
+  background: #ffffff;
+  border: 2px solid #e1e4ee;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+
+.score-edit-match-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-2px);
+}
+
+.score-edit-match-card.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f6f8ff 0%, #ffffff 100%);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.25);
+}
+
+.score-edit-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.score-edit-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.score-edit-match-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2328;
+  letter-spacing: -0.5px;
+}
+
+.score-edit-match-type {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  font-weight: 600;
+  display: inline-block;
+  width: fit-content;
+}
+
+.score-edit-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.score-edit-field {
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.score-edit-date {
+  color: #9ca3af;
+}
+
+.score-edit-card-teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.score-edit-alliance {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.score-edit-alliance .alliance-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.score-edit-red .alliance-label {
+  color: #dc2626;
+}
+
+.score-edit-blue .alliance-label {
+  color: #2563eb;
+}
+
+.score-edit-alliance .team-numbers {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.score-edit-card-scores {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.score-display-large {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.score-display-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  padding: 16px 24px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.score-red-large {
+  border-top: 4px solid #dc2626;
+}
+
+.score-blue-large {
+  border-top: 4px solid #2563eb;
+}
+
+.score-display-item .score-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #6b7280;
+}
+
+.score-red-large .score-label {
+  color: #dc2626;
+}
+
+.score-blue-large .score-label {
+  color: #2563eb;
+}
+
+.score-display-item .score-value {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.score-red-large .score-value {
+  color: #dc2626;
+}
+
+.score-blue-large .score-value {
+  color: #2563eb;
+}
+
+.score-separator-large {
+  font-size: 28px;
+  font-weight: 300;
+  color: #9ca3af;
+  margin: 0 8px;
+}
+
+.score-display-large.no-scores {
+  padding: 12px;
+  color: #9ca3af;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.score-edit-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.score-edit-card-actions .btn-medium {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.score-edit-match-card.selected .btn-medium {
+  background: #667eea;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive tasarım */
+@media (max-width: 768px) {
+  .score-edit-card-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .score-edit-card-meta {
+    align-items: flex-start;
+  }
+  
+  .score-display-large {
+    gap: 12px;
+  }
+  
+  .score-display-item {
+    min-width: 100px;
+    padding: 12px 16px;
+  }
+  
+  .score-display-item .score-value {
+    font-size: 28px;
+  }
+  
+  .score-separator-large {
+    font-size: 24px;
+  }
+}
+
+/* ============================================================================
+   HAKEM PANELİ - İTTİFAK RENK KODLAMASI VE DOKUNMATIK KONTROL
+   ============================================================================ */
+
+/* Hakem paneli arka plan renkleri - ittifak bazlı */
+body[data-referee-mode="red"] {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 50%, #fff5f5 100%);
+}
+
+body[data-referee-mode="red"] .referee-panel-layout {
+  background: transparent;
+}
+
+body[data-referee-mode="red"] .card {
+  border-left: 4px solid #dc2626;
+}
+
+body[data-referee-mode="red"] .scoring-panel {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+  border: 2px solid #dc2626;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+}
+
+body[data-referee-mode="blue"] {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f0ff 50%, #f0f7ff 100%);
+}
+
+body[data-referee-mode="blue"] .referee-panel-layout {
+  background: transparent;
+}
+
+body[data-referee-mode="blue"] .card {
+  border-left: 4px solid #2563eb;
+}
+
+body[data-referee-mode="blue"] .scoring-panel {
+  background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+  border: 2px solid #2563eb;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+/* Hakem paneli - dokunmatik kontrole uygun butonlar ve inputlar */
+.referee-panel-layout {
+  padding: 12px;
+  max-width: 100%;
+}
+
+.referee-scoring-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scoring-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.scoring-group {
+  margin-bottom: 16px;
+}
+
+.group-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Dokunmatik kontrole uygun butonlar - minimum 44x44px (Apple HIG) */
+.btn-score-plus,
+.btn-score-minus {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-size: 24px;
+  font-weight: 700;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.btn-score-plus:hover,
+.btn-score-minus:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  transform: scale(1.05);
+}
+
+.btn-score-plus:active,
+.btn-score-minus:active {
+  transform: scale(0.95);
+  background: #e5e7eb;
+}
+
+/* Dokunmatik kontrole uygun input alanları */
+.score-field-compact {
+  min-width: 60px;
+  min-height: 48px;
+  padding: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.score-field-compact:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Skor kontrol grupları - dokunmatik uyumlu */
+.score-control-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.score-label-compact {
+  min-width: 60px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-align: left;
+}
+
+.scoring-input-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Robot checkbox'ları - dokunmatik uyumlu */
+.robot-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 48px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.robot-checkbox:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.robot-checkbox input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.robot-checkbox input[type="checkbox"]:checked + span {
+  font-weight: 700;
+  color: #3b82f6;
+}
+
+.robot-leave-grid,
+.robot-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+/* Hakem aksiyon butonları - dokunmatik uyumlu */
+.referee-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.referee-actions .btn-large {
+  min-height: 56px;
+  padding: 16px 24px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 12px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* İttifak başlıkları - renk kodlu */
+body[data-referee-mode="red"] #alliance_title {
+  color: #dc2626;
+  border-bottom: 3px solid #dc2626;
+}
+
+body[data-referee-mode="blue"] #alliance_title {
+  color: #2563eb;
+  border-bottom: 3px solid #2563eb;
+}
+
+/* Aktif maç kartı - ittifak renk kodlu */
+body[data-referee-mode="red"] #active_match_card {
+  border-left: 6px solid #dc2626;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+}
+
+body[data-referee-mode="blue"] #active_match_card {
+  border-left: 6px solid #2563eb;
+  background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+}
+
+/* Tablet optimizasyonu - küçük ekranlar için */
+@media (max-width: 1024px) {
+  .referee-panel-layout {
+    padding: 8px;
+  }
+  
+  .scoring-section {
+    padding: 12px;
+  }
+  
+  .group-header {
+    font-size: 13px;
+  }
+  
+  .score-control-compact {
+    gap: 6px;
+  }
+  
+  .btn-score-plus,
+  .btn-score-minus {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 20px;
+  }
+  
+  .score-field-compact {
+    min-width: 50px;
+    min-height: 44px;
+    padding: 10px;
+    font-size: 18px;
+  }
+}
+
+/* Çok küçük tabletler için */
+@media (max-width: 768px) {
+  .referee-panel-layout {
+    padding: 6px;
+  }
+  
+  .scoring-section {
+    padding: 10px;
+  }
+  
+  .robot-leave-grid,
+  .robot-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .scoring-input-compact {
+    gap: 10px;
+  }
+  
+  .referee-actions {
+    gap: 10px;
+  }
+  
+  .referee-actions .btn-large {
+    min-height: 52px;
+    padding: 14px 20px;
+    font-size: 16px;
+  }
 }

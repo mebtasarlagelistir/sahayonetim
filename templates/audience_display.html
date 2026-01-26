@@ -12,6 +12,37 @@
     </div>
 
     <main class="audience-container">
+      <!-- VS Preview Sayfası -->
+      <section class="audience-panel" id="audience_vs_preview" style="display: none;">
+        <div class="vs-container">
+          <div class="vs-header">
+            <div class="vs-match-info">
+              <div class="vs-match-name" id="vs_match_name">Maç Önizlemesi</div>
+              <div class="vs-match-meta">
+                <span class="vs-match-type" id="vs_match_type">Maç</span>
+                <span class="vs-match-separator">•</span>
+                <span class="vs-match-number" id="vs_match_number">#0</span>
+                <span class="vs-match-separator" id="vs_field_separator" style="display: none;">•</span>
+                <span class="vs-match-field" id="vs_match_field" style="display: none;">Saha 1</span>
+              </div>
+            </div>
+          </div>
+          <div class="vs-content">
+            <div class="vs-alliance vs-red">
+              <div class="vs-alliance-title">Kırmızı İttifak</div>
+              <div class="vs-teams" id="vs_red_teams"></div>
+            </div>
+            <div class="vs-divider">
+              <span class="vs-text">VS</span>
+            </div>
+            <div class="vs-alliance vs-blue">
+              <div class="vs-alliance-title">Mavi İttifak</div>
+              <div class="vs-teams" id="vs_blue_teams"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="audience-panel" id="audience_match_view">
         <h1 id="audience_match_title">Maç Ekranı</h1>
         <div class="audience-scoreboard">
@@ -80,6 +111,12 @@
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/constants.js"></script>
     <script src="/static/js/network_utils.js"></script>
+    <!-- Audience Display Modülleri (sıralama önemli) -->
+    <script src="/static/js/audience_display_core.js"></script>
+    <script src="/static/js/audience_display_ui.js"></script>
+    <script src="/static/js/audience_display_preview.js"></script>
+    <script src="/static/js/audience_display_sse.js"></script>
+    <script src="/static/js/audience_display_views.js"></script>
     <script src="/static/js/audience_display.js"></script>
   </body>
 </html>

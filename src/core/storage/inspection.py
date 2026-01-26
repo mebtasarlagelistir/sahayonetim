@@ -79,7 +79,7 @@ class InspectionStorage:
         
         query += " ORDER BY slot_date, slot_time"
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         
         return [
@@ -137,7 +137,7 @@ class InspectionStorage:
         if event_id is None:
             raise ValueError("Aktif etkinlik bulunamadı")
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             # station_name kolonu var mı kontrol et
             columns = [row[1] for row in conn.execute("PRAGMA table_info(inspection_slots)").fetchall()]
             has_station = "station_name" in columns
@@ -251,7 +251,7 @@ class InspectionStorage:
         params.append(slot_id)
         query = f"UPDATE inspection_slots SET {', '.join(updates)} WHERE id = ?"
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(query, params)
             conn.commit()
     
@@ -262,7 +262,7 @@ class InspectionStorage:
         Args:
             slot_id: Silinecek slot ID'si
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM inspection_slots WHERE id = ?", (slot_id,))
             conn.commit()
     
@@ -280,7 +280,7 @@ class InspectionStorage:
         if event_id is None:
             return
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("DELETE FROM inspection_slots WHERE event_id = ?", (event_id,))
             conn.commit()
     
@@ -332,7 +332,7 @@ class InspectionStorage:
             query += " AND id != ?"
             params.append(exclude_slot_id)
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         
         for row in rows:

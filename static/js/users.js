@@ -30,6 +30,10 @@ async function loadUserRole() {
     if (typeof updateSectionsForRole === "function") {
       updateSectionsForRole();
     }
+    // Dashboard sayfasındaysak bölüm görünürlüğünü güncelle
+    if (typeof updateDashboardSectionsForRole === "function") {
+      updateDashboardSectionsForRole();
+    }
   } catch (err) {
     console.error("Load user role error:", err);
   }

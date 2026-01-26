@@ -1,315 +1,244 @@
 /**
- * Seyirci ekranı
+ * Audience Display - Ana Koordinasyon Modülü
+ * 
+ * Bu dosya tüm audience_display modüllerini koordine eder.
+ * 
+ * MODÜL YAPISI:
+ * =============
+ * - audience_display_core.js: State, constants, initialization, screen ID yönetimi
+ * - audience_display_preview.js: Preview yönetimi (apply, hide, VS preview, results)
+ * - audience_display_sse.js: SSE bağlantı yönetimi
+ * - audience_display_views.js: View yükleme (match, inspection, awards)
+ * - audience_display_ui.js: UI güncellemeleri (timer, score, teams, overlay)
+ * - audience_display.js: Ana koordinasyon (bu dosya)
+ * 
+ * NOT: Bu dosya diğer audience_display modüllerinden SONRA yüklenmelidir.
  */
 
-let currentView = "match";
-let overlayEnabled = false;
-let overlayText = "";
-let screenId = "";
-let previewPayload = null;
-let lastMatchState = "";
-let lastMatchId = null;
-
-function getQueryParam(name) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name) || "";
-}
-
-function ensureScreenId() {
-  const fromQuery = getQueryParam("screen_id");
-  const forceNew = getQueryParam("new") === "1";
-  const sessionStored = window.sessionStorage?.getItem("audience_screen_id");
-  const localStored = window.localStorage?.getItem("audience_screen_id");
-  if (fromQuery) {
-    screenId = fromQuery;
-  } else if (forceNew) {
-    screenId = `screen_${Math.random().toString(36).slice(2, 10)}`;
-  } else {
-    screenId = sessionStored || localStored || `screen_${Math.random().toString(36).slice(2, 10)}`;
-  }
-  window.sessionStorage?.setItem("audience_screen_id", screenId);
-  window.localStorage?.setItem("audience_screen_id", screenId);
-}
-
-async function sendHeartbeat() {
-  const payload = {
-    screen_id: screenId,
-    screen_name: getQueryParam("screen_name") || "",
-    view: currentView,
-    overlay_enabled: overlayEnabled
-  };
-  try {
-    await apiPost("/api/screens/heartbeat", payload);
-  } catch (err) {
-    console.warn("Heartbeat error:", err);
-  }
-}
-
+/**
+ * Screen settings'i yükler ve preview durumunu kontrol eder
+ */
 async function loadScreenSettings() {
   try {
     const data = await apiGet(`/api/screens/view?screen_id=${encodeURIComponent(screenId)}`);
-    currentView = data.active_view || "match";
+    const newView = data.active_view || "match";
     overlayEnabled = !!data.overlay_enabled;
     overlayText = data.overlay_text || "";
-    previewPayload = data.preview_payload || null;
-    applyOverlay();
-    switchView();
+    
+    // Preview payload'ı güncelle ve uygula
+    const newPreviewPayload = data.preview_payload || null;
+    
+    // ÖNEMLİ: Preview payload kontrolü
+    if (newPreviewPayload) {
+      // Yeni preview geldi veya mevcut preview güncellendi
+      const payloadChanged = JSON.stringify(newPreviewPayload) !== JSON.stringify(previewPayload);
+      if (payloadChanged || !previewPayload) {
+        console.log("Audience: Preview payload alındı/güncellendi", { 
+          type: newPreviewPayload?.type, 
+          match: newPreviewPayload?.match?.match_number 
+        });
+        previewPayload = newPreviewPayload;
+        // Preview clear attempts'ı sıfırla (yeni preview geldi)
+        resetPreviewClearAttempts();
+        // Preview varsa hemen uygula
+        if (newView === "match") {
+          applyPreviewPayload(previewPayload);
+          // Preview aktifken SSE'yi durdur
+          stopAudienceSSE();
+          // Preview aktifken view değişikliğini yapma (preview korunmalı)
+          currentView = "match"; // View'ı match olarak tut ama preview göster
+          applyOverlay();
+          // ÖNEMLİ: switchView() çağrılmasın (preview korunmalı)
+          return; // Preview aktifken başka işlem yapma
+        }
+      } else {
+        // Preview değişmedi, sadece koru (yeniden uygulama yapma)
+        // Overlay güncellenebilir
+        applyOverlay();
+        // ÖNEMLİ: Preview aktifken başka işlem yapma (switchView, loadMatchView vb.)
+        // Preview zaten aktif ve görünüyor, hiçbir şey yapma
+        console.log("Audience: Preview değişmedi, korunuyor (overlay güncellendi)");
+        return; // Preview aktifken başka işlem yapma
+      }
+    } else if (!newPreviewPayload && previewPayload) {
+      // Backend'den preview_payload None döndü
+      // ÖNEMLİ: Bu durumda iki senaryo var:
+      // 1. Preview gerçekten temizlendi (mode: "live" gönderildi) - preview'ı kaldır
+      // 2. Backend geçici olarak None döndü (hata/gecikme) - preview'ı koru
+      // 
+      // Eğer VS preview aktifse ve backend'den None dönüyorsa, 
+      // bu muhtemelen bir hata veya geçici bir durumdur.
+      // Preview'ı korumak için bir süre bekleyelim (3 kontrol döngüsü = ~6 saniye)
+      const attempts = incrementPreviewClearAttempts();
+      
+      // 3 kontrol döngüsü boyunca preview'ı koru (backend hatası olabilir)
+      if (attempts < 3) {
+        console.log(`Audience: Backend'den preview_payload None döndü (${attempts}/3), preview korunuyor (geçici hata olabilir)`);
+        // Preview'ı koru, sadece overlay güncelle
+        applyOverlay();
+        return; // Preview aktifken başka işlem yapma
+      } else {
+        // 3 kontrol döngüsü sonrası hala None dönüyorsa, preview gerçekten temizlenmiş demektir
+        console.log("Audience: Preview temizlendi (backend'den 3 kontrol döngüsü boyunca None döndü), normal maç görünümüne geçiliyor");
+        resetPreviewClearAttempts();
+        previewPayload = null;
+        // Normal maç görünümünü yükle
+        if (newView === "match") {
+          hideVSPreview();
+          loadMatchView();
+          // SSE'yi başlat (artık preview yok)
+          startAudienceSSE();
+        }
+      }
+    } else if (!newPreviewPayload && !previewPayload) {
+      // Preview yok, normal işlem devam edebilir
+      // Preview clear attempts'ı sıfırla
+      resetPreviewClearAttempts();
+    } else if (newPreviewPayload && previewPayload) {
+      // Preview var ve değişmedi, clear attempts'ı sıfırla
+      resetPreviewClearAttempts();
+    }
+    
+    // View değişikliği (preview yoksa)
+    if (currentView !== newView && !previewPayload) {
+      currentView = newView;
+      switchView();
+    } else if (!previewPayload) {
+      // View aynı ama overlay güncellenebilir
+      applyOverlay();
+      // View değişmediyse switchView() çağrılmasın (gereksiz)
+    }
   } catch (err) {
     console.error("Audience settings error:", err);
   }
 }
 
-function applyOverlay() {
-  const overlay = qs("audience_overlay");
-  const text = qs("audience_overlay_text");
-  if (!overlay || !text) return;
-  text.textContent = overlayText;
-  overlay.style.display = overlayEnabled && overlayText ? "block" : "none";
-}
-
-function switchView() {
+/**
+ * View değiştirir
+ * 
+ * @param {string} viewName - Görüntülenecek view adı (opsiyonel, yoksa currentView kullanılır)
+ */
+function switchView(viewName) {
+  const targetView = viewName || currentView;
+  
+  // ÖNEMLİ: Preview aktifken view değişikliği yapma (preview korunmalı)
+  if (previewPayload && targetView === "match") {
+    console.log("switchView: Preview aktif, view değişikliği yapılmıyor");
+    return;
+  }
+  
   const views = ["match", "inspection", "rankings", "awards"];
   views.forEach((view) => {
     const el = qs(`audience_${view}_view`);
     if (el) {
-      el.style.display = view === currentView ? "block" : "none";
+      el.style.display = view === targetView ? "block" : "none";
     }
   });
-}
-
-function formatTime(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
-function announceState(state) {
-  if (!state || !("speechSynthesis" in window)) return;
-  const messages = {
-    autonomous: "Otonom başladı.",
-    driver_controlled: "Sürücü kontrol başladı.",
-    end_game: "Oyun sonu başladı.",
-    post_match: "Maç sona erdi."
-  };
-  const message = messages[state];
-  if (!message) return;
-  const utterance = new SpeechSynthesisUtterance(message);
-  utterance.lang = "tr-TR";
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
-function formatTeamsWithRank(teams, rankings) {
-  if (!teams || !teams.length) return "-";
-  if (!rankings) return teams.join(", ");
-  return teams.map((team) => {
-    const rank = rankings[team];
-    return rank ? `${team} (#${rank})` : team;
-  }).join(", ");
-}
-
-function applyPreviewPayload(payload) {
-  const match = payload?.match || null;
-  const rankings = payload?.rankings || {};
-  if (!match) return false;
-  if (payload?.type === "results") {
-    return applyResultsPayload(payload);
+  
+  // VS Preview'ı gizle (normal view'a geçildiğinde)
+  if (targetView !== "match") {
+    hideVSPreview();
   }
-  hideResultsPanel();
-  qs("audience_state_label").textContent = "Önizleme";
-  qs("audience_timer_value").textContent = "--:--";
-  qs("audience_red_score").textContent = "0";
-  qs("audience_blue_score").textContent = "0";
-  qs("audience_red_teams").textContent = formatTeamsWithRank(match.red_alliance, rankings);
-  qs("audience_blue_teams").textContent = formatTeamsWithRank(match.blue_alliance, rankings);
-  qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-  const next = qs("audience_next_match");
-  if (next) {
-    next.textContent = `Sıradaki: ${match.match_number} • ${match.match_date} ${match.match_time}`;
-  }
-  return true;
-}
-
-function hideResultsPanel() {
-  const panel = qs("audience_results");
-  if (panel) panel.style.display = "none";
-}
-
-function applyResultsPayload(payload) {
-  const match = payload?.match || null;
-  const results = payload?.results || null;
-  if (!match || !results) return false;
-  qs("audience_state_label").textContent = "Maç Sonucu";
-  qs("audience_timer_value").textContent = "BİTTİ";
-  qs("audience_red_score").textContent = results.red_score ?? 0;
-  qs("audience_blue_score").textContent = results.blue_score ?? 0;
-  qs("audience_red_teams").textContent = (match.red_alliance || []).join(", ") || "-";
-  qs("audience_blue_teams").textContent = (match.blue_alliance || []).join(", ") || "-";
-  qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-  qs("audience_next_match").textContent = "";
-
-  const panel = qs("audience_results");
-  if (panel) panel.style.display = "block";
-  qs("audience_results_winner").textContent = results.winner || "-";
-  qs("audience_results_blue_total").textContent = results.blue_score ?? 0;
-  qs("audience_results_blue_auto").textContent = results.blue_auto_total ?? 0;
-  qs("audience_results_blue_teleop").textContent = results.blue_teleop_total ?? 0;
-  qs("audience_results_blue_penalty").textContent = results.blue_penalty_total ?? 0;
-  qs("audience_results_blue_sp").textContent = results.blue_sp_total ?? 0;
-  qs("audience_results_blue_yellow").textContent = results.blue_yellow_cards ?? 0;
-  qs("audience_results_blue_red").textContent = results.blue_red_cards ?? 0;
-  qs("audience_results_red_total").textContent = results.red_score ?? 0;
-  qs("audience_results_red_auto").textContent = results.red_auto_total ?? 0;
-  qs("audience_results_red_teleop").textContent = results.red_teleop_total ?? 0;
-  qs("audience_results_red_penalty").textContent = results.red_penalty_total ?? 0;
-  qs("audience_results_red_sp").textContent = results.red_sp_total ?? 0;
-  qs("audience_results_red_yellow").textContent = results.red_yellow_cards ?? 0;
-  qs("audience_results_red_red").textContent = results.red_red_cards ?? 0;
-
-  announceResults(results);
-  return true;
-}
-
-function announceResults(results) {
-  if (!("speechSynthesis" in window)) return;
-  const message = [
-    `Maç sonucu: ${results.winner || "berabere"}.`,
-    `Kırmızı ${results.red_score ?? 0}, Mavi ${results.blue_score ?? 0}.`,
-    `Kırmızı sarı kart ${results.red_yellow_cards ?? 0}, kırmızı kart ${results.red_red_cards ?? 0}.`,
-    `Mavi sarı kart ${results.blue_yellow_cards ?? 0}, kırmızı kart ${results.blue_red_cards ?? 0}.`
-  ].join(" ");
-  const utterance = new SpeechSynthesisUtterance(message);
-  utterance.lang = "tr-TR";
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
-async function loadMatchView() {
-  try {
-    if (previewPayload && applyPreviewPayload(previewPayload)) {
-      return;
-    }
-    const data = await apiGet("/api/match-control/audience-display");
-    const match = data.match;
-    if (!match) {
-      qs("audience_state_label").textContent = "Beklemede";
-      qs("audience_timer_value").textContent = "--:--";
-      qs("audience_red_score").textContent = "0";
-      qs("audience_blue_score").textContent = "0";
-      qs("audience_red_teams").textContent = "-";
-      qs("audience_blue_teams").textContent = "-";
-      qs("audience_match_meta").textContent = "";
-      hideResultsPanel();
-      await loadNextMatchPreview();
-      return;
-    }
-    hideResultsPanel();
-    qs("audience_state_label").textContent = match.state_label || "Beklemede";
-    qs("audience_timer_value").textContent = formatTime(match.time_remaining || 0);
-    qs("audience_red_score").textContent = match.red_score || 0;
-    qs("audience_blue_score").textContent = match.blue_score || 0;
-    qs("audience_red_teams").textContent = (match.red_alliance || []).join(", ") || "-";
-    qs("audience_blue_teams").textContent = (match.blue_alliance || []).join(", ") || "-";
-    qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-    qs("audience_next_match").textContent = "";
-
-    if (match.id !== lastMatchId) {
-      lastMatchId = match.id;
-      lastMatchState = "";
-    }
-    if (match.current_state && match.current_state !== lastMatchState) {
-      lastMatchState = match.current_state;
-      announceState(match.current_state);
-    }
-  } catch (err) {
-    console.error("Audience match error:", err);
+  
+  // Match view için SSE'yi yönet
+  // ÖNEMLİ: Preview aktifken SSE başlatma (preview korunmalı)
+  if (targetView === "match" && !previewPayload) {
+    startAudienceSSE();
+  } else {
+    stopAudienceSSE();
   }
 }
 
-async function loadNextMatchPreview() {
-  try {
-    const data = await apiGet("/api/public/next-match");
-    if (!data.match) {
-      qs("audience_next_match").textContent = "Sıradaki maç yok";
-      return;
-    }
-    const match = data.match;
-    qs("audience_next_match").textContent = `Sıradaki: ${match.match_number} • Saha ${match.field_number} • ${match.match_date} ${match.match_time}`;
-  } catch (err) {
-    qs("audience_next_match").textContent = "Sıradaki maç yüklenemedi";
-  }
-}
-
-async function loadInspectionView() {
-  try {
-    const data = await apiGet("/api/public/inspection-status");
-    const teams = data.teams || [];
-    const slots = data.slots || [];
-    const slotMap = {};
-    (slots || []).forEach((slot) => {
-      const key = slot.team_number;
-      const ts = `${slot.slot_date} ${slot.slot_time}`;
-      if (!slotMap[key] || ts > slotMap[key].ts) {
-        slotMap[key] = { status: slot.status, ts };
-      }
-    });
-    const completed = Object.values(slotMap).filter((item) => item.status === "completed").length;
-    const total = teams.length;
-    const summary = qs("audience_inspection_summary");
-    if (summary) {
-      summary.textContent = `Tamamlanan: ${completed} / ${total}`;
-    }
-    const table = qs("audience_inspection_table");
-    if (table) {
-      table.innerHTML = (teams || []).map((team) => {
-        const status = slotMap[team.number]?.status || "planned";
-        return `<div class="audience-table-row">
-          <span>${team.number}</span>
-          <span>${team.name || ""}</span>
-          <span>${status}</span>
-        </div>`;
-      }).join("");
-    }
-  } catch (err) {
-    console.error("Inspection view error:", err);
-  }
-}
-
-async function loadAwardsView() {
-  try {
-    const awards = await apiGet("/api/public/awards");
-    const list = qs("audience_awards_list");
-    if (!list) return;
-    if (!awards.length) {
-      list.innerHTML = "<div class='audience-placeholder'>Ödül bulunamadı.</div>";
-      return;
-    }
-    list.innerHTML = awards.map((award) => {
-      const winner = award.winner || award.team || "";
-      return `<div class="audience-table-row">
-        <span>${award.name || "Ödül"}</span>
-        <span>${winner || "-"}</span>
-      </div>`;
-    }).join("");
-  } catch (err) {
-    console.error("Awards view error:", err);
-  }
-}
-
+/**
+ * Periyodik güncellemeleri başlatır
+ */
 function startAudienceLoop() {
-  setInterval(loadScreenSettings, 3000);
-  setInterval(() => {
-    if (currentView === "match") loadMatchView();
-    if (currentView === "inspection") loadInspectionView();
-    if (currentView === "awards") loadAwardsView();
-  }, 1000);
-  setInterval(sendHeartbeat, 5000);
+  // Screen settings'i kontrol et (preview için)
+  // ÖNEMLİ: Preview aktifken daha az sıklıkta kontrol et (preview'ı korumak için)
+  // Ancak preview'ın backend'den temizlenip temizlenmediğini kontrol etmek için yine de çağrılmalı
+  const settingsInterval = setInterval(() => {
+    // Preview aktifken bile kontrol et (backend'den preview temizlenmiş olabilir - "Maçı Göster" ile)
+    // loadScreenSettings fonksiyonu preview aktifken gereksiz işlem yapmayacak şekilde düzenlendi
+    loadScreenSettings().catch(err => {
+      console.warn("loadScreenSettings error:", err);
+    });
+  }, 2000); // 2 saniye (preview aktifken de aynı sıklıkta, ama fonksiyon içinde koruma var)
+  
+  // View'ları yükle (SSE varsa daha az sıklıkta)
+  const viewInterval = setInterval(() => {
+    // ÖNEMLİ: Preview aktifken normal yükleme yapma (preview korunmalı)
+    if (previewPayload && currentView === "match") {
+      // Preview aktif, normal maç görünümünü yükleme
+      return;
+    }
+    if (currentView === "match" && !matchEventSource && !previewPayload) {
+      // SSE yoksa polling yap (ama preview aktifken değil)
+      loadMatchView();
+    } else if (currentView === "inspection") {
+      loadInspectionView();
+    } else if (currentView === "awards") {
+      loadAwardsView();
+    }
+  }, 2000);
+  
+  // Heartbeat'i düzenli gönder
+  const heartbeatInterval = setInterval(sendHeartbeat, 5000);
+  
+  // Cleanup için interval'ları sakla (gerekirse)
+  window._audienceIntervals = {
+    settings: settingsInterval,
+    view: viewInterval,
+    heartbeat: heartbeatInterval
+  };
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/**
+ * Sayfa yüklendiğinde başlatma
+ */
+document.addEventListener("DOMContentLoaded", async () => {
+  // Screen ID'yi belirle
   ensureScreenId();
-  loadScreenSettings();
-  loadMatchView();
-  sendHeartbeat();
+  
+  // AudioContext'i başlat (kullanıcı etkileşimi için hazır)
+  // İlk tıklama veya dokunma ile aktif olacak
+  if (typeof initAudioContext === "function") {
+    // Sayfa yüklendiğinde context'i oluştur (suspended durumda olabilir)
+    initAudioContext();
+    
+    // İlk kullanıcı etkileşiminde resume et
+    const resumeAudio = () => {
+      if (typeof initAudioContext === "function") {
+        initAudioContext();
+      }
+      // Event listener'ı kaldır (sadece bir kez çalışsın)
+      document.removeEventListener("click", resumeAudio);
+      document.removeEventListener("touchstart", resumeAudio);
+    };
+    document.addEventListener("click", resumeAudio, { once: true });
+    document.addEventListener("touchstart", resumeAudio, { once: true });
+  }
+  
+  // İlk heartbeat'i gönder (ekranı backend'e kaydet)
+  await sendHeartbeat();
+  
+  // Screen settings'i yükle (preview dahil)
+  await loadScreenSettings();
+  
+  // Eğer preview yoksa normal maç görünümünü yükle
+  if (!previewPayload && currentView === "match") {
+    loadMatchView();
+    startAudienceSSE();
+  }
+  
+  // Periyodik güncellemeleri başlat
   startAudienceLoop();
+  
+  // Sayfa kapanırken cleanup yap
+  window.addEventListener("beforeunload", () => {
+    stopAudienceSSE();
+    // AudioContext'i kapat (opsiyonel)
+    if (globalAudioContext && typeof globalAudioContext.close === "function") {
+      globalAudioContext.close().catch(() => {});
+    }
+  });
 });
