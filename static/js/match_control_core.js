@@ -78,8 +78,8 @@ let scoreEditMatches = [];
 let scoreEditSelected = null;
 let detailedScoringHome = null;
 
-// Gerçek zamanlı güncelleme için EventSource (SSE)
-let scoreEventSource = null;
+// Gerçek zamanlı güncelleme için WebSocket (SSE yerine WebSocket kullanılıyor)
+let matchControlSocket = null;
 let retryCount = 0;
 const MAX_RETRY_COUNT = NETWORK_CONSTANTS.SSE_RETRY_MAX;
 const RETRY_DELAY_BASE = NETWORK_CONSTANTS.SSE_RETRY_DELAY_BASE;
@@ -163,7 +163,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       clearInterval(updateInterval);
       updateInterval = null;
     }
-    // SSE bağlantılarını kapat
+    // WebSocket bağlantılarını kapat
     if (typeof stopRealtimeScoreUpdates === "function") {
       stopRealtimeScoreUpdates();
     }

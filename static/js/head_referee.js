@@ -4,11 +4,11 @@
  */
 
 let currentMatch = null;
-let scoreEventSource = null;
+let headRefereeSocket = null; // WebSocket bağlantısı (SSE yerine WebSocket kullanılıyor)
 let refereeMeta = {};
 let retryCount = 0;
-const MAX_RETRY_COUNT = NETWORK_CONSTANTS.SSE_RETRY_MAX;
-const RETRY_DELAY_BASE = NETWORK_CONSTANTS.SSE_RETRY_DELAY_BASE;
+const MAX_RETRY_COUNT = NETWORK_CONSTANTS.SSE_RETRY_MAX || 5;
+const RETRY_DELAY_BASE = NETWORK_CONSTANTS.SSE_RETRY_DELAY_BASE || 1000;
 
 async function initializeHeadReferee() {
   if (typeof loadUserRole === "function") {
@@ -65,12 +65,143 @@ async function initializeHeadReferee() {
     });
   }
   
-  await checkActiveMatch();
-  setInterval(checkActiveMatch, UI_CONSTANTS.REFEREE_PANEL_CHECK_INTERVAL);
+  // Match Core'a subscribe ol (merkezi state yönetimi)
+  let matchCoreUnsubscribe = null;
+  let checkInterval = null; // Fallback interval için
+  let matchCoreInstance = null; // Scope için dışarıda tanımla
+  
+  // Match Core'un yüklendiğinden emin ol (retry mekanizması)
+  let matchCoreRetryCount = 0;
+  const MAX_MATCHCORE_RETRY = 10;
+  const MATCHCORE_RETRY_DELAY = 100;
+  
+  const waitForMatchCore = () => {
+    return new Promise((resolve) => {
+      const checkMatchCore = () => {
+        // Önce window.MatchCore'u kontrol et (match_core.js'de window'a ekleniyor)
+        const mc = (typeof window !== "undefined" && window.MatchCore) || 
+                   (typeof MatchCore !== "undefined" && MatchCore) ||
+                   (typeof globalThis !== "undefined" && globalThis.MatchCore);
+        
+        if (mc && typeof mc.loadActiveMatch === "function") {
+          console.log("initializeHeadReferee: Match Core bulundu ve fonksiyonlar mevcut");
+          resolve(mc);
+        } else if (matchCoreRetryCount < MAX_MATCHCORE_RETRY) {
+          matchCoreRetryCount++;
+          setTimeout(checkMatchCore, MATCHCORE_RETRY_DELAY);
+        } else {
+          console.error("initializeHeadReferee: MatchCore yüklenemedi veya fonksiyonlar eksik, fallback kullanılıyor", {
+            windowMatchCore: typeof window !== "undefined" && !!window.MatchCore,
+            globalMatchCore: typeof MatchCore !== "undefined",
+            hasLoadActiveMatch: mc && typeof mc.loadActiveMatch === "function"
+          });
+          resolve(null);
+        }
+      };
+      checkMatchCore();
+    });
+  };
+  
+  matchCoreInstance = await waitForMatchCore();
+  
+  if (matchCoreInstance) {
+    console.log("initializeHeadReferee: Match Core bulundu, subscribe olunuyor...");
+    matchCoreUnsubscribe = matchCoreInstance.subscribe((state) => {
+      // State değiştiğinde UI'ı güncelle
+      if (state.match) {
+        currentMatch = state.match;
+        
+        // match_source alanını ekle (geriye dönük uyumluluk için)
+        if (!currentMatch.match_source && currentMatch.source) {
+          currentMatch.match_source = currentMatch.source;
+        } else if (!currentMatch.match_source) {
+          currentMatch.match_source = "schedule";
+        }
+        if (!currentMatch.source && currentMatch.match_source) {
+          currentMatch.source = currentMatch.match_source;
+        } else if (!currentMatch.source) {
+          currentMatch.source = "schedule";
+        }
+        
+        // Maç bilgilerini yükle
+        if (typeof loadHeadRefereeMatch === "function") {
+          loadHeadRefereeMatch();
+        }
+        
+          // Skorları güncelle
+          if (state.scores.red || state.scores.blue) {
+            // Skorları render et (head_referee.js'deki fonksiyonlar)
+            if (typeof updateHeadRefereeDetailedScores === "function") {
+              updateHeadRefereeDetailedScores(state.scores);
+            }
+          }
+        
+          // Referee meta güncelle
+          if (state.scores.referee_meta) {
+            refereeMeta = state.scores.referee_meta;
+            // updateSubmitStatus fonksiyonu referee_panel'de var, head_referee'de farklı olabilir
+            // Eğer yoksa loadCurrentScores çağrılabilir
+            if (typeof updateSubmitStatus === "function") {
+              updateSubmitStatus();
+            } else if (typeof loadCurrentScores === "function") {
+              loadCurrentScores();
+            }
+          }
+        
+        // Timer güncelle
+        if (typeof updateHeadRefereeTimer === "function") {
+          updateHeadRefereeTimer(state.currentState, state.timeRemaining);
+        }
+      } else {
+        // Aktif maç yok
+        currentMatch = null;
+        if (typeof renderNoMatch === "function") {
+          renderNoMatch("Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.");
+        }
+      }
+    });
+    
+    // Aktif maçı yükle
+    await matchCoreInstance.loadActiveMatch();
+    
+    // Periyodik kontrol başlat (Match Core'da)
+    matchCoreInstance.startPeriodicCheck(5000);
+  } else {
+    console.warn("initializeHeadReferee: MatchCore tanımlı değil, eski yöntem kullanılıyor");
+    // Fallback: Eski yöntem
+    await checkActiveMatch();
+    // Periyodik kontrol interval'i (cleanup için saklanmalı)
+    checkInterval = setInterval(checkActiveMatch, UI_CONSTANTS.REFEREE_PANEL_CHECK_INTERVAL);
+  }
+  
   setupHeadRefereeEvents();
   
   // İlk yüklemede geçmiş maçları yükle
   await loadHeadRefereeMatchHistory();
+  
+  // Sayfa kapanırken cleanup (tek bir listener)
+  window.addEventListener("beforeunload", () => {
+    if (matchCoreUnsubscribe) {
+      matchCoreUnsubscribe();
+    }
+    // Match Core cleanup
+    if (matchCoreInstance) {
+      matchCoreInstance.cleanup();
+    } else if (typeof MatchCore !== "undefined" || (typeof window !== "undefined" && window.MatchCore)) {
+      const mc = window.MatchCore || MatchCore;
+      if (mc && typeof mc.cleanup === "function") {
+        mc.cleanup();
+      }
+    }
+    // Fallback interval cleanup
+    if (checkInterval) {
+      clearInterval(checkInterval);
+    }
+    // Eski WebSocket bağlantısını kapat (fallback için)
+    if (typeof stopRealtimeUpdates === "function") {
+      stopRealtimeUpdates();
+    }
+  });
 }
 
 /**
@@ -488,7 +619,11 @@ async function loadHeadRefereeMatch() {
     }
 
     await loadCurrentScores();
-    startRealtimeUpdates(currentMatch.id, currentMatch.match_source || "schedule");
+    // Gerçek zamanlı güncellemeler Match Core'da yapılıyor (WebSocket gerek yok)
+    if (typeof MatchCore === "undefined") {
+      // Fallback: Eski yöntem (Match Core yoksa)
+      startRealtimeUpdates(currentMatch.id, currentMatch.match_source || "schedule");
+    }
   } catch (err) {
     console.error("loadHeadRefereeMatch error:", err);
     showToast("Maç bilgileri yüklenirken hata oluştu", "error");
@@ -528,7 +663,14 @@ async function loadCurrentScores() {
 /**
  * Timer'ı günceller (baş hakem için)
  */
-function updateHeadRefereeTimer(currentState, timeRemaining) {
+/**
+ * Timer'ı günceller (WebSocket ile server_timestamp senkronizasyonu destekler)
+ * 
+ * @param {string} currentState - Mevcut maç durumu
+ * @param {number} timeRemaining - Kalan süre (saniye)
+ * @param {number} timeOffset - Client-server zaman farkı (ms) - opsiyonel, timer senkronizasyonu için
+ */
+function updateHeadRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
   const timerEl = qs("head_referee_timer");
   const timerDisplayEl = qs("head_timer_display");
   const timerStateEl = qs("head_timer_state");
@@ -768,7 +910,7 @@ function applyScoringDataToHeadRefereeForm(alliance, scoringData) {
 }
 
 /**
- * Anlık skor güncellemelerini uygular (SSE'den gelen güncellemeler için)
+ * Anlık skor güncellemelerini uygular (WebSocket'ten gelen güncellemeler için)
  */
 function updateHeadRefereeDetailedScores(scores) {
   if (!scores) return;
@@ -809,74 +951,160 @@ function updateHeadRefereeFormFields(alliance, scoringData) {
 }
 
 function startRealtimeUpdates(matchId, matchSource) {
+  // Match Core kullanılıyorsa, WebSocket bağlantısı Match Core'da yapılıyor
+  if (typeof MatchCore !== "undefined") {
+    console.log("startRealtimeUpdates: Match Core kullanılıyor, bu fonksiyon çağrılmamalı");
+    return;
+  }
+  
   stopRealtimeUpdates();
   retryCount = 0;
   
-  // Birleşik SSE endpoint kullan (maç durumu + skorlar)
-  const url = `/api/match-control/realtime/${matchId}?source=${encodeURIComponent(matchSource || "schedule")}`;
-  scoreEventSource = new EventSource(url);
+  const source = matchSource || "schedule";
   
-  scoreEventSource.onmessage = (event) => {
-    try {
-      // Keep-alive mesajlarını yoksay
-      if (event.data.trim() === "" || event.data.startsWith(":")) {
-        return;
+  try {
+    // Socket.IO bağlantısı oluştur
+    headRefereeSocket = io("/match", {
+      transports: ["websocket", "polling"],  // WebSocket öncelikli, polling fallback
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: MAX_RETRY_COUNT,
+      timeout: 20000
+    });
+    
+    console.log(`Head Referee WebSocket bağlantısı açılıyor: match_id=${matchId}, source=${source}`);
+    
+    // Bağlantı kurulduğunda
+    headRefereeSocket.on("connect", () => {
+      console.log("Head Referee WebSocket bağlantısı kuruldu");
+      retryCount = 0;
+      
+      // Maça abone ol
+      headRefereeSocket.emit("subscribe_match", {
+        match_id: matchId,
+        match_source: source
+      });
+    });
+    
+    // Maç durumu güncellemesi
+    headRefereeSocket.on("match_state", (data) => {
+      try {
+        const matchData = data.match;
+        
+        if (!matchData || !currentMatch || currentMatch.id !== matchId) return;
+        
+        // Timer senkronizasyonu için server_timestamp kullan
+        if (matchData.server_timestamp) {
+          const serverTime = matchData.server_timestamp * 1000; // ms'ye çevir
+          const clientTime = Date.now();
+          const timeOffset = clientTime - serverTime; // Client-server zaman farkı
+          
+          // Maç bilgilerini güncelle
+          currentMatch.current_state = matchData.current_state;
+          currentMatch.time_remaining = matchData.time_remaining;
+          currentMatch.status = matchData.status;
+          
+          // Timer'ı güncelle (server_timestamp ile senkronize)
+          if (typeof updateHeadRefereeTimer === "function") {
+            updateHeadRefereeTimer(matchData.current_state, matchData.time_remaining, timeOffset);
+          }
+        } else {
+          // Eski format (server_timestamp yok)
+          currentMatch.current_state = matchData.current_state;
+          currentMatch.time_remaining = matchData.time_remaining;
+          currentMatch.status = matchData.status;
+          if (typeof updateHeadRefereeTimer === "function") {
+            updateHeadRefereeTimer(matchData.current_state, matchData.time_remaining);
+          }
+        }
+      } catch (err) {
+        console.error("Head Referee WebSocket match_state error:", err);
       }
-      
-      const data = JSON.parse(event.data);
-      if (!data || !currentMatch || currentMatch.id !== matchId) return;
-      
-      // Maç durumu güncellemesi
-      if (data.type === "match_state" && data.match) {
-        // Maç bilgilerini güncelle
-        currentMatch.current_state = data.match.current_state;
-        currentMatch.time_remaining = data.match.time_remaining;
-        currentMatch.status = data.match.status;
-        // Timer'ı güncelle
-        updateHeadRefereeTimer(data.match.current_state, data.match.time_remaining);
-      }
-      
-      // Skor güncellemesi - anlık olarak güncelle
-      if (data.type === "scores" || data.type === "initial" || data.type === "update") {
-        loadCurrentScores();
+    });
+    
+    // Skor güncellemesi
+    headRefereeSocket.on("scores", (data) => {
+      try {
+        if (!data || !currentMatch || currentMatch.id !== matchId) return;
+        
+        // Skorları güncelle
+        if (typeof loadCurrentScores === "function") {
+          loadCurrentScores();
+        }
+        
         // Detaylı skorları da güncelle (anlık görüntüleme için)
-        if (data.scores) {
+        if (data.scores && typeof updateHeadRefereeDetailedScores === "function") {
           updateHeadRefereeDetailedScores(data.scores);
         }
+      } catch (err) {
+        console.error("Head Referee WebSocket scores error:", err);
       }
-    } catch (err) {
-      console.error("Head referee SSE error:", err);
-    }
-  };
-  
-  scoreEventSource.onerror = () => {
-    // Bağlantıyı kapat
-    if (scoreEventSource) {
-      scoreEventSource.close();
-      scoreEventSource = null;
-    }
+    });
     
-    // Exponential backoff ile yeniden bağlanmayı dene
-    if (retryCount < MAX_RETRY_COUNT && currentMatch && currentMatch.id === matchId) {
-      const retryDelay = Math.min(30000, RETRY_DELAY_BASE * Math.pow(2, retryCount));
-      retryCount++;
-      setTimeout(() => {
-        if (currentMatch && currentMatch.id === matchId) {
-          console.log(`Head referee SSE yeniden bağlanma denemesi ${retryCount}/${MAX_RETRY_COUNT}...`);
-          startRealtimeUpdates(matchId, matchSource);
+    // Hata mesajı
+    headRefereeSocket.on("error", (error) => {
+      console.error("Head Referee WebSocket error:", error);
+    });
+    
+    // Bağlantı kesildiğinde
+    headRefereeSocket.on("disconnect", (reason) => {
+      console.warn("Head Referee WebSocket bağlantısı kesildi:", reason);
+      
+      // Eğer beklenmeyen bir kesilme ise (reconnect değilse) yeniden bağlanmayı dene
+      if (reason === "io server disconnect" || reason === "transport close") {
+        if (retryCount < MAX_RETRY_COUNT && currentMatch && currentMatch.id === matchId) {
+          const retryDelay = Math.min(30000, RETRY_DELAY_BASE * Math.pow(2, retryCount));
+          retryCount++;
+          
+          setTimeout(() => {
+            if (currentMatch && currentMatch.id === matchId) {
+              console.log(`Head Referee WebSocket yeniden bağlanma denemesi ${retryCount}/${MAX_RETRY_COUNT}...`);
+              startRealtimeUpdates(matchId, source);
+            }
+          }, retryDelay);
+        } else {
+          console.error("Head Referee WebSocket bağlantısı kurulamadı, maksimum deneme sayısına ulaşıldı");
         }
-      }, retryDelay);
-    } else {
-      console.error("Head referee SSE bağlantısı kurulamadı, maksimum deneme sayısına ulaşıldı");
-    }
-  };
+      }
+    });
+    
+    // Yeniden bağlanma denemesi
+    headRefereeSocket.on("reconnect_attempt", (attemptNumber) => {
+      console.log(`Head Referee WebSocket yeniden bağlanma denemesi: ${attemptNumber}`);
+    });
+    
+    // Yeniden bağlanma başarılı
+    headRefereeSocket.on("reconnect", (attemptNumber) => {
+      console.log(`Head Referee WebSocket yeniden bağlandı (deneme: ${attemptNumber})`);
+      retryCount = 0;
+      
+      // Maça tekrar abone ol
+      if (currentMatch && currentMatch.id === matchId) {
+        headRefereeSocket.emit("subscribe_match", {
+          match_id: matchId,
+          match_source: source
+        });
+      }
+    });
+    
+  } catch (err) {
+    console.error("Head Referee WebSocket bağlantısı oluşturulamadı:", err);
+  }
 }
 
 function stopRealtimeUpdates() {
-  if (scoreEventSource) {
-    scoreEventSource.close();
-    scoreEventSource = null;
+  if (headRefereeSocket) {
+    // Abonelikten çık
+    if (headRefereeSocket.connected) {
+      headRefereeSocket.emit("unsubscribe_match", {});
+    }
+    
+    // Bağlantıyı kapat
+    headRefereeSocket.disconnect();
+    headRefereeSocket = null;
   }
+  retryCount = 0;
 }
 
 function updateHeadRefereeStatus() {

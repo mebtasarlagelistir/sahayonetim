@@ -5,11 +5,16 @@ Bu modül WebSocket veya Server-Sent Events (SSE) kullanarak
 gerçek zamanlı puanlama güncellemelerini yönetir.
 
 Modüler yapı: Farklı real-time teknolojileri kolayca değiştirilebilir.
+
+ÖNEMLİ: Skor ve SP hesaplamaları bu modülde tek bir yerde yapılır.
+Bu sayede hesaplama mantığı değiştiğinde sadece burada güncelleme yapılır.
 """
 
 from typing import Dict, Set, Callable, Optional
 from datetime import datetime
 import json
+from .calculator import ScoreCalculator
+from .ranking_points import RankingPointsCalculator
 
 
 class RealtimeScoreManager:
@@ -23,7 +28,7 @@ class RealtimeScoreManager:
     def __init__(self):
         """Yeni bir real-time yönetici oluşturur."""
         # Aktif maçlar için skor verileri
-        # Format: {match_key: {"red": {...}, "blue": {...}, "last_updated": ...}}
+        # Format: {match_key: {"red": {...}, "blue": {...}, "last_updated": ..., "calculated_scores": {...}, "ranking_points": {...}}}
         self._active_scores: Dict[str, Dict] = {}
         
         # Bağlı istemciler (WebSocket bağlantıları veya SSE stream'leri)
@@ -32,6 +37,9 @@ class RealtimeScoreManager:
         
         # Güncelleme callback'leri
         self._update_callbacks: Dict[str, Callable] = {}
+        
+        # Skor hesaplayıcı (modüler yapı - tek bir instance)
+        self._score_calculator = ScoreCalculator()
     
     def register_match(self, match_key: str) -> None:
         """
@@ -77,7 +85,10 @@ class RealtimeScoreManager:
         updated_by: Optional[str] = None
     ) -> None:
         """
-        Bir ittifakın skorunu günceller ve tüm bağlı cihazlara bildirir.
+        Bir ittifakın skorunu günceller, hesaplar ve tüm bağlı cihazlara bildirir.
+        
+        ÖNEMLİ: Skor hesaplaması burada tek bir yerde yapılır.
+        Bu sayede hesaplama mantığı değiştiğinde sadece burada güncelleme yapılır.
         
         Args:
             match_key: Maç anahtarı
@@ -98,6 +109,9 @@ class RealtimeScoreManager:
                 self._active_scores[match_key]["team_statuses"] = {}
             # Mevcut team_statuses'i koru, sadece güncellenen ittifakı güncelle
             self._active_scores[match_key]["team_statuses"][alliance] = scoring_data["team_statuses"].get(alliance, {})
+        
+        # Skorları hesapla ve sakla (tek bir yerde - modüler yapı)
+        self._calculate_and_store_scores(match_key)
         
         # Tüm bağlı cihazlara bildir
         self._broadcast_update(match_key, alliance, scoring_data)
@@ -125,15 +139,116 @@ class RealtimeScoreManager:
     
     def get_current_scores(self, match_key: str) -> Optional[Dict]:
         """
-        Bir maçın mevcut skorlarını döner.
+        Bir maçın mevcut skorlarını döner (hesaplanmış skorlar dahil).
         
         Args:
             match_key: Maç anahtarı
         
         Returns:
-            Dict: {"red": {...}, "blue": {...}, "last_updated": ...} veya None
+            Dict: {
+                "red": {...}, 
+                "blue": {...}, 
+                "last_updated": ...,
+                "calculated_scores": {
+                    "red": {"total_score": int, "breakdown": {...}},
+                    "blue": {"total_score": int, "breakdown": {...}}
+                },
+                "ranking_points": {...} (varsa)
+            } veya None
         """
         return self._active_scores.get(match_key)
+    
+    def _calculate_and_store_scores(self, match_key: str) -> None:
+        """
+        Bir maç için skorları hesaplar ve saklar.
+        
+        ÖNEMLİ: Tüm skor hesaplamaları burada tek bir yerde yapılır.
+        Bu sayede hesaplama mantığı değiştiğinde sadece burada güncelleme yapılır.
+        
+        Args:
+            match_key: Maç anahtarı
+        """
+        if match_key not in self._active_scores:
+            return
+        
+        scores = self._active_scores[match_key]
+        red_data = scores.get("red", {})
+        blue_data = scores.get("blue", {})
+        
+        # Her iki ittifak için skorları hesapla
+        calculated_scores = {}
+        
+        if red_data:
+            red_result = self._score_calculator.calculate_alliance_score(
+                alliance="red",
+                scoring_data=red_data,
+                opponent_scoring_data=blue_data
+            )
+            calculated_scores["red"] = red_result
+        
+        if blue_data:
+            blue_result = self._score_calculator.calculate_alliance_score(
+                alliance="blue",
+                scoring_data=blue_data,
+                opponent_scoring_data=red_data
+            )
+            calculated_scores["blue"] = blue_result
+        
+        # Hesaplanmış skorları sakla
+        self._active_scores[match_key]["calculated_scores"] = calculated_scores
+    
+    def calculate_and_store_ranking_points(
+        self,
+        match_key: str,
+        match_type: str,
+        red_alliance: list,
+        blue_alliance: list
+    ) -> Optional[Dict]:
+        """
+        Bir maç için Sıralama Puanlarını (SP) hesaplar ve saklar.
+        
+        ÖNEMLİ: SP hesaplaması burada tek bir yerde yapılır.
+        Deneme maçları (practice) SP'ye etki etmez.
+        
+        Args:
+            match_key: Maç anahtarı
+            match_type: Maç tipi ("qualification", "practice", vb.)
+            red_alliance: Kırmızı ittifak takımları listesi
+            blue_alliance: Mavi ittifak takımları listesi
+        
+        Returns:
+            Dict: SP hesaplama sonuçları veya None (eğer maç bulunamazsa)
+        """
+        if match_key not in self._active_scores:
+            return None
+        
+        scores = self._active_scores[match_key]
+        calculated_scores = scores.get("calculated_scores", {})
+        
+        # Hesaplanmış skorları al
+        red_score = calculated_scores.get("red", {}).get("total_score", 0)
+        blue_score = calculated_scores.get("blue", {}).get("total_score", 0)
+        
+        # Scoring data'yı al (SP hesaplaması için gerekli)
+        scoring_data = {
+            "red": scores.get("red", {}),
+            "blue": scores.get("blue", {})
+        }
+        
+        # SP hesapla
+        sp_result = RankingPointsCalculator.calculate_ranking_points(
+            match_type=match_type,
+            red_score=red_score,
+            blue_score=blue_score,
+            scoring_data=scoring_data,
+            red_alliance=red_alliance,
+            blue_alliance=blue_alliance
+        )
+        
+        # SP sonuçlarını sakla
+        self._active_scores[match_key]["ranking_points"] = sp_result
+        
+        return sp_result
     
     def connect_client(self, match_key: str, client_id: str) -> None:
         """

@@ -7,9 +7,14 @@ Bu modül seyirci ekranlarının yönetimi ve izlenmesi için API endpoint'lerin
 from __future__ import annotations
 
 import time
+import logging
+import threading
 from typing import Dict, Any
 
 from flask import jsonify, render_template, request
+from flask_socketio import emit, join_room, leave_room
+
+logger = logging.getLogger(__name__)
 
 
 # Bağlı ekranlar (memory)
@@ -55,10 +60,21 @@ def _assign_screen_name(ip: str) -> str:
     return f"{base} #{index}"
 
 
-def register_screen_routes(bp, datastore, require_login, require_event_manager):
+def register_screen_routes(bp, datastore, require_login, require_event_manager, socketio=None):
     """
     Seyirci ekranı route'larını Blueprint'e kaydeder.
+    
+    Args:
+        bp: Blueprint instance
+        datastore: DataStore instance
+        require_login: require_login decorator
+        require_event_manager: require_event_manager decorator
+        socketio: SocketIO instance (WebSocket için)
     """
+    # SocketIO instance'ını al (app'ten)
+    if socketio is None:
+        from flask import current_app
+        socketio = current_app.socketio if hasattr(current_app, 'socketio') else None
 
     @bp.get("/screens")
     @require_login
@@ -273,3 +289,210 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager):
                     screen["override_payload"] = payload
                 _screen_registry[screen_id] = screen
         return jsonify({"ok": True})
+    
+    # ============================================================================
+    # WEBSOCKET EVENT HANDLERS (Audience Display için)
+    # ============================================================================
+    
+    if socketio:
+        # Audience WebSocket bağlantı yönetimi
+        _audience_rooms = {}  # {screen_id: set(session_ids)}
+        _audience_update_threads = {}  # {screen_id: thread}
+        _audience_stop_threads = {}  # {screen_id: threading.Event}
+        
+        @socketio.on("connect", namespace="/audience")
+        def handle_audience_connect(auth):
+            """WebSocket bağlantısı kurulduğunda (audience namespace)."""
+            screen_id = request.args.get("screen_id", "").strip()
+            logger.info(f"Audience WebSocket bağlantısı kuruldu: screen_id={screen_id}, sid={request.sid}")
+            return True
+        
+        @socketio.on("disconnect", namespace="/audience")
+        def handle_audience_disconnect():
+            """WebSocket bağlantısı kesildiğinde (audience namespace)."""
+            session_id = request.sid
+            # Screen ID'yi bul ve room'dan çıkar
+            for screen_id, sessions in _audience_rooms.items():
+                if session_id in sessions:
+                    sessions.discard(session_id)
+                    if not sessions:
+                        # Room boş, thread'i durdur
+                        if screen_id in _audience_stop_threads:
+                            _audience_stop_threads[screen_id].set()
+                        del _audience_rooms[screen_id]
+                    break
+            logger.info(f"Audience WebSocket bağlantısı kesildi: sid={session_id}")
+        
+        def _start_audience_update_thread(screen_id: str):
+            """Audience ekranı için periyodik güncelleme thread'i."""
+            if screen_id in _audience_update_threads:
+                return  # Zaten çalışıyor
+            
+            stop_event = threading.Event()
+            _audience_stop_threads[screen_id] = stop_event
+            
+            def update_loop():
+                from src.core.match_state import get_match_state_manager
+                from src.core.scoring.realtime import get_realtime_manager
+                
+                match_state_manager = get_match_state_manager(datastore)
+                realtime_manager = get_realtime_manager()
+                
+                last_match_id = None
+                last_state = None
+                last_time_remaining = None
+                last_scores_update = None
+                
+                while not stop_event.is_set():
+                    try:
+                        event_id = datastore.get_active_event_id()
+                        if not event_id:
+                            time.sleep(1)
+                            continue
+                        
+                        # Preview kontrolü
+                        screen = _screen_registry.get(screen_id, {})
+                        override_payload = screen.get("override_payload") or _global_preview.get("override_payload")
+                        
+                        # Eğer preview aktifse, normal güncellemeleri gönderme
+                        if override_payload:
+                            time.sleep(0.5)
+                            continue
+                        
+                        # Aktif maçı kontrol et
+                        active_match = match_state_manager.get_active_match(event_id)
+                        
+                        if active_match:
+                            match_id = active_match.get("id")
+                            match_source = active_match.get("match_source", "schedule")
+                            match_key = f"{event_id}_{match_source}_{match_id}"
+                            
+                            # Maç durumu güncellemesi
+                            current_state = active_match.get("current_state")
+                            time_remaining = active_match.get("time_remaining")
+                            
+                            match_update_key = f"{match_id}_{current_state}_{time_remaining}"
+                            if match_update_key != f"{last_match_id}_{last_state}_{last_time_remaining}":
+                                last_match_id = match_id
+                                last_state = current_state
+                                last_time_remaining = time_remaining
+                                
+                                match_data = dict(active_match)
+                                match_data["server_timestamp"] = time.time()  # Timer senkronizasyonu için
+                                
+                                socketio.emit("match_update", {
+                                    "type": "match_update",
+                                    "match": match_data
+                                }, room=screen_id, namespace="/audience")
+                            
+                            # Skor güncellemesi
+                            current_scores = realtime_manager.get_current_scores(match_key)
+                            if current_scores:
+                                scores_update_key = current_scores.get("last_updated")
+                                if scores_update_key != last_scores_update:
+                                    last_scores_update = scores_update_key
+                                    
+                                    # Skorları hesapla (realtime_manager'da sadece scoring_data var, total_score yok)
+                                    red_data = current_scores.get("red", {})
+                                    blue_data = current_scores.get("blue", {})
+                                    red_score = 0
+                                    blue_score = 0
+                                    
+                                    if red_data or blue_data:
+                                        try:
+                                            calculator = ScoreCalculator()
+                                            if red_data:
+                                                red_result = calculator.calculate_alliance_score(
+                                                    alliance="red",
+                                                    scoring_data=red_data,
+                                                    opponent_scoring_data=blue_data
+                                                )
+                                                red_score = red_result["total_score"]
+                                            if blue_data:
+                                                blue_result = calculator.calculate_alliance_score(
+                                                    alliance="blue",
+                                                    scoring_data=blue_data,
+                                                    opponent_scoring_data=red_data
+                                                )
+                                                blue_score = blue_result["total_score"]
+                                        except Exception as calc_err:
+                                            logger.warning(f"Audience skor hesaplama hatası: {str(calc_err)}")
+                                    
+                                    socketio.emit("scores_update", {
+                                        "type": "scores_update",
+                                        "scores": {
+                                            "red_score": red_score,
+                                            "blue_score": blue_score
+                                        },
+                                        "server_timestamp": time.time()
+                                    }, room=screen_id, namespace="/audience")
+                        else:
+                            # Aktif maç yok
+                            if last_match_id is not None:
+                                last_match_id = None
+                                socketio.emit("match_update", {
+                                    "type": "match_update",
+                                    "match": None,
+                                    "server_timestamp": time.time()
+                                }, room=screen_id, namespace="/audience")
+                        
+                        time.sleep(0.3)  # 300ms'de bir güncelle
+                        
+                    except Exception as e:
+                        logger.error(f"Audience update thread hatası (screen_id={screen_id}): {str(e)}", exc_info=True)
+                        time.sleep(1)
+                
+                # Thread sonlandı, temizle
+                if screen_id in _audience_update_threads:
+                    del _audience_update_threads[screen_id]
+                if screen_id in _audience_stop_threads:
+                    del _audience_stop_threads[screen_id]
+            
+            thread = threading.Thread(target=update_loop, daemon=True)
+            thread.start()
+            _audience_update_threads[screen_id] = thread
+        
+        @socketio.on("subscribe_audience", namespace="/audience")
+        def handle_subscribe_audience(data):
+            """Audience ekranı güncellemelerine abone ol."""
+            try:
+                screen_id = data.get("screen_id") or request.args.get("screen_id", "").strip()
+                if not screen_id:
+                    socketio.emit("error", {"message": "screen_id gerekli"}, room=request.sid, namespace="/audience")
+                    return
+                
+                session_id = request.sid
+                
+                # Room'a katıl
+                join_room(screen_id, namespace="/audience", sid=session_id)
+                if screen_id not in _audience_rooms:
+                    _audience_rooms[screen_id] = set()
+                _audience_rooms[screen_id].add(session_id)
+                
+                # Güncelleme thread'ini başlat (eğer yoksa)
+                if screen_id not in _audience_update_threads:
+                    _start_audience_update_thread(screen_id)
+                
+                logger.info(f"Audience WebSocket abone oldu: screen_id={screen_id}, sid={session_id}")
+                
+            except Exception as e:
+                logger.error(f"Audience WebSocket subscribe_audience hatası: {str(e)}", exc_info=True)
+                socketio.emit("error", {"message": str(e)}, room=request.sid, namespace="/audience")
+        
+        @socketio.on("unsubscribe_audience", namespace="/audience")
+        def handle_unsubscribe_audience(data):
+            """Audience ekranı güncellemelerinden abonelikten çık."""
+            session_id = request.sid
+            screen_id = data.get("screen_id") or request.args.get("screen_id", "").strip()
+            
+            if screen_id and screen_id in _audience_rooms:
+                leave_room(screen_id, namespace="/audience", sid=session_id)
+                _audience_rooms[screen_id].discard(session_id)
+                
+                # Eğer room boşsa thread'i durdur
+                if not _audience_rooms[screen_id]:
+                    del _audience_rooms[screen_id]
+                    if screen_id in _audience_stop_threads:
+                        _audience_stop_threads[screen_id].set()
+            
+            logger.info(f"Audience WebSocket abonelikten çıkıldı: screen_id={screen_id}, sid={session_id}")

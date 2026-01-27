@@ -36,6 +36,7 @@ import qrcode
 from qrcode.image.svg import SvgImage
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 from src.core.config import Config
 from src.core.storage import DataStore
@@ -225,6 +226,22 @@ def create_app() -> Flask:
     app.secret_key = _load_secret_key(base_path)
     datastore = DataStore(base_path=base_path)
     datastore.migrate_from_config(config.data)
+    
+    # Flask-SocketIO'yu başlat
+    # CORS ayarları: Tüm origin'lere izin ver (aynı ağdaki cihazlar için)
+    # NOT: Python 3.13 ile eventlet uyumlu değil, threading modu kullanılıyor
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode="threading",  # Threading modu (Python 3.13 uyumluluğu için)
+        logger=is_development,  # Geliştirme modunda log açık
+        engineio_logger=is_development,
+        ping_timeout=60,  # 60 saniye ping timeout
+        ping_interval=25,  # 25 saniyede bir ping gönder
+    )
+    
+    # SocketIO instance'ını app'e ekle (route modüllerinde kullanmak için)
+    app.socketio = socketio
 
     # Rate limiting yapılandırması - constants modülünden al
     limiter = Limiter(
@@ -901,17 +918,17 @@ def create_app() -> Flask:
     
     # Maç Kontrol route'larını Blueprint'e kaydet
     match_control_bp = Blueprint("match_control", __name__, url_prefix="")
-    register_match_control_routes(match_control_bp, datastore, require_login, require_event_manager)
+    register_match_control_routes(match_control_bp, datastore, require_login, require_event_manager, socketio)
     app.register_blueprint(match_control_bp)
     
     # Hakem Paneli route'larını Blueprint'e kaydet
     referee_panel_bp = Blueprint("referee_panel", __name__, url_prefix="")
-    register_referee_panel_routes(referee_panel_bp, datastore, require_login)
+    register_referee_panel_routes(referee_panel_bp, datastore, require_login, socketio)
     app.register_blueprint(referee_panel_bp)
     
     # Seyirci ekranları route'larını Blueprint'e kaydet
     screens_bp = Blueprint("screens", __name__, url_prefix="")
-    register_screen_routes(screens_bp, datastore, require_login, require_event_manager)
+    register_screen_routes(screens_bp, datastore, require_login, require_event_manager, socketio)
     app.register_blueprint(screens_bp)
 
     # Eski route'lar kaldırıldı - Blueprint kullanılıyor (routes/inspection.py, routes/practice_matches.py)
@@ -948,7 +965,8 @@ def create_app() -> Flask:
             results.append({"username": user["username"], "role": user["role"], "url": url, "qr": data_url})
         return jsonify(results)
 
-    return app
+    # SocketIO instance'ını döndür (route modüllerinde kullanmak için)
+    return app, socketio
 
 
 if __name__ == "__main__":
@@ -959,16 +977,17 @@ if __name__ == "__main__":
         - FLASK_ENV=development (varsayılan): Geliştirme modu, debug açık
         - FLASK_ENV=production: Üretim modu, debug kapalı
         
-    Not: Üretim ortamında WSGI sunucusu kullanılmalıdır (örn: gunicorn, waitress)
+    Not: WebSocket desteği için Flask-SocketIO kullanılıyor.
+    Üretim ortamında eventlet veya gunicorn ile eventlet worker kullanılmalıdır.
     
     Örnek kullanım:
         # Geliştirme
         python app_web.py
         
-        # Üretim (WSGI sunucusu ile)
-        gunicorn -w 4 -b 0.0.0.0:5000 app_web:application
+        # Üretim (eventlet ile)
+        gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 app_web:application
     """
-    application = create_app()
+    application, socketio_instance = create_app()
     
     # Ortam tespiti
     flask_env = os.environ.get("FLASK_ENV", "development").lower()
@@ -979,11 +998,11 @@ if __name__ == "__main__":
         logger = logging.getLogger(__name__)
         logger.warning(
             "ÜRETİM MODU: Bu script doğrudan çalıştırılmamalı. "
-            "Lütfen bir WSGI sunucusu kullanın (örn: gunicorn, waitress)."
+            "Lütfen gunicorn ile eventlet worker kullanın."
         )
-        logger.info("Örnek: gunicorn -w 4 -b 0.0.0.0:5000 app_web:application")
+        logger.info("Örnek: waitress-serve --host=0.0.0.0 --port=5000 app_web:application")
         # Yine de çalıştır ama uyarı ver
-        application.run(host="0.0.0.0", port=5000, debug=False)
+        socketio_instance.run(application, host="0.0.0.0", port=5000, debug=False)
     else:
         # Geliştirme modu - aynı ağdaki diğer cihazlardan erişim için 0.0.0.0 kullan
         local_ip = _get_local_ip()
@@ -992,4 +1011,4 @@ if __name__ == "__main__":
         logger.info(f"Yerel erişim: http://127.0.0.1:5000")
         if local_ip != "127.0.0.1":
             logger.info(f"Ağ erişimi: http://{local_ip}:5000")
-        application.run(host="0.0.0.0", port=5000, debug=True)
+        socketio_instance.run(application, host="0.0.0.0", port=5000, debug=True)

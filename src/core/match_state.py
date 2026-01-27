@@ -42,8 +42,8 @@ class MatchStateManager:
         # Memory cache: {event_id: {match_key: match_state}}
         self._match_cache: Dict[int, Dict[str, Dict[str, Any]]] = {}
         
-        # SSE bağlı istemciler: {match_key: set(client_id)}
-        self._sse_clients: Dict[str, set] = {}
+        # NOT: SSE client tracking kaldırıldı (WebSocket kullanılıyor)
+        # WebSocket için room-based tracking kullanılıyor (routes/match_control.py ve routes/screens.py'de)
         
         # Güncelleme callback'leri: {match_key: list(callbacks)}
         self._update_callbacks: Dict[str, list] = {}
@@ -295,32 +295,13 @@ class MatchStateManager:
         self._broadcast_update(event_id, match_key, "stopped")
         logger.info(f"Maç durduruldu: event_id={event_id}, match_id={match_id}, match_source={match_source}")
     
-    def register_sse_client(self, match_key: str, client_id: str) -> None:
-        """
-        SSE istemcisini kaydeder.
-        
-        Args:
-            match_key: Maç anahtarı
-            client_id: İstemci kimliği
-        """
-        with self._lock:
-            if match_key not in self._sse_clients:
-                self._sse_clients[match_key] = set()
-            self._sse_clients[match_key].add(client_id)
-    
-    def unregister_sse_client(self, match_key: str, client_id: str) -> None:
-        """
-        SSE istemcisini kaldırır.
-        
-        Args:
-            match_key: Maç anahtarı
-            client_id: İstemci kimliği
-        """
-        with self._lock:
-            if match_key in self._sse_clients:
-                self._sse_clients[match_key].discard(client_id)
-                if not self._sse_clients[match_key]:
-                    del self._sse_clients[match_key]
+    # SSE client tracking metodları kaldırıldı (WebSocket kullanılıyor)
+    # WebSocket için room-based tracking kullanılıyor (routes/match_control.py ve routes/screens.py'de)
+    # 
+    # Eski SSE metodları (kaldırıldı):
+    # - register_sse_client() - KALDIRILDI
+    # - unregister_sse_client() - KALDIRILDI
+    # - _sse_clients dict - KALDIRILDI
     
     def register_update_callback(self, match_key: str, callback: callable) -> None:
         """

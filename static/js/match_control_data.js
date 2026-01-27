@@ -411,14 +411,24 @@ async function loadNextMatch() {
 /**
  * Aktif maçı kontrol eder
  * 
- * ÖNEMLİ: Eğer kullanıcı manuel olarak bir maç seçtiyse (preview),
- * bu fonksiyon onu KESINLIKLE override etmemeli.
+ * ÖNEMLİ: Match Core kullanılıyor - bu fonksiyon artık Match Core üzerinden çalışıyor.
+ * Manuel seçim kontrolü Match Core'da yapılıyor.
  * 
- * Mantık:
- * 1. Manuel seçim varsa → Sadece seçilen maçın durumunu kontrol et, başka maçı yükleme
- * 2. Manuel seçim yoksa → Backend'den aktif maçı yükle
+ * NOT: Bu fonksiyon geriye dönük uyumluluk için korunuyor.
+ * Match Core kullanılıyorsa, bu fonksiyon sadece manuel seçim yönetimi için kullanılır.
  */
 async function checkActiveMatch() {
+  // Match Core kullanılıyorsa, aktif maç kontrolü Match Core'da yapılıyor
+  if (typeof MatchCore !== "undefined") {
+    // Sadece manuel seçim yönetimi için kullan
+    if (manuallySelectedMatchId && manuallySelectedMatchSource) {
+      MatchCore.setManualSelection(manuallySelectedMatchId, manuallySelectedMatchSource);
+    }
+    // Aktif maç yükleme Match Core'da otomatik yapılıyor (periyodik kontrol ile)
+    return;
+  }
+  
+  // Fallback: Eski yöntem (Match Core yoksa)
   try {
     // DEBUG: Fonksiyon çağrıldığını logla
     console.log(`checkActiveMatch: ÇAĞRILDI - currentMatch: ${currentMatch?.id || "null"}, manuallySelectedMatchId: ${manuallySelectedMatchId || "null"}`);
@@ -549,12 +559,21 @@ async function checkActiveMatch() {
         renderMatchDisplay();
       }
 
-      // Timer'ı doğru yerden devam ettir
-      if (typeof startMatchTimer === "function") {
-        startMatchTimer();
+      // ÖNEMLİ: Timer'ı sadece maç aktifse (in_progress) başlat
+      // Sayfa refresh edildiğinde maçı tekrar başlatmamak için
+      if (currentMatch.status === "in_progress") {
+        // Timer'ı doğru yerden devam ettir (maç zaten aktif)
+        if (typeof startMatchTimer === "function") {
+          startMatchTimer();
+        }
+      } else {
+        // Maç aktif değilse timer'ı durdur
+        if (typeof stopMatchTimer === "function") {
+          stopMatchTimer();
+        }
       }
 
-      // Gerçek zamanlı skor SSE bağlantısını yeniden kur
+      // Gerçek zamanlı skor WebSocket bağlantısını yeniden kur
       if (typeof startRealtimeScoreUpdates === "function" && currentMatch.id) {
         startRealtimeScoreUpdates(currentMatch.id, currentMatch.source || "schedule");
       }
@@ -638,8 +657,21 @@ async function selectMatch(matchId, matches = null) {
     calculateScoreBreakdown();
   }
   
-  // Gerçek zamanlı skor güncellemelerini başlat
-  if (typeof startRealtimeScoreUpdates === "function") {
+  // Match Core kullanılıyorsa, manuel seçimi Match Core'a bildir ve maçı set et
+  if (typeof MatchCore !== "undefined") {
+    MatchCore.setManualSelection(matchId, match.source || "schedule");
+    // Preview maçlar için Match Core'a maç bilgisini set et (WebSocket bağlantısı olmadan)
+    // skipWebSocket=true ile preview maçlar için WebSocket başlatılmaz
+    const matchToSet = {
+      ...currentMatch,
+      match_source: match.source || "schedule",
+      source: match.source || "schedule"
+    };
+    MatchCore.setMatch(matchToSet, true); // skipWebSocket=true
+  }
+  
+  // Gerçek zamanlı skor güncellemelerini başlat (Match Core kullanılıyorsa gerek yok)
+  if (typeof MatchCore === "undefined" && typeof startRealtimeScoreUpdates === "function") {
     startRealtimeScoreUpdates(matchId, match.source || "schedule");
   }
   
@@ -649,12 +681,21 @@ async function selectMatch(matchId, matches = null) {
     // Aktif maç seçildi, manuel seçimi temizle (artık aktif maç olacak)
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
-    
-    if (typeof updateMatchStatus === "function") {
-      await updateMatchStatus();
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.clearManualSelection();
     }
-    if (typeof startMatchTimer === "function") {
-      startMatchTimer();
+    
+    // Match Core kullanılıyorsa, aktif maçı Match Core'dan yükle
+    if (typeof MatchCore !== "undefined") {
+      await MatchCore.loadActiveMatch(true); // force=true ile manuel seçimi yok say
+    } else {
+      // Fallback: Eski yöntem
+      if (typeof updateMatchStatus === "function") {
+        await updateMatchStatus();
+      }
+      if (typeof startMatchTimer === "function") {
+        startMatchTimer();
+      }
     }
   } else if (matchStatus === "completed") {
     // Maç tamamlanmış - skorları göster, preview yapma
@@ -663,6 +704,9 @@ async function selectMatch(matchId, matches = null) {
     // Manuel seçimi kaydet (tamamlanmış maçı görüntülemek için)
     manuallySelectedMatchId = matchId;
     manuallySelectedMatchSource = match.source || "schedule";
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.setManualSelection(matchId, match.source || "schedule");
+    }
     
     // Status'u "completed" olarak koru
     if (currentMatch && currentMatch.id === matchId) {
@@ -695,6 +739,9 @@ async function selectMatch(matchId, matches = null) {
       // Manuel seçimi kaydet - checkActiveMatch ve updateMatchStatus bunu override etmemeli
       manuallySelectedMatchId = matchId;
       manuallySelectedMatchSource = match.source || "schedule";
+      if (typeof MatchCore !== "undefined") {
+        MatchCore.setManualSelection(matchId, match.source || "schedule");
+      }
       
       console.log(`selectMatch: Manuel seçim kaydedildi - ID: ${matchId}, Source: ${match.source || "schedule"}`);
       
@@ -794,10 +841,22 @@ async function selectPracticeMatch(match) {
     calculateScoreBreakdown();
   }
   
-  // Gerçek zamanlı skor güncellemelerini başlat
-  if (typeof startRealtimeScoreUpdates === "function") {
-    startRealtimeScoreUpdates(match.id, "practice");
-  }
+    // Match Core kullanılıyorsa, manuel seçimi Match Core'a bildir ve maçı set et
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.setManualSelection(match.id, "practice");
+      // Preview maçlar için Match Core'a maç bilgisini set et (WebSocket bağlantısı olmadan)
+      const matchToSet = {
+        ...currentMatch,
+        match_source: "practice",
+        source: "practice"
+      };
+      MatchCore.setMatch(matchToSet, true); // skipWebSocket=true
+    }
+    
+    // Gerçek zamanlı skor güncellemelerini başlat (Match Core kullanılıyorsa gerek yok)
+    if (typeof MatchCore === "undefined" && typeof startRealtimeScoreUpdates === "function") {
+      startRealtimeScoreUpdates(match.id, "practice");
+    }
   
   // Eğer maç aktifse, durumu yükle
   if (matchStatus === "in_progress") {
@@ -805,6 +864,10 @@ async function selectPracticeMatch(match) {
     // Aktif maç seçildi, manuel seçimi temizle (aktif maç zaten gösterilecek)
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.clearManualSelection();
+      await MatchCore.loadActiveMatch(true); // force=true ile manuel seçimi yok say
+    }
   } else if (matchStatus === "completed") {
     // Maç tamamlanmış - skorları göster, preview yapma
     console.log(`selectPracticeMatch: Maç tamamlanmış - ID: ${match.id}, Skorlar: K: ${match.red_score || 0}, M: ${match.blue_score || 0}`);
@@ -812,6 +875,9 @@ async function selectPracticeMatch(match) {
     // Manuel seçimi kaydet (tamamlanmış maçı görüntülemek için)
     manuallySelectedMatchId = match.id;
     manuallySelectedMatchSource = "practice";
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.setManualSelection(match.id, "practice");
+    }
     
     // Status'u "completed" olarak koru
     if (currentMatch && currentMatch.id === match.id) {
@@ -834,6 +900,9 @@ async function selectPracticeMatch(match) {
       // Manuel seçimi kaydet - checkActiveMatch ve updateMatchStatus bunu override etmemeli
       manuallySelectedMatchId = match.id;
       manuallySelectedMatchSource = "practice";
+      if (typeof MatchCore !== "undefined") {
+        MatchCore.setManualSelection(match.id, "practice");
+      }
       
       console.log(`selectPracticeMatch: Manuel seçim kaydedildi - ID: ${match.id}, Source: practice`);
       

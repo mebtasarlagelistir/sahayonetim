@@ -8,6 +8,12 @@
  * - UI temizleme
  */
 
+// Timer geri sayım için değişkenler
+let refereeTimerInterval = null;
+let refereeTimerStartTime = null;
+let refereeTimerInitialTime = null;
+let refereeTimerState = null;
+
 /**
  * Hakem için maç bilgilerini yükler
  */
@@ -66,9 +72,11 @@ async function loadMatchForReferee() {
       renderRefereeRobotStatus();
     }
     
-    // Mevcut skorları yükle
+    // Mevcut skorları yükle (ilk yüklemede, kullanıcı input yoksa uygula)
     if (typeof loadCurrentScores === "function") {
-      await loadCurrentScores();
+      // İlk yüklemede skorları uygula (applyScores=true)
+      // Ama eğer kullanıcı input yapıyorsa ignore et
+      await loadCurrentScores(true);
     }
     
     // Timer'ı başlat (eğer maç aktifse)
@@ -76,12 +84,12 @@ async function loadMatchForReferee() {
       updateRefereeTimer(currentMatch.current_state, currentMatch.time_remaining);
     }
     
-    // Gerçek zamanlı güncellemeleri başlat
-    if (currentMatch.id) {
+    // Gerçek zamanlı güncellemeleri başlat (Match Core kullanılıyorsa gerek yok)
+    if (typeof MatchCore === "undefined" && currentMatch.id) {
       if (typeof startRealtimeUpdates === "function") {
         startRealtimeUpdates(currentMatch.id, currentMatch.match_source || "schedule");
       }
-    } else {
+    } else if (!currentMatch.id) {
       console.error("loadMatchForReferee: currentMatch.id yok");
     }
   } catch (err) {
@@ -100,6 +108,15 @@ function clearRefereeUI(message = "Aktif maç yok. Maç kontrol sayfasından ba�
   if (typeof stopRealtimeUpdates === "function") {
     stopRealtimeUpdates();
   }
+  
+  // Timer interval'ini temizle
+  if (refereeTimerInterval) {
+    clearInterval(refereeTimerInterval);
+    refereeTimerInterval = null;
+  }
+  refereeTimerStartTime = null;
+  refereeTimerInitialTime = null;
+  refereeTimerState = null;
   
   // Otomatik kaydetme timer'ını temizle
   if (autoSaveTimer) {
@@ -131,8 +148,18 @@ function clearRefereeUI(message = "Aktif maç yok. Maç kontrol sayfasından ba�
 
 /**
  * Timer'ı günceller (referee panel için)
+ * 
+ * NOT: Timer değişkenleri dosyanın başında tanımlı (satır 11-15)
  */
-function updateRefereeTimer(currentState, timeRemaining) {
+
+/**
+ * Timer'ı günceller ve geri sayımı başlatır (WebSocket ile server_timestamp senkronizasyonu destekler)
+ * 
+ * @param {string} currentState - Mevcut maç durumu
+ * @param {number} timeRemaining - Kalan süre (saniye)
+ * @param {number} timeOffset - Client-server zaman farkı (ms) - opsiyonel, timer senkronizasyonu için
+ */
+function updateRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
   const timerEl = qs("referee_match_timer");
   const timerDisplayEl = qs("referee_timer_display");
   const timerStateEl = qs("referee_timer_state");
@@ -142,7 +169,42 @@ function updateRefereeTimer(currentState, timeRemaining) {
   // Timer'ı göster
   timerEl.style.display = "block";
   
-  // Zamanı formatla (MM:SS)
+  // Eğer durum değiştiyse veya yeni bir süre geldiyse, timer'ı yeniden başlat
+  if (refereeTimerState !== currentState || refereeTimerInitialTime !== timeRemaining) {
+    // Önceki interval'i temizle
+    if (refereeTimerInterval) {
+      clearInterval(refereeTimerInterval);
+      refereeTimerInterval = null;
+    }
+    
+    // Yeni timer başlat
+    refereeTimerState = currentState;
+    refereeTimerInitialTime = timeRemaining;
+    refereeTimerStartTime = Date.now() - timeOffset; // Server zamanını hesaba kat
+    
+    // Timer'ı başlat (her saniye güncelle)
+    refereeTimerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - refereeTimerStartTime) / 1000);
+      const remaining = Math.max(0, refereeTimerInitialTime - elapsed);
+      
+      // Zamanı formatla (MM:SS)
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
+      if (timerDisplayEl) {
+        timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
+      
+      // Süre dolduysa interval'i temizle
+      if (remaining <= 0) {
+        if (refereeTimerInterval) {
+          clearInterval(refereeTimerInterval);
+          refereeTimerInterval = null;
+        }
+      }
+    }, 100); // 100ms'de bir güncelle (daha akıcı görünüm)
+  }
+  
+  // İlk güncelleme (hemen göster)
   const minutes = Math.floor((timeRemaining || 0) / 60);
   const seconds = (timeRemaining || 0) % 60;
   timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;

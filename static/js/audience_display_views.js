@@ -9,23 +9,39 @@
  */
 
 /**
- * Maç görünümünü günceller (SSE'den gelen verilerle)
+ * Maç görünümünü günceller (WebSocket'ten gelen verilerle)
  * 
  * @param {Object} match - Maç objesi
  */
-function updateMatchView(match) {
+function updateMatchView(match, timeOffset = 0) {
+  // Audience Core kullanılıyorsa, preview kontrolü Audience Core'da yapılıyor
+  const hasPreview = typeof AudienceCore !== "undefined" 
+    ? AudienceCore.previewState !== "none"
+    : previewPayload;
+  
   if (!match) {
     // Preview varsa normal görünümü gösterme
-    if (previewPayload) {
+    if (hasPreview) {
       return;
     }
-    qs("audience_state_label").textContent = "Beklemede";
-    qs("audience_timer_value").textContent = "--:--";
-    qs("audience_red_score").textContent = "0";
-    qs("audience_blue_score").textContent = "0";
-    qs("audience_red_teams").textContent = "-";
-    qs("audience_blue_teams").textContent = "-";
-    qs("audience_match_meta").textContent = "";
+    
+    // Güvenli DOM güncellemeleri (element kontrolü ile)
+    const stateLabel = qs("audience_state_label");
+    const timerValue = qs("audience_timer_value");
+    const redScore = qs("audience_red_score");
+    const blueScore = qs("audience_blue_score");
+    const redTeams = qs("audience_red_teams");
+    const blueTeams = qs("audience_blue_teams");
+    const matchMeta = qs("audience_match_meta");
+    
+    if (stateLabel) stateLabel.textContent = "Beklemede";
+    if (timerValue) timerValue.textContent = "--:--";
+    if (redScore) redScore.textContent = "0";
+    if (blueScore) blueScore.textContent = "0";
+    if (redTeams) redTeams.textContent = "-";
+    if (blueTeams) blueTeams.textContent = "-";
+    if (matchMeta) matchMeta.textContent = "";
+    
     if (typeof hideResultsPanel === "function") {
       hideResultsPanel();
     }
@@ -37,7 +53,7 @@ function updateMatchView(match) {
   }
   
   // ÖNEMLİ: Preview varsa normal görünümü güncelleme (preview korunmalı)
-  if (previewPayload) {
+  if (hasPreview) {
     console.log("updateMatchView: Preview aktif, normal görünüm güncellenmiyor");
     return;
   }
@@ -50,33 +66,72 @@ function updateMatchView(match) {
   if (typeof hideResultsPanel === "function") {
     hideResultsPanel();
   }
-  qs("audience_state_label").textContent = match.state_label || "Beklemede";
   
-  // Timer güncelleme (animasyonlu)
+  // Güvenli DOM güncellemeleri (element kontrolü ile)
+  const stateLabel = qs("audience_state_label");
+  const timerValue = qs("audience_timer_value");
+  const redScore = qs("audience_red_score");
+  const blueScore = qs("audience_blue_score");
+  const redTeams = qs("audience_red_teams");
+  const blueTeams = qs("audience_blue_teams");
+  const matchMeta = qs("audience_match_meta");
+  const nextMatch = qs("audience_next_match");
+  
+  if (stateLabel) {
+    stateLabel.textContent = match.state_label || "Beklemede";
+  }
+  
+  // Timer güncelleme (animasyonlu, timeOffset ile senkronize)
   if (typeof updateTimerDisplay === "function") {
-    updateTimerDisplay(match.time_remaining || 0, match.current_state);
+    updateTimerDisplay(match.time_remaining || 0, match.current_state, timeOffset);
+  } else if (timerValue) {
+    // Fallback: Basit timer güncelleme
+    const minutes = Math.floor((match.time_remaining || 0) / 60);
+    const seconds = (match.time_remaining || 0) % 60;
+    timerValue.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
   
   // Skor güncellemeleri (animasyonlu)
   if (typeof updateScoreDisplay === "function") {
     updateScoreDisplay("red", match.red_score || 0);
     updateScoreDisplay("blue", match.blue_score || 0);
+  } else {
+    // Fallback: Basit skor güncelleme
+    if (redScore) redScore.textContent = match.red_score || 0;
+    if (blueScore) blueScore.textContent = match.blue_score || 0;
   }
   
-  qs("audience_red_teams").textContent = (match.red_alliance || []).join(", ") || "-";
-  qs("audience_blue_teams").textContent = (match.blue_alliance || []).join(", ") || "-";
-  qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-  qs("audience_next_match").textContent = "";
-
-  if (match.id !== lastMatchId) {
-    lastMatchId = match.id;
-    lastMatchState = "";
+  if (redTeams) {
+    redTeams.textContent = (match.red_alliance || []).join(", ") || "-";
   }
-  if (match.current_state && match.current_state !== lastMatchState) {
-    lastMatchState = match.current_state;
-    if (typeof announceState === "function") {
-      announceState(match.current_state);
+  if (blueTeams) {
+    blueTeams.textContent = (match.blue_alliance || []).join(", ") || "-";
+  }
+  if (matchMeta) {
+    matchMeta.textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
+  }
+  if (nextMatch) {
+    nextMatch.textContent = "";
+  }
+
+  // State değişikliği kontrolü (ses efekti için)
+  // State değişikliği kontrolü (ses efekti için)
+  // Audience Core kullanılıyorsa, state değişikliği Audience Core'da takip ediliyor
+  if (typeof AudienceCore === "undefined") {
+    // Fallback: Eski yöntem
+    if (match.id !== lastMatchId) {
+      lastMatchId = match.id;
+      lastMatchState = "";
     }
+    if (match.current_state && match.current_state !== lastMatchState) {
+      lastMatchState = match.current_state;
+      if (typeof announceState === "function") {
+        announceState(match.current_state);
+      }
+    }
+  } else {
+    // Audience Core kullanılıyorsa, state değişikliği Audience Core'da takip ediliyor
+    // _stateChanged flag'i Audience Core'da set ediliyor, UI'da kontrol edilecek
   }
 }
 
@@ -85,12 +140,19 @@ function updateMatchView(match) {
  */
 async function loadMatchView() {
   try {
+    // Audience Core kullanılıyorsa, maç görünümü Audience Core'da yönetiliyor
+    if (typeof AudienceCore !== "undefined") {
+      await AudienceCore.loadMatchView();
+      return;
+    }
+    
+    // Fallback: Eski yöntem
     // ÖNEMLİ: Preview aktifken normal maç görünümünü yükleme
     if (previewPayload) {
       console.log("loadMatchView: Preview aktif, normal görünüm yüklenmiyor");
       return;
     }
-    // İlk yükleme için API'den al (SSE başlatılmadan önce)
+    // İlk yükleme için API'den al (WebSocket başlatılmadan önce)
     const data = await apiGet("/api/match-control/audience-display");
     updateMatchView(data.match);
   } catch (err) {

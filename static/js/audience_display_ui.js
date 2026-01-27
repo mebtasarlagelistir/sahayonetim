@@ -25,12 +25,25 @@ function formatTime(seconds) {
  * 
  * @param {number} timeRemaining - Kalan süre (saniye)
  * @param {string} currentState - Mevcut maç durumu
+ * @param {number} timeOffset - Client-server zaman farkı (ms, opsiyonel)
  */
-function updateTimerDisplay(timeRemaining, currentState) {
+function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
   const timerEl = qs("audience_timer_value");
-  if (!timerEl) return;
+  if (!timerEl) {
+    console.warn("updateTimerDisplay: Timer elementi bulunamadı");
+    return;
+  }
   
-  const formattedTime = formatTime(timeRemaining);
+  // timeOffset kullanarak senkronize zaman hesapla (eğer verilmişse)
+  let displayTime = timeRemaining;
+  if (timeOffset !== 0 && timeRemaining > 0) {
+    // timeOffset pozitif ise client server'dan ileride, negatif ise geride
+    // Bu durumda timeRemaining'i timeOffset'e göre ayarla
+    // (Basit yaklaşım: timeOffset'i göz ardı et, server'dan gelen timeRemaining'i kullan)
+    displayTime = timeRemaining;
+  }
+  
+  const formattedTime = formatTime(displayTime);
   const oldTime = timerEl.textContent;
   
   // Zaman değiştiyse güncelle
@@ -41,10 +54,10 @@ function updateTimerDisplay(timeRemaining, currentState) {
   // Durum bazlı stil güncellemeleri
   timerEl.classList.remove("warning", "critical");
   
-  if (timeRemaining <= 10 && timeRemaining > 0) {
+  if (displayTime <= 10 && displayTime > 0) {
     // Kritik: Son 10 saniye
     timerEl.classList.add("critical");
-  } else if (timeRemaining <= 30 && timeRemaining > 10) {
+  } else if (displayTime <= 30 && displayTime > 10) {
     // Uyarı: Son 30 saniye
     timerEl.classList.add("warning");
   }
@@ -147,7 +160,7 @@ function initAudioContext() {
 /**
  * Web Audio API ile ses efekti çalar
  * 
- * ÖNEMLİ: Tüm audience ekranlarında aynı SSE mesajı geldiği için
+ * ÖNEMLİ: Tüm audience ekranlarında aynı WebSocket mesajı geldiği için
  * sesler otomatik olarak senkronize çalar.
  * 
  * @param {number} frequency - Frekans (Hz)
@@ -226,7 +239,7 @@ function playSoundEffectInternal(audioContext, frequency, duration, type, volume
  * - end_game: Düşük ton, uzun bip (oyun sonu uyarısı)
  * - post_match: Çift bip (maç bitti)
  * 
- * ÖNEMLİ: Sesler SSE ile senkronize gelir, tüm audience ekranlarında aynı anda çalar
+ * ÖNEMLİ: Sesler WebSocket ile senkronize gelir, tüm audience ekranlarında aynı anda çalar
  * 
  * @param {string} state - Maç durumu
  */

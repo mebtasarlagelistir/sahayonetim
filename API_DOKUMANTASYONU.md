@@ -285,12 +285,9 @@ Detaylı puanlama verilerini günceller (modüler puanlama sistemi).
 ```
 
 ### `GET /api/match-control/score/realtime/<match_id>` ⭐
-Server-Sent Events (SSE) stream'i. Gerçek zamanlı skor güncellemelerini gönderir.
+**KALDIRILDI** - WebSocket kullanın (`/match` namespace, `subscribe_match` event).
 
-**Yetki:** `@require_login`
-
-**Response:** SSE stream
-```
+**NOT:** Bu endpoint kaldırıldı. WebSocket kullanın.
 data: {"type": "update", "scores": {...}}
 ```
 
@@ -575,16 +572,82 @@ Tüm endpoint'ler standart HTTP status kodları kullanır:
 
 ## Gerçek Zamanlı Güncellemeler
 
-Maç kontrol sistemi Server-Sent Events (SSE) kullanarak gerçek zamanlı güncellemeler sağlar.
+Maç kontrol sistemi **WebSocket** kullanarak gerçek zamanlı güncellemeler sağlar. 
+SSE endpoint'leri kaldırıldı - tüm sistem WebSocket kullanıyor.
 
-**Kullanım:**
+### WebSocket Kullanımı (Önerilen)
+
+**Namespace: `/match`** - Maç durumu ve skor güncellemeleri için
+
 ```javascript
-const eventSource = new EventSource('/api/match-control/score/realtime/1');
-eventSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
+// Socket.IO bağlantısı oluştur
+const socket = io("/match", {
+  transports: ["websocket", "polling"],
+  reconnection: true
+});
+
+// Maça abone ol
+socket.emit("subscribe_match", {
+  match_id: 1,
+  match_source: "schedule"  // veya "practice"
+});
+
+// Maç durumu güncellemesi (timer senkronizasyonu için server_timestamp içerir)
+socket.on("match_state", (data) => {
+  const match = data.match;
+  if (match && match.server_timestamp) {
+    // Timer senkronizasyonu için server_timestamp kullan
+    const serverTime = match.server_timestamp * 1000;
+    const clientTime = Date.now();
+    const timeOffset = clientTime - serverTime;
+    // Timer'ı güncelle (timeOffset ile senkronize)
+  }
+});
+
+// Skor güncellemesi
+socket.on("scores", (data) => {
+  const scores = data.scores;
   // Skorları güncelle
-};
+});
+
+// Abonelikten çık
+socket.emit("unsubscribe_match", {});
+socket.disconnect();
 ```
+
+**Namespace: `/audience`** - Seyirci ekranları için
+
+```javascript
+// Socket.IO bağlantısı oluştur
+const socket = io("/audience", {
+  transports: ["websocket", "polling"],
+  query: {
+    screen_id: "unique-screen-id"
+  }
+});
+
+// Audience güncellemelerine abone ol
+socket.emit("subscribe_audience", {
+  screen_id: "unique-screen-id"
+});
+
+// Maç güncellemesi
+socket.on("match_update", (data) => {
+  const match = data.match;
+  // Maç bilgilerini güncelle (server_timestamp ile timer senkronizasyonu)
+});
+
+// Skor güncellemesi
+socket.on("scores_update", (data) => {
+  const scores = data.scores;
+  // Skorları güncelle
+});
+```
+
+### SSE Kullanımı (Kaldırıldı)
+
+SSE endpoint'leri kaldırıldı. Tüm sistem WebSocket kullanıyor.  
+**NOT:** Timer senkronizasyonu için WebSocket kullanılması zorunludur (server_timestamp desteği ile).
 
 ---
 

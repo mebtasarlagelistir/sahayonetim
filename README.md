@@ -258,7 +258,9 @@ Güncel özet `DEVELOPMENT.md` içinde bulunur.
 - `POST /api/match-control/complete` - Maç tamamla (match_source desteği)
 - `POST /api/match-control/preview` - Maçı önizleme durumuna alır (hakem tabletleri için)
 - `POST /api/match-control/score/detailed` - Detaylı skor güncelleme (modüler sistem)
-- `GET /api/match-control/score/realtime/<match_id>` - Gerçek zamanlı skor stream (SSE)
+- **WebSocket**: `/match` namespace - `subscribe_match` event ile maç güncellemelerine abone olun
+- **WebSocket**: `/audience` namespace - `subscribe_audience` event ile seyirci ekranı güncellemelerine abone olun
+- **NOT:** SSE endpoint'leri kaldırıldı. Tüm sistem WebSocket kullanıyor (timer senkronizasyonu için server_timestamp desteği ile).
 
 ### Hakem Paneli ⭐ YENİ
 - `GET /referee/red` - Kırmızı İttifak Hakemi sayfası

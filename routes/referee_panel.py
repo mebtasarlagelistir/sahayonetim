@@ -8,17 +8,18 @@ Modüler yapı: Puanlama sistemi src/core/scoring modülünden alınır,
 bu sayede puanlama kuralları kolayca güncellenebilir.
 """
 
-from flask import Blueprint, jsonify, request, render_template, session
-from src.core.scoring import ScoreCalculator
+from flask import Blueprint, jsonify, request, render_template, session, current_app
+# ScoreCalculator artık realtime_manager içinde kullanılıyor (tek bir yerde hesaplama)
 from src.core.scoring.realtime import get_realtime_manager
 from datetime import datetime
 import logging
+import time
 
 # Logger oluştur
 logger = logging.getLogger(__name__)
 
 
-def register_referee_panel_routes(bp, datastore, require_login):
+def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
     """
     Hakem paneli route'larını Blueprint'e kaydeder.
     
@@ -26,13 +27,21 @@ def register_referee_panel_routes(bp, datastore, require_login):
         bp: Blueprint instance
         datastore: DataStore instance
         require_login: require_login decorator
+        socketio: SocketIO instance (WebSocket için)
     """
+    # SocketIO instance'ını al (app'ten)
+    if socketio is None:
+        socketio = current_app.socketio if hasattr(current_app, 'socketio') else None
     
     def _normalize_match_source(value: str | None) -> str:
         return "practice" if value == "practice" else "schedule"
 
     def _build_match_key(event_id: int, match_id: int, match_source: str) -> str:
         return f"{event_id}_{match_source}_{match_id}"
+    
+    def _get_match_room(event_id: int, match_id: int, match_source: str) -> str:
+        """WebSocket room adını oluşturur."""
+        return f"match:{event_id}:{match_source}:{match_id}"
 
     def _get_active_match(event_id: int):
         """
@@ -171,33 +180,39 @@ def register_referee_panel_routes(bp, datastore, require_login):
                 logger.warning(f"Hakem skor güncelleme hatası: Maç bulunamadı (match_id: {match_id}, kullanıcı: {updated_by})")
                 return jsonify({"error": "Maç bulunamadı"}), 404
 
-            # Modüler puanlama hesaplayıcısını kullan
-            calculator = ScoreCalculator()
-            
-            # Rakip ittifakın verilerini al
+            # Gerçek zamanlı yöneticiye kaydet (skor hesaplaması otomatik yapılır)
             match_key = _build_match_key(event_id, match_id, match_source)
             realtime_manager = get_realtime_manager()
-            current_scores = realtime_manager.get_current_scores(match_key)
-            
-            opponent_alliance = "blue" if alliance == "red" else "red"
-            opponent_data = {}
-            if current_scores:
-                opponent_data = current_scores.get(opponent_alliance, {})
-            
-            # Skorları hesapla
-            result = calculator.calculate_alliance_score(
-                alliance=alliance,
-                scoring_data=scoring_data,
-                opponent_scoring_data=opponent_data
-            )
-            
-            # Gerçek zamanlı yöneticiye kaydet
             realtime_manager.update_score(
                 match_key=match_key,
                 alliance=alliance,
                 scoring_data=scoring_data,
                 updated_by=updated_by
             )
+            
+            # Hesaplanmış skorları al (tek bir yerde hesaplanır - modüler yapı)
+            current_scores = realtime_manager.get_current_scores(match_key)
+            calculated_scores = current_scores.get("calculated_scores", {}) if current_scores else {}
+            result = calculated_scores.get(alliance, {})
+            
+            # Eğer hesaplanmış skor yoksa (ilk güncelleme), varsayılan değerler
+            if not result:
+                result = {"total_score": 0, "breakdown": {}}
+            
+            # WebSocket ile diğer client'lara broadcast yap (match control, audience display için)
+            if socketio:
+                room = _get_match_room(event_id, match_id, match_source)
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    response_data = dict(current_scores)
+                    if "team_statuses" in current_scores:
+                        response_data["team_statuses"] = current_scores["team_statuses"]
+                    response_data["server_timestamp"] = time.time()
+                    socketio.emit("scores", {
+                        "type": "scores",
+                        "scores": response_data
+                    }, room=room, namespace="/match")
+                    logger.info(f"WebSocket broadcast: match_id={match_id}, alliance={alliance}, room={room}")
 
             # scoring_data'yı veritabanında sakla (ittifak bazlı)
             persisted = match.get("scoring_data") if isinstance(match.get("scoring_data"), dict) else {}
@@ -285,23 +300,19 @@ def register_referee_panel_routes(bp, datastore, require_login):
                 "last_updated": None
             })
         
-        # Hesaplanmış skorları da ekle
-        calculator = ScoreCalculator()
+        # Hesaplanmış skorları al (tek bir yerde hesaplanır - modüler yapı)
+        calculated_scores = current_scores.get("calculated_scores", {})
+        red_result = calculated_scores.get("red", {})
+        blue_result = calculated_scores.get("blue", {})
+        
+        # Eğer hesaplanmış skor yoksa, varsayılan değerler
+        if not red_result:
+            red_result = {"total_score": 0, "breakdown": {}}
+        if not blue_result:
+            blue_result = {"total_score": 0, "breakdown": {}}
         
         red_data = current_scores.get("red", {})
         blue_data = current_scores.get("blue", {})
-        
-        red_result = calculator.calculate_alliance_score(
-            alliance="red",
-            scoring_data=red_data,
-            opponent_scoring_data=blue_data
-        )
-        
-        blue_result = calculator.calculate_alliance_score(
-            alliance="blue",
-            scoring_data=blue_data,
-            opponent_scoring_data=red_data
-        )
         
         return jsonify({
             "red": {

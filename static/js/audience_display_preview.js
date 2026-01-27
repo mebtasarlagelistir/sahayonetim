@@ -34,7 +34,7 @@ function applyPreviewPayload(payload) {
     console.log("VS Preview tipi algılandı");
     const result = applyVSPreviewPayload(payload);
     if (result) {
-      // SSE'yi durdur (preview gösterilirken)
+      // WebSocket'i durdur (preview gösterilirken)
       if (typeof stopAudienceSSE === "function") {
         stopAudienceSSE();
       }
@@ -66,19 +66,38 @@ function applyPreviewPayload(payload) {
     matchView.style.display = "block";
   }
   
-  qs("audience_state_label").textContent = "Önizleme";
-  qs("audience_timer_value").textContent = "--:--";
-  qs("audience_red_score").textContent = "0";
-  qs("audience_blue_score").textContent = "0";
-  qs("audience_red_teams").textContent = formatTeamsWithRank(match.red_alliance, rankings);
-  qs("audience_blue_teams").textContent = formatTeamsWithRank(match.blue_alliance, rankings);
-  qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-  const next = qs("audience_next_match");
-  if (next) {
-    next.textContent = `Sıradaki: ${match.match_number} • ${match.match_date} ${match.match_time}`;
+  // Güvenli DOM güncellemeleri (element kontrolü ile)
+  const stateLabel = qs("audience_state_label");
+  const timerValue = qs("audience_timer_value");
+  const redScore = qs("audience_red_score");
+  const blueScore = qs("audience_blue_score");
+  const redTeams = qs("audience_red_teams");
+  const blueTeams = qs("audience_blue_teams");
+  const matchMeta = qs("audience_match_meta");
+  const nextMatch = qs("audience_next_match");
+  
+  if (stateLabel) stateLabel.textContent = "Önizleme";
+  if (timerValue) timerValue.textContent = "--:--";
+  if (redScore) redScore.textContent = "0";
+  if (blueScore) blueScore.textContent = "0";
+  if (redTeams) {
+    redTeams.textContent = typeof formatTeamsWithRank === "function" 
+      ? formatTeamsWithRank(match.red_alliance, rankings)
+      : (match.red_alliance || []).join(", ");
+  }
+  if (blueTeams) {
+    blueTeams.textContent = typeof formatTeamsWithRank === "function"
+      ? formatTeamsWithRank(match.blue_alliance, rankings)
+      : (match.blue_alliance || []).join(", ");
+  }
+  if (matchMeta) {
+    matchMeta.textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
+  }
+  if (nextMatch) {
+    nextMatch.textContent = `Sıradaki: ${match.match_number} • ${match.match_date} ${match.match_time}`;
   }
   
-  // SSE'yi durdur (preview gösterilirken)
+  // WebSocket'i durdur (preview gösterilirken)
   if (typeof stopAudienceSSE === "function") {
     stopAudienceSSE();
   }
@@ -141,29 +160,28 @@ function applyVSPreviewPayload(payload) {
     "practice": "Deneme Maçı"
   };
   
-  // Maç adı (match name)
+  // Güvenli DOM güncellemeleri (element kontrolü ile)
   const matchNameEl = qs("vs_match_name");
+  const matchTypeEl = qs("vs_match_type");
+  const matchNumberEl = qs("vs_match_number");
+  const fieldSeparatorEl = qs("vs_field_separator");
+  const fieldEl = qs("vs_match_field");
+  
   if (matchNameEl) {
     const matchTypeLabel = matchTypeLabels[match.match_type] || match.match_type || "Maç";
     const matchNumber = match.match_number || "0";
     matchNameEl.textContent = `${matchTypeLabel} ${matchNumber}`;
   }
   
-  // Maç türü
-  const matchTypeEl = qs("vs_match_type");
   if (matchTypeEl) {
     matchTypeEl.textContent = matchTypeLabels[match.match_type] || match.match_type || "Maç";
   }
   
-  // Maç numarası
-  const matchNumberEl = qs("vs_match_number");
   if (matchNumberEl) {
     matchNumberEl.textContent = `#${match.match_number || "0"}`;
   }
   
   // Saha bilgisi
-  const fieldSeparatorEl = qs("vs_field_separator");
-  const fieldEl = qs("vs_match_field");
   if (match.field_number) {
     if (fieldSeparatorEl) fieldSeparatorEl.style.display = "inline";
     if (fieldEl) {
@@ -177,47 +195,60 @@ function applyVSPreviewPayload(payload) {
   
   // Kırmızı ittifak takımlarını göster
   const redTeamsEl = qs("vs_red_teams");
-  if (redTeamsEl && match.red_alliance && Array.isArray(match.red_alliance)) {
-    redTeamsEl.innerHTML = match.red_alliance.map(teamNum => {
-      const team = teams[String(teamNum)] || {};
-      return `
-        <div class="vs-team-card">
-          <div class="vs-team-number">${teamNum}</div>
-          <div class="vs-team-name">${team.name || "Takım"}</div>
-          <div class="vs-team-school">${team.school || ""}</div>
-        </div>
-      `;
-    }).join("");
+  if (redTeamsEl) {
+    if (match.red_alliance && Array.isArray(match.red_alliance) && match.red_alliance.length > 0) {
+      try {
+        redTeamsEl.innerHTML = match.red_alliance.map(teamNum => {
+          const team = teams[String(teamNum)] || {};
+          const teamName = (team.name || "Takım").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const teamSchool = (team.school || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          return `
+            <div class="vs-team-card">
+              <div class="vs-team-number">${teamNum}</div>
+              <div class="vs-team-name">${teamName}</div>
+              <div class="vs-team-school">${teamSchool}</div>
+            </div>
+          `;
+        }).join("");
+      } catch (err) {
+        console.error("VS Preview: Kırmızı takımlar render hatası:", err);
+        redTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-name'>Hata</div></div>";
+      }
+    } else {
+      redTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-number'>-</div><div class='vs-team-name'>Takım yok</div></div>";
+      console.warn("VS Preview: Kırmızı ittifak takımları bulunamadı veya boş");
+    }
   } else {
-    console.warn("Kırmızı ittifak takımları bulunamadı");
+    console.error("VS Preview: vs_red_teams elementi bulunamadı");
   }
   
   // Mavi ittifak takımlarını göster
   const blueTeamsEl = qs("vs_blue_teams");
-  if (blueTeamsEl && match.blue_alliance && Array.isArray(match.blue_alliance)) {
-    if (match.blue_alliance.length > 0) {
-      blueTeamsEl.innerHTML = match.blue_alliance.map(teamNum => {
-        const team = teams[String(teamNum)] || {};
-        return `
-          <div class="vs-team-card">
-            <div class="vs-team-number">${teamNum}</div>
-            <div class="vs-team-name">${team.name || "Takım"}</div>
-            <div class="vs-team-school">${team.school || ""}</div>
-          </div>
-        `;
-      }).join("");
+  if (blueTeamsEl) {
+    if (match.blue_alliance && Array.isArray(match.blue_alliance) && match.blue_alliance.length > 0) {
+      try {
+        blueTeamsEl.innerHTML = match.blue_alliance.map(teamNum => {
+          const team = teams[String(teamNum)] || {};
+          const teamName = (team.name || "Takım").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const teamSchool = (team.school || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          return `
+            <div class="vs-team-card">
+              <div class="vs-team-number">${teamNum}</div>
+              <div class="vs-team-name">${teamName}</div>
+              <div class="vs-team-school">${teamSchool}</div>
+            </div>
+          `;
+        }).join("");
+      } catch (err) {
+        console.error("VS Preview: Mavi takımlar render hatası:", err);
+        blueTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-name'>Hata</div></div>";
+      }
     } else {
       blueTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-number'>-</div><div class='vs-team-name'>Takım yok</div></div>";
-      console.warn("Mavi ittifak takımları boş");
+      console.warn("VS Preview: Mavi ittifak takımları bulunamadı veya boş");
     }
   } else {
-    console.warn("Mavi ittifak takımları bulunamadı - element veya alliance yok", { 
-      blueTeamsEl: !!blueTeamsEl, 
-      blue_alliance: match.blue_alliance 
-    });
-    if (blueTeamsEl) {
-      blueTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-number'>-</div><div class='vs-team-name'>Yükleniyor...</div></div>";
-    }
+    console.error("VS Preview: vs_blue_teams elementi bulunamadı");
   }
   
   console.log("VS Preview başarıyla uygulandı", {
@@ -280,34 +311,67 @@ function hideResultsPanel() {
 function applyResultsPayload(payload) {
   const match = payload?.match || null;
   const results = payload?.results || null;
-  if (!match || !results) return false;
+  if (!match || !results) {
+    console.warn("applyResultsPayload: match veya results yok");
+    return false;
+  }
   
-  qs("audience_state_label").textContent = "Maç Sonucu";
-  qs("audience_timer_value").textContent = "BİTTİ";
-  qs("audience_red_score").textContent = results.red_score ?? 0;
-  qs("audience_blue_score").textContent = results.blue_score ?? 0;
-  qs("audience_red_teams").textContent = (match.red_alliance || []).join(", ") || "-";
-  qs("audience_blue_teams").textContent = (match.blue_alliance || []).join(", ") || "-";
-  qs("audience_match_meta").textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
-  qs("audience_next_match").textContent = "";
+  // Güvenli DOM güncellemeleri (element kontrolü ile)
+  const stateLabel = qs("audience_state_label");
+  const timerValue = qs("audience_timer_value");
+  const redScore = qs("audience_red_score");
+  const blueScore = qs("audience_blue_score");
+  const redTeams = qs("audience_red_teams");
+  const blueTeams = qs("audience_blue_teams");
+  const matchMeta = qs("audience_match_meta");
+  const nextMatch = qs("audience_next_match");
+  
+  if (stateLabel) stateLabel.textContent = "Maç Sonucu";
+  if (timerValue) timerValue.textContent = "BİTTİ";
+  if (redScore) redScore.textContent = results.red_score ?? 0;
+  if (blueScore) blueScore.textContent = results.blue_score ?? 0;
+  if (redTeams) redTeams.textContent = (match.red_alliance || []).join(", ") || "-";
+  if (blueTeams) blueTeams.textContent = (match.blue_alliance || []).join(", ") || "-";
+  if (matchMeta) matchMeta.textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
+  if (nextMatch) nextMatch.textContent = "";
 
   const panel = qs("audience_results");
-  if (panel) panel.style.display = "block";
-  qs("audience_results_winner").textContent = results.winner || "-";
-  qs("audience_results_blue_total").textContent = results.blue_score ?? 0;
-  qs("audience_results_blue_auto").textContent = results.blue_auto_total ?? 0;
-  qs("audience_results_blue_teleop").textContent = results.blue_teleop_total ?? 0;
-  qs("audience_results_blue_penalty").textContent = results.blue_penalty_total ?? 0;
-  qs("audience_results_blue_sp").textContent = results.blue_sp_total ?? 0;
-  qs("audience_results_blue_yellow").textContent = results.blue_yellow_cards ?? 0;
-  qs("audience_results_blue_red").textContent = results.blue_red_cards ?? 0;
-  qs("audience_results_red_total").textContent = results.red_score ?? 0;
-  qs("audience_results_red_auto").textContent = results.red_auto_total ?? 0;
-  qs("audience_results_red_teleop").textContent = results.red_teleop_total ?? 0;
-  qs("audience_results_red_penalty").textContent = results.red_penalty_total ?? 0;
-  qs("audience_results_red_sp").textContent = results.red_sp_total ?? 0;
-  qs("audience_results_red_yellow").textContent = results.red_yellow_cards ?? 0;
-  qs("audience_results_red_red").textContent = results.red_red_cards ?? 0;
+  if (panel) {
+    panel.style.display = "block";
+    
+    // Results panel elementleri (güvenli güncelleme)
+    const winner = qs("audience_results_winner");
+    const blueTotal = qs("audience_results_blue_total");
+    const blueAuto = qs("audience_results_blue_auto");
+    const blueTeleop = qs("audience_results_blue_teleop");
+    const bluePenalty = qs("audience_results_blue_penalty");
+    const blueSp = qs("audience_results_blue_sp");
+    const blueYellow = qs("audience_results_blue_yellow");
+    const blueRed = qs("audience_results_blue_red");
+    const redTotal = qs("audience_results_red_total");
+    const redAuto = qs("audience_results_red_auto");
+    const redTeleop = qs("audience_results_red_teleop");
+    const redPenalty = qs("audience_results_red_penalty");
+    const redSp = qs("audience_results_red_sp");
+    const redYellow = qs("audience_results_red_yellow");
+    const redRed = qs("audience_results_red_red");
+    
+    if (winner) winner.textContent = results.winner || "-";
+    if (blueTotal) blueTotal.textContent = results.blue_score ?? 0;
+    if (blueAuto) blueAuto.textContent = results.blue_auto_total ?? 0;
+    if (blueTeleop) blueTeleop.textContent = results.blue_teleop_total ?? 0;
+    if (bluePenalty) bluePenalty.textContent = results.blue_penalty_total ?? 0;
+    if (blueSp) blueSp.textContent = results.blue_sp_total ?? 0;
+    if (blueYellow) blueYellow.textContent = results.blue_yellow_cards ?? 0;
+    if (blueRed) blueRed.textContent = results.blue_red_cards ?? 0;
+    if (redTotal) redTotal.textContent = results.red_score ?? 0;
+    if (redAuto) redAuto.textContent = results.red_auto_total ?? 0;
+    if (redTeleop) redTeleop.textContent = results.red_teleop_total ?? 0;
+    if (redPenalty) redPenalty.textContent = results.red_penalty_total ?? 0;
+    if (redSp) redSp.textContent = results.red_sp_total ?? 0;
+    if (redYellow) redYellow.textContent = results.red_yellow_cards ?? 0;
+    if (redRed) redRed.textContent = results.red_red_cards ?? 0;
+  }
 
   if (typeof announceResults === "function") {
     announceResults(results);

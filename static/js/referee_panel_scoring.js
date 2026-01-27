@@ -10,8 +10,11 @@
 
 /**
  * Mevcut skorları yükler
+ * 
+ * @param {boolean} applyScores - Skorları forma uygula mı? (varsayılan: true)
+ *                                false ise sadece referee meta'yı günceller
  */
-async function loadCurrentScores() {
+async function loadCurrentScores(applyScores = true) {
   if (!currentMatch || !currentMatch.id) {
     console.warn("loadCurrentScores: currentMatch veya currentMatch.id yok");
     return;
@@ -21,14 +24,18 @@ async function loadCurrentScores() {
     const source = currentMatch.match_source || "schedule";
     const data = await apiGet(`/api/referee/score/get/${currentMatch.id}?source=${encodeURIComponent(source)}`);
     
-    // Atanan ittifakın skorlarını uygula
-    if (assignedAlliance && data && data[assignedAlliance]) {
+    // Atanan ittifakın skorlarını uygula (sadece applyScores=true ise ve kullanıcı input yapmıyorsa)
+    if (applyScores && !isUserEditing && assignedAlliance && data && data[assignedAlliance]) {
       const scoringData = data[assignedAlliance].scoring_data || data[assignedAlliance];
       if (scoringData) {
+        console.log("loadCurrentScores: Skorlar forma uygulanıyor");
         applyScoringDataToForm(scoringData); // Bu fonksiyon içinde loadRefereeRobotStatuses çağrılır
       }
+    } else if (applyScores && isUserEditing) {
+      console.log("loadCurrentScores: Kullanıcı input yapıyor, skorlar uygulanmıyor");
     }
 
+    // Referee meta'yı her zaman güncelle (submit durumu için)
     refereeMeta = (data && data.referee_meta) ? data.referee_meta : {};
     if (typeof updateSubmitStatus === "function") {
       updateSubmitStatus();
@@ -145,15 +152,35 @@ async function autoSaveScore() {
   
   isAutoSaving = true;
   try {
-    await apiPost("/api/referee/score/update", {
+    const result = await apiPost("/api/referee/score/update", {
       match_id: currentMatch.id,
       alliance: assignedAlliance,
       scoring_data: scoringData,
       match_source: currentMatch.match_source || "schedule"
     });
+    
     // Otomatik kaydetmede toast gösterme (kullanıcıyı rahatsız etmemek için)
     // Sadece console'da log
-    console.log("Skorlar otomatik olarak kaydedildi");
+    console.log("Skorlar otomatik olarak kaydedildi", {
+      matchId: currentMatch.id,
+      alliance: assignedAlliance,
+      calculatedScore: result?.calculated_score
+    });
+    
+    // Kaydetme başarılı olduktan sonra kısa bir süre daha "editing" modunda kal
+    // (WebSocket'ten gelen güncellemeleri ignore etmek için)
+    if (typeof isUserEditing !== "undefined") {
+      isUserEditing = true;
+      if (typeof userEditingTimeout !== "undefined" && userEditingTimeout) {
+        clearTimeout(userEditingTimeout);
+      }
+      if (typeof USER_EDITING_TIMEOUT !== "undefined") {
+        userEditingTimeout = setTimeout(() => {
+          isUserEditing = false;
+          console.log("autoSaveScore: Kaydetme sonrası bekleme süresi doldu, skor güncellemeleri tekrar aktif");
+        }, USER_EDITING_TIMEOUT);
+      }
+    }
   } catch (err) {
     console.error("Auto save score error:", err);
     // Hata durumunda sessizce devam et (kullanıcı manuel kaydetmeyi deneyebilir)
@@ -213,7 +240,24 @@ async function saveScore() {
       }
     }
     
-    await loadCurrentScores();
+    // Kaydetme başarılı olduktan sonra kısa bir süre daha "editing" modunda kal
+    // (WebSocket'ten gelen güncellemeleri ignore etmek için)
+    if (typeof isUserEditing !== "undefined") {
+      isUserEditing = true;
+      if (typeof userEditingTimeout !== "undefined" && userEditingTimeout) {
+        clearTimeout(userEditingTimeout);
+      }
+      if (typeof USER_EDITING_TIMEOUT !== "undefined") {
+        userEditingTimeout = setTimeout(() => {
+          isUserEditing = false;
+          console.log("saveScore: Kaydetme sonrası bekleme süresi doldu, skor güncellemeleri tekrar aktif");
+        }, USER_EDITING_TIMEOUT);
+      }
+    }
+    
+    // loadCurrentScores çağrılmasın - kullanıcının girdileri korunmalı
+    // Sadece referee meta'yı güncelle (submit durumu için)
+    await loadCurrentScores(false); // applyScores=false: Sadece referee meta güncellenir, skorlar uygulanmaz
   } catch (err) {
     console.error("Save score error:", err);
     const errorMsg = err?.response?.error || err?.message || "Skor kaydedilirken hata oluştu";
@@ -225,9 +269,20 @@ async function saveScore() {
 
 /**
  * Skorları senkronize eder (backend'den çeker)
+ * 
+ * Kullanıcı tarafından manuel olarak çağrıldığında skorları uygular.
+ * Ancak kullanıcı input yapıyorsa uyarı verir.
  */
 async function syncScore() {
-  await loadCurrentScores();
+  if (isUserEditing) {
+    if (typeof showToast === "function") {
+      showToast("Input yaparken senkronizasyon yapılamaz. Lütfen önce kaydedin veya bekleyin.", "warning");
+    }
+    return;
+  }
+  
+  // Kullanıcı açıkça senkronize etmek istiyor, skorları uygula
+  await loadCurrentScores(true); // applyScores=true: Skorları uygula
   if (typeof showToast === "function") {
     showToast("Skorlar senkronize edildi", "success");
   }

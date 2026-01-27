@@ -21,7 +21,7 @@ let screenId = "";
 let previewPayload = null;
 let lastMatchState = "";
 let lastMatchId = null;
-let matchEventSource = null;
+let audienceSocket = null; // WebSocket bağlantısı (SSE yerine WebSocket kullanılıyor)
 let retryCount = 0;
 
 // Constants

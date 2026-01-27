@@ -21,9 +21,10 @@ MEMSKOR, MEM Tasarla Geliştir Yarışması için geliştirilmiş bir yarışma 
    - Yeni değişiklik yapılırsa submit durumu sıfırlanır
 
 3. **Gerçek Zamanlı Senkronizasyon**
-   - Tüm ekranlar SSE ile anlık güncellenir
+   - Tüm ekranlar **WebSocket** ile anlık güncellenir (SSE yerine WebSocket kullanılıyor)
    - Hakem girişleri match control ekranında anında görünür
    - Canlı skor ekranı otomatik güncellenir
+   - Timer senkronizasyonu için server_timestamp kullanılır (tüm cihazlarda aynı zaman)
 
 4. **Modüler Puanlama Sistemi**
    - Puanlama kuralları `src/core/scoring/config.py` dosyasında
@@ -129,9 +130,11 @@ def referee_submit_match():
    - Çözüm: `GET /api/match-control/active` endpoint'ini kontrol edin
    - Maç `in_progress` durumunda mı?
 
-2. **SSE bağlantı hatası**
+2. **WebSocket bağlantı hatası**
    - Çözüm: Tarayıcı konsolunu kontrol edin
-   - Network sekmesinde SSE bağlantısı var mı?
+   - Network sekmesinde WebSocket bağlantısı var mı? (WS veya WSS protokolü)
+   - Socket.IO client library yüklendi mi? (CDN'den)
+   - Console'da "WebSocket bağlantısı kuruldu" mesajı görünüyor mu?
 
 3. **Submit/Approve çalışmıyor**
    - Çözüm: Backend loglarını kontrol edin (`logs/app.log`)
@@ -173,10 +176,14 @@ def referee_submit_match():
 
 ### Kod Modülleri
 - `routes/referee_panel.py` - Hakem paneli API'leri
-- `routes/match_control.py` - Maç kontrol API'leri
+- `routes/match_control.py` - Maç kontrol API'leri (WebSocket handler'ları içerir)
+- `routes/screens.py` - Seyirci ekranları API'leri (WebSocket handler'ları içerir)
 - `src/core/scoring/realtime.py` - Gerçek zamanlı senkronizasyon
+- `static/js/referee_panel_sse.js` - Hakem paneli WebSocket modülü (SSE yerine WebSocket)
+- `static/js/audience_display_sse.js` - Seyirci ekranı WebSocket modülü (SSE yerine WebSocket)
+- `static/js/match_control_realtime.js` - Maç kontrol WebSocket modülü (SSE yerine WebSocket)
+- `static/js/head_referee.js` - Baş hakem frontend (WebSocket kullanıyor)
 - `static/js/referee_panel.js` - Hakem paneli frontend
-- `static/js/head_referee.js` - Baş hakem frontend
 - `static/js/match_control.js` - Maç kontrol frontend
 
 ## 🔧 Geliştirme Ortamı Kurulumu

@@ -8,13 +8,11 @@
 
 /**
  * Maçı başlatır
+ * 
+ * ÖNEMLİ: Match Core kullanılıyor - maç başlatma Match Core üzerinden yapılır.
  */
 async function startMatch() {
   if (!currentMatch) return;
-  
-  // Maç başlatıldığında manuel seçimi temizle (artık aktif maç olacak)
-  manuallySelectedMatchId = null;
-  manuallySelectedMatchSource = null;
   
   // Robot durumlarını topla (maç başlatıldığında kaydedilmeli)
   let teamStatuses = {};
@@ -23,31 +21,41 @@ async function startMatch() {
   }
   
   try {
-    const data = await apiPost("/api/match-control/start", {
-      match_id: currentMatch.id,
-      field_number: currentMatch.field_number,
-      match_source: currentMatch.source || "schedule",
-      team_statuses: teamStatuses // Robot durumlarını gönder
-    });
-    currentMatch.status = "in_progress";
-    currentState = data.match.current_state || "autonomous";
-    timeRemaining = data.match.time_remaining || MATCH_STATES[currentState].duration;
-    
-    // UI'ı önce güncelle (timer görünür olsun)
-    if (typeof renderMatchDisplay === "function") {
-      renderMatchDisplay();
+    // Match Core üzerinden maçı başlat
+    if (typeof MatchCore !== "undefined") {
+      await MatchCore.startMatch(
+        currentMatch.id,
+        currentMatch.source || "schedule",
+        currentMatch.field_number,
+        teamStatuses
+      );
+      
+      // Match Core otomatik olarak state'i güncelleyecek ve notify edecek
+      // UI güncellemesi Match Core subscribe callback'inde yapılacak
+      showToast("Maç başlatıldı", "success");
+    } else {
+      // Fallback: Eski yöntem (Match Core yoksa)
+      const data = await apiPost("/api/match-control/start", {
+        match_id: currentMatch.id,
+        field_number: currentMatch.field_number,
+        match_source: currentMatch.source || "schedule",
+        team_statuses: teamStatuses
+      });
+      currentMatch.status = "in_progress";
+      currentState = data.match.current_state || "autonomous";
+      timeRemaining = data.match.time_remaining || MATCH_STATES[currentState].duration;
+      
+      if (typeof renderMatchDisplay === "function") {
+        renderMatchDisplay();
+      }
+      if (typeof startMatchTimer === "function") {
+        startMatchTimer();
+      }
+      if (typeof updateStateDisplay === "function") {
+        updateStateDisplay();
+      }
+      showToast("Maç başlatıldı", "success");
     }
-    
-    // Timer'ı başlat (renderMatchDisplay'den sonra)
-    if (typeof startMatchTimer === "function") {
-      startMatchTimer();
-    }
-    
-    // Timer görünümünü tekrar güncelle (başlatıldıktan sonra)
-    if (typeof updateStateDisplay === "function") {
-      updateStateDisplay();
-    }
-    showToast("Maç başlatıldı", "success");
     
     // Maç listesini güncelle
     if (typeof loadMatchList === "function") {
@@ -64,6 +72,8 @@ async function startMatch() {
  * Sonraki maç durumuna geçer
  * 
  * Timer süre dolduğunda otomatik olarak çağrılır veya manuel olarak "Sonraki Aşama" butonu ile çağrılabilir
+ * 
+ * ÖNEMLİ: Match Core kullanılıyor - durum geçişi Match Core üzerinden yapılır.
  */
 async function nextMatchState() {
   if (!currentMatch) {
@@ -71,67 +81,58 @@ async function nextMatchState() {
     return;
   }
   
-  const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"];
-  const currentIndex = stateOrder.indexOf(currentState);
-  
-  if (currentIndex === -1) {
-    console.warn(`nextMatchState: Geçersiz durum: ${currentState}`);
-    return;
-  }
-  
-  if (currentIndex >= stateOrder.length - 1) {
-    // Son aşamaya ulaşıldı
-    if (typeof stopMatchTimer === "function") {
-      stopMatchTimer();
-    }
-    showToast("Son aşamaya ulaşıldı", "info");
-    return;
-  }
-  
-  const nextState = stateOrder[currentIndex + 1];
-  
   try {
-    const data = await apiPost("/api/match-control/state", {
-      match_id: currentMatch.id,
-      state: nextState,
-      match_source: currentMatch.source || "schedule"
-    });
-    
-    // Backend'den gelen güncel durumu kullan
-    currentState = data.state || nextState;
-    const newTimeRemaining = data.time_remaining || MATCH_STATES[currentState]?.duration || 0;
-    
-    // Timer'ı durdur ve yeni süre ile başlat
-    if (typeof stopMatchTimer === "function") {
-      stopMatchTimer();
-    }
-    
-    timeRemaining = newTimeRemaining;
-    
-    if (typeof updateStateDisplay === "function") {
-      updateStateDisplay();
-    }
-    showToast(`${MATCH_STATES[currentState].label} başladı`, "success");
-    
-    // Önemli anları göster
-    if (typeof showImportantMoment === "function") {
-      showImportantMoment(currentState);
-    }
-    
-    // Timer'ı yeniden başlat (yeni durum için)
-    if (timeRemaining > 0) {
-      if (typeof startMatchTimer === "function") {
+    // Match Core üzerinden durum geçişi yap
+    if (typeof MatchCore !== "undefined") {
+      await MatchCore.nextState();
+      
+      // Match Core otomatik olarak state'i güncelleyecek ve notify edecek
+      // UI güncellemesi Match Core subscribe callback'inde yapılacak
+      const newState = MatchCore.currentState;
+      showToast(`${MATCH_STATES[newState]?.label || "Durum"} başladı`, "success");
+      
+      // Önemli anları göster
+      if (typeof showImportantMoment === "function") {
+        showImportantMoment(newState);
+      }
+    } else {
+      // Fallback: Eski yöntem (Match Core yoksa)
+      const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"];
+      const currentIndex = stateOrder.indexOf(currentState);
+      
+      if (currentIndex === -1 || currentIndex >= stateOrder.length - 1) {
+        if (typeof stopMatchTimer === "function") {
+          stopMatchTimer();
+        }
+        showToast("Son aşamaya ulaşıldı", "info");
+        return;
+      }
+      
+      const nextState = stateOrder[currentIndex + 1];
+      const data = await apiPost("/api/match-control/state", {
+        match_id: currentMatch.id,
+        state: nextState,
+        match_source: currentMatch.source || "schedule"
+      });
+      
+      currentState = data.state || nextState;
+      timeRemaining = data.time_remaining || MATCH_STATES[currentState]?.duration || 0;
+      
+      if (typeof stopMatchTimer === "function") {
+        stopMatchTimer();
+      }
+      if (typeof updateStateDisplay === "function") {
+        updateStateDisplay();
+      }
+      if (timeRemaining > 0 && typeof startMatchTimer === "function") {
         startMatchTimer();
       }
+      showToast(`${MATCH_STATES[currentState].label} başladı`, "success");
     }
     
   } catch (err) {
     console.error("nextMatchState: Hata:", err);
     showToast("Durum güncellenirken hata oluştu", "error");
-    // Hata olsa bile timer'ı durdur (sonsuz döngüye girmesin)
-    if (typeof stopMatchTimer === "function") {
-      stopMatchTimer();
-    }
   }
 }
 
@@ -154,9 +155,21 @@ async function stopMatch() {
     // Backend'den dönen güncel maç bilgisini kullan
     if (data.match) {
       currentMatch = data.match;
+      // Match Core kullanılıyorsa, Match Core'u da güncelle
+      if (typeof MatchCore !== "undefined") {
+        MatchCore.setMatch(data.match);
+      }
     } else {
       // Fallback: Manuel güncelleme
       currentMatch.status = "scheduled";
+      // Match Core kullanılıyorsa, Match Core'u da güncelle
+      if (typeof MatchCore !== "undefined" && MatchCore.match) {
+        MatchCore.match.status = "scheduled";
+        MatchCore.currentState = "idle";
+        MatchCore.timeRemaining = 0;
+        MatchCore.stopTimer();
+        MatchCore.notify();
+      }
     }
     
     currentState = "idle";
@@ -167,8 +180,8 @@ async function stopMatch() {
       stopMatchTimer();
     }
     
-    // Gerçek zamanlı güncellemeleri durdur
-    if (typeof stopRealtimeScoreUpdates === "function") {
+    // Gerçek zamanlı güncellemeleri durdur (Match Core kullanılıyorsa gerek yok)
+    if (typeof MatchCore === "undefined" && typeof stopRealtimeScoreUpdates === "function") {
       stopRealtimeScoreUpdates();
     }
     
@@ -240,11 +253,25 @@ async function completeMatch() {
     // Backend'den dönen güncel maç bilgisini kullan
     if (data.match) {
       currentMatch = data.match;
+      // Match Core kullanılıyorsa, Match Core'u da güncelle
+      if (typeof MatchCore !== "undefined") {
+        MatchCore.setMatch(data.match);
+      }
     } else {
       // Fallback: Manuel güncelleme
       currentMatch.status = "completed";
       currentMatch.red_score = redScore;
       currentMatch.blue_score = blueScore;
+      // Match Core kullanılıyorsa, Match Core'u da güncelle
+      if (typeof MatchCore !== "undefined" && MatchCore.match) {
+        MatchCore.match.status = "completed";
+        MatchCore.match.red_score = redScore;
+        MatchCore.match.blue_score = blueScore;
+        MatchCore.currentState = "completed";
+        MatchCore.timeRemaining = 0;
+        MatchCore.stopTimer();
+        MatchCore.notify();
+      }
     }
     
     currentState = "completed";
@@ -255,8 +282,8 @@ async function completeMatch() {
       stopMatchTimer();
     }
     
-    // Gerçek zamanlı güncellemeleri durdur
-    if (typeof stopRealtimeScoreUpdates === "function") {
+    // Gerçek zamanlı güncellemeleri durdur (Match Core kullanılıyorsa gerek yok)
+    if (typeof MatchCore === "undefined" && typeof stopRealtimeScoreUpdates === "function") {
       stopRealtimeScoreUpdates();
     }
     
@@ -299,6 +326,12 @@ async function completeMatch() {
     // Manuel seçimi de temizle
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
+    
+    // Match Core kullanılıyorsa, Match Core'u da temizle
+    if (typeof MatchCore !== "undefined") {
+      MatchCore.clearManualSelection();
+      MatchCore.clearMatch();
+    }
     
     // UI'ı güncelle (ekranı temizler)
     if (typeof renderMatchDisplay === "function") {

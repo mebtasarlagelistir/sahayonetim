@@ -17,8 +17,18 @@
 
 /**
  * Screen settings'i yükler ve preview durumunu kontrol eder
+ * 
+ * ÖNEMLİ: Audience Core kullanılıyorsa bu fonksiyon çağrılmamalı.
+ * Sadece fallback için korunuyor.
  */
 async function loadScreenSettings() {
+  // Audience Core kullanılıyorsa, bu fonksiyon çağrılmamalı
+  if (typeof AudienceCore !== "undefined") {
+    console.log("loadScreenSettings: Audience Core kullanılıyor, bu fonksiyon çağrılmamalı");
+    return;
+  }
+  
+  // Fallback: Eski yöntem
   try {
     const data = await apiGet(`/api/screens/view?screen_id=${encodeURIComponent(screenId)}`);
     const newView = data.active_view || "match";
@@ -43,7 +53,7 @@ async function loadScreenSettings() {
         // Preview varsa hemen uygula
         if (newView === "match") {
           applyPreviewPayload(previewPayload);
-          // Preview aktifken SSE'yi durdur
+          // Preview aktifken WebSocket'i durdur
           stopAudienceSSE();
           // Preview aktifken view değişikliğini yapma (preview korunmalı)
           currentView = "match"; // View'ı match olarak tut ama preview göster
@@ -86,7 +96,7 @@ async function loadScreenSettings() {
         if (newView === "match") {
           hideVSPreview();
           loadMatchView();
-          // SSE'yi başlat (artık preview yok)
+          // WebSocket'i başlat (artık preview yok)
           startAudienceSSE();
         }
       }
@@ -116,9 +126,19 @@ async function loadScreenSettings() {
 /**
  * View değiştirir
  * 
+ * ÖNEMLİ: Audience Core kullanılıyorsa bu fonksiyon Audience Core üzerinden çalışır.
+ * 
  * @param {string} viewName - Görüntülenecek view adı (opsiyonel, yoksa currentView kullanılır)
  */
 function switchView(viewName) {
+  // Audience Core kullanılıyorsa, view değişikliği Audience Core'da yapılıyor
+  if (typeof AudienceCore !== "undefined") {
+    const targetView = viewName || currentView;
+    AudienceCore.switchView(targetView);
+    return;
+  }
+  
+  // Fallback: Eski yöntem
   const targetView = viewName || currentView;
   
   // ÖNEMLİ: Preview aktifken view değişikliği yapma (preview korunmalı)
@@ -151,28 +171,29 @@ function switchView(viewName) {
 
 /**
  * Periyodik güncellemeleri başlatır
+ * 
+ * ÖNEMLİ: Audience Core kullanılıyorsa bu fonksiyon çağrılmamalı.
+ * Sadece fallback için korunuyor.
  */
 function startAudienceLoop() {
-  // Screen settings'i kontrol et (preview için)
-  // ÖNEMLİ: Preview aktifken daha az sıklıkta kontrol et (preview'ı korumak için)
-  // Ancak preview'ın backend'den temizlenip temizlenmediğini kontrol etmek için yine de çağrılmalı
+  // Audience Core kullanılıyorsa, periyodik kontroller Audience Core'da yapılıyor
+  if (typeof AudienceCore !== "undefined") {
+    console.log("startAudienceLoop: Audience Core kullanılıyor, bu fonksiyon çağrılmamalı");
+    return;
+  }
+  
+  // Fallback: Eski yöntem
   const settingsInterval = setInterval(() => {
-    // Preview aktifken bile kontrol et (backend'den preview temizlenmiş olabilir - "Maçı Göster" ile)
-    // loadScreenSettings fonksiyonu preview aktifken gereksiz işlem yapmayacak şekilde düzenlendi
     loadScreenSettings().catch(err => {
       console.warn("loadScreenSettings error:", err);
     });
-  }, 2000); // 2 saniye (preview aktifken de aynı sıklıkta, ama fonksiyon içinde koruma var)
+  }, 2000);
   
-  // View'ları yükle (SSE varsa daha az sıklıkta)
   const viewInterval = setInterval(() => {
-    // ÖNEMLİ: Preview aktifken normal yükleme yapma (preview korunmalı)
     if (previewPayload && currentView === "match") {
-      // Preview aktif, normal maç görünümünü yükleme
       return;
     }
-    if (currentView === "match" && !matchEventSource && !previewPayload) {
-      // SSE yoksa polling yap (ama preview aktifken değil)
+    if (currentView === "match" && !audienceSocket && !previewPayload) {
       loadMatchView();
     } else if (currentView === "inspection") {
       loadInspectionView();
@@ -181,10 +202,8 @@ function startAudienceLoop() {
     }
   }, 2000);
   
-  // Heartbeat'i düzenli gönder
   const heartbeatInterval = setInterval(sendHeartbeat, 5000);
   
-  // Cleanup için interval'ları sakla (gerekirse)
   window._audienceIntervals = {
     settings: settingsInterval,
     view: viewInterval,
@@ -194,23 +213,21 @@ function startAudienceLoop() {
 
 /**
  * Sayfa yüklendiğinde başlatma
+ * 
+ * ÖNEMLİ: Audience Core kullanılıyor - tüm state yönetimi Audience Core'da.
  */
 document.addEventListener("DOMContentLoaded", async () => {
   // Screen ID'yi belirle
   ensureScreenId();
   
   // AudioContext'i başlat (kullanıcı etkileşimi için hazır)
-  // İlk tıklama veya dokunma ile aktif olacak
   if (typeof initAudioContext === "function") {
-    // Sayfa yüklendiğinde context'i oluştur (suspended durumda olabilir)
     initAudioContext();
     
-    // İlk kullanıcı etkileşiminde resume et
     const resumeAudio = () => {
       if (typeof initAudioContext === "function") {
         initAudioContext();
       }
-      // Event listener'ı kaldır (sadece bir kez çalışsın)
       document.removeEventListener("click", resumeAudio);
       document.removeEventListener("touchstart", resumeAudio);
     };
@@ -218,25 +235,123 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("touchstart", resumeAudio, { once: true });
   }
   
-  // İlk heartbeat'i gönder (ekranı backend'e kaydet)
-  await sendHeartbeat();
-  
-  // Screen settings'i yükle (preview dahil)
-  await loadScreenSettings();
-  
-  // Eğer preview yoksa normal maç görünümünü yükle
-  if (!previewPayload && currentView === "match") {
-    loadMatchView();
-    startAudienceSSE();
+  // Audience Core'u başlat
+  let audienceCoreUnsubscribe = null;
+  if (typeof AudienceCore !== "undefined") {
+    // Audience Core'u initialize et
+    await AudienceCore.initialize(screenId);
+    
+    // State değişikliklerini dinle
+    audienceCoreUnsubscribe = AudienceCore.subscribe((state) => {
+      // Global state değişkenlerini güncelle (geriye dönük uyumluluk için)
+      currentView = state.currentView;
+      previewPayload = state.previewPayload;
+      overlayEnabled = state.overlayEnabled;
+      overlayText = state.overlayText;
+      
+      // UI güncellemeleri
+      if (state.hasPreview) {
+        // Preview aktif
+        if (state.previewState === "vs_preview" && typeof applyVSPreviewPayload === "function") {
+          applyVSPreviewPayload(state.previewPayload);
+        } else if (state.previewState === "results" && typeof applyResultsPayload === "function") {
+          applyResultsPayload(state.previewPayload);
+        } else if (state.previewState === "normal_preview" && typeof applyPreviewPayload === "function") {
+          applyPreviewPayload(state.previewPayload);
+        }
+      } else {
+        // Preview yok, normal maç görünümü
+        if (state.currentView === "match") {
+          if (state.match) {
+            // Maç var, görünümü güncelle
+            if (typeof updateMatchView === "function") {
+              // State değişikliği kontrolü (ses efekti için)
+              // Audience Core'da _stateChanged flag'i set edilmişse ses efekti çal
+              if (state.match._stateChanged && typeof announceState === "function") {
+                announceState(state.currentState);
+                // Flag'i temizle (bir sonraki güncelleme için)
+                delete state.match._stateChanged;
+              }
+              
+              updateMatchView(state.match);
+            }
+          } else {
+            // Maç yok, boş görünüm göster
+            if (typeof updateMatchView === "function") {
+              updateMatchView(null);
+            }
+          }
+        } else if (state.currentView === "inspection") {
+          if (typeof loadInspectionView === "function") {
+            loadInspectionView();
+          }
+        } else if (state.currentView === "awards") {
+          if (typeof loadAwardsView === "function") {
+            loadAwardsView();
+          }
+        }
+      }
+      
+      // Overlay güncelle
+      if (typeof applyOverlay === "function") {
+        applyOverlay();
+      }
+      
+      // View değişikliği için UI güncellemesi (sadece preview yoksa)
+      if (!state.hasPreview) {
+        // View elementlerini güncelle
+        const views = ["match", "inspection", "rankings", "awards"];
+        views.forEach((view) => {
+          const el = qs(`audience_${view}_view`);
+          if (el) {
+            el.style.display = view === state.currentView ? "block" : "none";
+          }
+        });
+        
+        // VS Preview'ı gizle (normal view'a geçildiğinde)
+        if (state.currentView !== "match") {
+          if (typeof hideVSPreview === "function") {
+            hideVSPreview();
+          }
+        }
+        
+        // View'a göre içerik yükle
+        if (state.currentView === "inspection" && typeof loadInspectionView === "function") {
+          loadInspectionView();
+        } else if (state.currentView === "awards" && typeof loadAwardsView === "function") {
+          loadAwardsView();
+        }
+      }
+    });
+    
+    // İlk maç görünümünü yükle (preview yoksa)
+    if (!AudienceCore.previewPayload && AudienceCore.currentView === "match") {
+      await AudienceCore.loadMatchView();
+    }
+  } else {
+    console.error("AudienceCore tanımlı değil! audience_core.js yüklenmemiş olabilir.");
+    // Fallback: Eski yöntem
+    await sendHeartbeat();
+    await loadScreenSettings();
+    if (!previewPayload && currentView === "match") {
+      loadMatchView();
+      startAudienceSSE();
+    }
+    startAudienceLoop();
   }
-  
-  // Periyodik güncellemeleri başlat
-  startAudienceLoop();
   
   // Sayfa kapanırken cleanup yap
   window.addEventListener("beforeunload", () => {
-    stopAudienceSSE();
-    // AudioContext'i kapat (opsiyonel)
+    if (audienceCoreUnsubscribe) {
+      audienceCoreUnsubscribe();
+    }
+    if (typeof AudienceCore !== "undefined") {
+      AudienceCore.cleanup();
+    } else {
+      // Fallback: Eski yöntem
+      stopAudienceSSE();
+    }
+    // AudioContext'i kapat
     if (globalAudioContext && typeof globalAudioContext.close === "function") {
       globalAudioContext.close().catch(() => {});
     }

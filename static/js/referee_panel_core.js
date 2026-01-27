@@ -21,8 +21,8 @@ if (typeof window.qs === "undefined") {
 // Global state değişkenleri
 let currentMatch = null;
 let assignedAlliance = null; // "red" veya "blue" - bu hakemin atandığı ittifak
-let scoreEventSource = null;
-let retryCount = 0; // SSE yeniden bağlanma sayacı
+// NOT: matchSocket referee_panel_sse.js'de tanımlı (fallback için)
+let retryCount = 0; // WebSocket yeniden bağlanma sayacı (fallback için)
 let refereeMeta = {};
 
 // Retry sabitleri - constants modülünden al
@@ -37,6 +37,11 @@ const RETRY_DELAY_BASE = typeof NETWORK_CONSTANTS !== "undefined"
 let autoSaveTimer = null;
 const AUTO_SAVE_DELAY = 800; // 800ms debounce - kullanıcı yazmayı bitirdikten sonra kaydet
 let isAutoSaving = false; // Çakışmayı önlemek için
+
+// Kullanıcı input yapıyor mu? (Match Core'dan gelen güncellemeleri ignore etmek için)
+let isUserEditing = false;
+let userEditingTimeout = null;
+const USER_EDITING_TIMEOUT = 2000; // 2 saniye input yoksa "editing" modundan çık
 
 /**
  * Hakemin atandığı ittifakı belirler
