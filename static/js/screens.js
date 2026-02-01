@@ -65,6 +65,7 @@ async function loadConnectedScreens() {
                 <option value="inspection" ${desiredView === "inspection" ? "selected" : ""}>İnceleme</option>
                 <option value="rankings" ${desiredView === "rankings" ? "selected" : ""}>Sıralama</option>
                 <option value="awards" ${desiredView === "awards" ? "selected" : ""}>Ödüller</option>
+                <option value="ceremony" ${desiredView === "ceremony" ? "selected" : ""}>Tören</option>
               </select>
               <label class="checkbox small">
                 <input type="checkbox" class="screen-follow-toggle" data-screen-id="${screen.screen_id}" ${followGlobal ? "checked" : ""} />

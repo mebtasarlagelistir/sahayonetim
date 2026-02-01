@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Ödül Atama</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .award-layout {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      
+      .card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+      }
+      
+      .card h2 {
+        margin: 0 0 16px 0;
+        font-size: 1.3rem;
+        color: #333;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 8px;
+      }
+      
+      .award-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      
+      .award-row {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1.5fr;
+        gap: 12px;
+        align-items: start;
+        padding: 12px 14px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border-left: 4px solid #667eea;
+      }
+      
+      .award-row.header {
+        background: #e9ecef;
+        font-weight: 600;
+        border-left-color: transparent;
+      }
+      
+      .award-row.assigned {
+        border-left-color: #4caf50;
+        background: #f1f8e9;
+      }
+      
+      .award-info .name {
+        font-weight: 600;
+        color: #333;
+      }
+      
+      .award-info .category {
+        font-size: 0.8rem;
+        color: #666;
+      }
+      
+      .team-select {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        width: 100%;
+      }
+      
+      .team-select.has-value {
+        border-color: #4caf50;
+        background: #e8f5e9;
+      }
+      
+      .notes-input {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        width: 100%;
+        min-height: 60px;
+        resize: vertical;
+        font-family: inherit;
+      }
+      
+      .warning {
+        color: #f44336;
+        font-size: 0.75rem;
+        margin-top: 2px;
+      }
+      
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+      }
+      
+      .empty-state a {
+        color: #667eea;
+      }
+      
+      .actions-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body data-page="award-assignment">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">← Dashboard</a>
+          <a href="/setup#step-awards" class="button btn-small">📝 Ödül Yönetimi</a>
+          <a href="/match-control#tab-ceremony" class="button btn-small">🎭 Ödül Töreni</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="award-layout">
+      <section class="card">
+        <h2>🏆 Ödül Atama</h2>
+        <p style="color: #666; margin-bottom: 16px;">
+          Ödül Yönetimi'nde tanımlanan ödüller için kazanan takımları seçin.
+        </p>
+        
+        <div id="award_container">
+          <div class="empty-state">
+            <p>Yükleniyor...</p>
+          </div>
+        </div>
+        
+        <div class="actions-row">
+          <button id="btn_save">💾 Atamaları Kaydet</button>
+        </div>
+        
+        <small style="display: block; color: #666; margin-top: 12px;">
+          💡 Aynı takım birden fazla ödüle atanırsa uyarı gösterilir.
+        </small>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/app.js"></script>
+    <script>
+    (function() {
+      'use strict';
+      
+      let awards = [];
+      let teams = [];
+      let winners = [];
+      
+      async function init() {
+        await Promise.all([loadAwards(), loadTeams(), loadWinners()]);
+        render();
+        document.getElementById('btn_save').addEventListener('click', saveAssignments);
+      }
+      
+      async function loadAwards() {
+        try {
+          const r = await fetch('/api/awards');
+          if (r.ok) awards = await r.json();
+        } catch (e) { console.error(e); }
+      }
+      
+      async function loadTeams() {
+        try {
+          const r = await fetch('/api/teams');
+          if (r.ok) teams = await r.json();
+        } catch (e) { console.error(e); }
+      }
+      
+      async function loadWinners() {
+        try {
+          const r = await fetch('/api/award-winners');
+          if (r.ok) {
+            const data = await r.json();
+            // Backend alan adlarını frontend'e map et
+            winners = data.map(w => ({
+              award_name: w.award_name,
+              team_number: w.winner_team_number,
+              team_name: w.winner_team_name,
+              jury_notes: w.jury_note || '',
+              presentation_order: w.presentation_order
+            }));
+          }
+        } catch (e) { console.error(e); }
+      }
+      
+      function render() {
+        const container = document.getElementById('award_container');
+        
+        if (awards.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p>Henüz ödül tanımlanmamış.</p><p><a href="/setup#step-awards">Ödül Yönetimi</a> sayfasından ödül ekleyin.</p></div>';
+          return;
+        }
+        
+        let html = '<div class="award-grid">';
+        
+        // Header
+        html += '<div class="award-row header"><div>Ödül</div><div>Kazanan Takım</div><div>Jüri Notu</div></div>';
+        
+        awards.forEach((award, i) => {
+          const winner = winners.find(w => w.award_name === award.name);
+          const selectedTeam = winner ? winner.team_number : '';
+          const notes = winner ? (winner.jury_notes || '') : '';
+          const assigned = selectedTeam ? ' assigned' : '';
+          
+          html += '<div class="award-row' + assigned + '" data-index="' + i + '">';
+          
+          // Award info
+          html += '<div class="award-info">';
+          html += '<div class="name">' + esc(award.name) + '</div>';
+          html += '<div class="category">' + esc(award.category || '') + (award.sponsor ? ' • ' + esc(award.sponsor) : '') + '</div>';
+          html += '</div>';
+          
+          // Team select
+          html += '<div>';
+          html += '<select class="team-select' + (selectedTeam ? ' has-value' : '') + '" data-award="' + esc(award.name) + '">';
+          html += '<option value="">-- Takım Seçin --</option>';
+          teams.forEach(t => {
+            const sel = t.number === selectedTeam ? ' selected' : '';
+            html += '<option value="' + esc(t.number) + '"' + sel + '>' + esc(t.number) + ' - ' + esc(t.name) + '</option>';
+          });
+          html += '</select>';
+          html += '<div class="warning" id="warn_' + i + '"></div>';
+          html += '</div>';
+          
+          // Notes (textarea for multi-line support)
+          html += '<div><textarea class="notes-input" data-award="' + esc(award.name) + '" placeholder="Jüri değerlendirmesi...">' + esc(notes) + '</textarea></div>';
+          
+          html += '</div>';
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+        container.querySelectorAll('.team-select').forEach(select => {
+          select.addEventListener('change', (e) => {
+            checkDuplicates();
+            updateRowStyle(e.target);
+          });
+        });
+      }
+      
+      function updateRowStyle(select) {
+        const row = select.closest('.award-row');
+        if (select.value) {
+          row.classList.add('assigned');
+          select.classList.add('has-value');
+        } else {
+          row.classList.remove('assigned');
+          select.classList.remove('has-value');
+        }
+      }
+      
+      function checkDuplicates() {
+        const selects = document.querySelectorAll('.team-select');
+        const counts = {};
+        
+        selects.forEach(s => {
+          if (s.value) counts[s.value] = (counts[s.value] || 0) + 1;
+        });
+        
+        selects.forEach((s, i) => {
+          const warn = document.getElementById('warn_' + i);
+          if (warn) {
+            warn.textContent = (s.value && counts[s.value] > 1) ? '⚠️ Bu takım başka bir ödüle de atanmış!' : '';
+          }
+        });
+      }
+      
+      function showToast(message, type = 'info') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toast-container';
+          container.className = 'toast-container';
+          document.body.appendChild(container);
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        toast.innerHTML = '<div class="toast-message">' + esc(message) + '</div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+          toast.style.animation = 'slideIn 0.3s ease-out reverse';
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+      
+      async function saveAssignments() {
+        const selects = document.querySelectorAll('.team-select');
+        const notesTextareas = document.querySelectorAll('.notes-input');
+        
+        const assignments = [];
+        
+        selects.forEach((select, i) => {
+          const awardName = select.dataset.award;
+          const teamNumber = select.value;
+          // Textarea kullan - value veya textContent her ikisi de çalışır
+          const juryNotes = notesTextareas[i] ? notesTextareas[i].value.trim() : '';
+          
+          if (teamNumber) {
+            const team = teams.find(t => t.number === teamNumber);
+            const award = awards.find(a => a.name === awardName);
+            
+            // Backend API alan adlarına uygun format
+            assignments.push({
+              award_name: awardName,
+              award_category: award ? award.category : '',
+              award_description: award ? award.description : '',
+              winner_team_number: teamNumber,
+              winner_team_name: team ? team.name : '',
+              jury_note: juryNotes,
+              presentation_order: i
+            });
+          }
+        });
+        
+        try {
+          const r = await fetch('/api/award-winners', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(assignments)
+          });
+          
+          if (r.ok) {
+            showToast('Ödül atamaları kaydedildi!', 'success');
+            winners = assignments;
+          } else {
+            const data = await r.json();
+            showToast('Hata: ' + (data.error || 'Kaydetme başarısız'), 'error');
+          }
+        } catch (e) {
+          showToast('Kaydetme sırasında hata oluştu', 'error');
+        }
+      }
+      
+      function esc(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+    </script>
+  </body>
+</html>

@@ -23,20 +23,43 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         """
         İnceleme ayarlarını getirir (tip süreleri vb.).
         
+        Phase 1: FRC Enhancement - 10 inspection types supported
+        
         Returns:
             JSON: İnceleme ayarları
         """
         event_data = datastore.get_event()
         inspection_settings = event_data.get("inspection_settings", {})
-        type_durations = inspection_settings.get("type_durations", {
-            "hardware": 20,
-            "size": 10,
-            "safety": 15,
-            "software": 15,
+        
+        # FRC default type durations (updated for Phase 1)
+        default_type_durations = {
+            # Core inspections
             "weight": 5,
-            "custom": 15,
-        })
-        selected_types = inspection_settings.get("selected_types", ["hardware", "size", "safety"])
+            "size": 10,
+            "general_hardware": 20,
+            "electrical": 15,
+            "pneumatics": 10,
+            "radio": 10,
+            "software": 15,
+            "bumpers": 5,
+            "game_specific": 10,
+            "safety": 15,
+            # Legacy types (backward compatibility)
+            "hardware": 20,  # Maps to general_hardware
+            "custom": 15,    # Maps to game_specific
+        }
+        
+        type_durations = inspection_settings.get("type_durations", default_type_durations)
+        
+        # Merge with defaults (ensure all FRC types exist)
+        for key, value in default_type_durations.items():
+            if key not in type_durations:
+                type_durations[key] = value
+        
+        # Default selected types (FRC core inspections)
+        default_selected = ["weight", "size", "general_hardware", "electrical", "radio", "software", "bumpers", "game_specific", "safety"]
+        selected_types = inspection_settings.get("selected_types", default_selected)
+        
         print_note = inspection_settings.get(
             "print_note",
             (
@@ -60,14 +83,24 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         """
         İnceleme ayarlarını kaydeder (tip süreleri vb.).
         
+        Phase 1: FRC Enhancement - Validates 10 inspection types
+        
         Request body:
             {
                 "type_durations": {
-                    "hardware": 20,
+                    "weight": 5,
                     "size": 10,
-                    "safety": 15,
-                    ...
-                }
+                    "general_hardware": 20,
+                    "electrical": 15,
+                    "pneumatics": 10,
+                    "radio": 10,
+                    "software": 15,
+                    "bumpers": 5,
+                    "game_specific": 10,
+                    "safety": 15
+                },
+                "selected_types": ["weight", "size", ...],
+                "print_note": "..."
             }
         
         Returns:
@@ -78,19 +111,53 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         selected_types = data.get("selected_types")
         print_note = data.get("print_note")
         
+        # Validation: Check for valid FRC types
+        valid_frc_types = {
+            "weight", "size", "general_hardware", "electrical", "pneumatics",
+            "radio", "software", "bumpers", "game_specific", "safety",
+            # Legacy types for backward compatibility
+            "hardware", "custom"
+        }
+        
+        if type_durations is not None:
+            if not isinstance(type_durations, dict):
+                return jsonify({"error": "type_durations must be a dictionary"}), 400
+            
+            # Validate type keys
+            for type_key in type_durations.keys():
+                if type_key not in valid_frc_types:
+                    return jsonify({"error": f"Invalid inspection type: {type_key}"}), 400
+            
+            # Validate duration values
+            for type_key, duration in type_durations.items():
+                if not isinstance(duration, (int, float)) or duration <= 0:
+                    return jsonify({"error": f"Invalid duration for {type_key}: must be positive number"}), 400
+        
+        if selected_types is not None:
+            if not isinstance(selected_types, list):
+                return jsonify({"error": "selected_types must be a list"}), 400
+            
+            # Validate selected types
+            for type_key in selected_types:
+                if type_key not in valid_frc_types:
+                    return jsonify({"error": f"Invalid selected type: {type_key}"}), 400
+        
         event_id = datastore.get_active_event_id()
         if event_id is None:
             return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
+        
         # Event data'yı güncelle
         event_data = datastore.get_event()
         if "inspection_settings" not in event_data:
             event_data["inspection_settings"] = {}
+        
         if isinstance(type_durations, dict):
             event_data["inspection_settings"]["type_durations"] = type_durations
-        if isinstance(selected_types, list) and selected_types:
+        if isinstance(selected_types, list):
             event_data["inspection_settings"]["selected_types"] = selected_types
         if print_note is not None:
             event_data["inspection_settings"]["print_note"] = str(print_note).strip()
+        
         datastore.save_event(event_data)
         
         return jsonify({"ok": True})
@@ -188,7 +255,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @bp.put("/inspection-slots/<int:slot_id>")
+    @bp.route("/inspection-slots/<int:slot_id>", methods=["PUT", "POST"])
     @require_login
     @require_event_manager
     def update_inspection_slot(slot_id: int):
@@ -528,3 +595,104 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 station_times[station_idx] = slot_datetime + timedelta(minutes=duration + break_minutes)
         
         return jsonify({"ok": True, "created_count": created_count})
+    @bp.post("/inspection-slots/generate-simple")
+    @require_login
+    @require_event_manager
+    def generate_simple_inspection_slots():
+        """
+        Basitleştirilmiş inceleme programı oluşturur (FRC inceleme tipleri olmadan).
+        Her takım için tek bir inceleme slotu oluşturur.
+        Birden fazla müfettiş varsa takımları paralel dağıtır.
+        
+        Request body:
+            {
+                "start_date": "2026-02-06",
+                "start_time": "09:00",
+                "slot_duration": 15,
+                "break_minutes": 5,
+                "sort_order": "ascending",
+                "inspector_name": "Ali, Veli, Ayşe",  # Virgülle ayrılmış isimler
+                "clear_existing": true
+            }
+        
+        Returns:
+            JSON: Oluşturulan slot sayısı
+        """
+        data = request.get_json(force=True) or {}
+        
+        start_date = data.get("start_date", "").strip()
+        start_time = data.get("start_time", "").strip()
+        slot_duration = data.get("slot_duration", 15)
+        break_minutes = data.get("break_minutes", 5)
+        sort_order = data.get("sort_order", "ascending")
+        inspector_names_raw = data.get("inspector_name", "").strip()
+        
+        if not start_date:
+            return jsonify({"error": "Başlangıç tarihi gerekli"}), 400
+        if not start_time:
+            return jsonify({"error": "Başlangıç saati gerekli"}), 400
+        
+        # Müfettiş isimlerini ayır
+        inspectors = [name.strip() for name in inspector_names_raw.split(",") if name.strip()]
+        if not inspectors:
+            inspectors = [""]  # En az bir boş müfettiş
+        
+        # Tüm takımları al
+        teams = datastore.get_teams()
+        if not teams:
+            return jsonify({"error": "Takım bulunamadı"}), 400
+        
+        try:
+            base_datetime = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return jsonify({"error": "Geçersiz tarih/saat formatı"}), 400
+        
+        # Mevcut slotları temizle
+        if data.get("clear_existing", False):
+            datastore.delete_all_inspection_slots()
+        
+        # Takım numaralarını al ve takım adlarını eşle
+        team_list = []
+        for t in teams:
+            num = t.get("number", "").strip()
+            name = t.get("name", "").strip()
+            if num:
+                team_list.append({"number": num, "name": name})
+        
+        # Sıralama uygula
+        if sort_order == "ascending":
+            team_list.sort(key=lambda x: (len(x["number"]), x["number"]))
+        elif sort_order == "descending":
+            team_list.sort(key=lambda x: (len(x["number"]), x["number"]), reverse=True)
+        elif sort_order == "random":
+            import random
+            random.shuffle(team_list)
+        
+        created_count = 0
+        
+        # Her müfettiş için ayrı zaman takibi
+        inspector_times = {inspector: base_datetime for inspector in inspectors}
+        
+        for i, team in enumerate(team_list):
+            # Round-robin: Takımları müfettişlere sırayla dağıt
+            inspector = inspectors[i % len(inspectors)]
+            slot_datetime = inspector_times[inspector]
+            
+            try:
+                datastore.create_inspection_slot(
+                    team_number=team["number"],
+                    inspection_type="general",  # Tek bir genel tip kullan
+                    slot_date=slot_datetime.strftime("%Y-%m-%d"),
+                    slot_time=slot_datetime.strftime("%H:%M"),
+                    duration_minutes=slot_duration,
+                    inspector_name=inspector,
+                    status="pending",  # Bekliyor durumunda başla
+                    station_name="",
+                )
+                created_count += 1
+                # Bu müfettişin sonraki slot zamanını güncelle
+                inspector_times[inspector] = slot_datetime + timedelta(minutes=slot_duration + break_minutes)
+            except Exception as e:
+                continue
+        
+        return jsonify({"ok": True, "created_count": created_count, "inspectors": len(inspectors)})

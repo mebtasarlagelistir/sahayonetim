@@ -2,7 +2,189 @@
  * İnceleme Yönetimi Modülü
  * 
  * İnceleme slotları yönetimi, otomatik takvim oluşturma, grid görünümü vb.
+ * 
+ * Phase 1: FRC-Enhanced Inspection System
+ * - 10 FRC-specific inspection types
+ * - Checklist system for detailed inspections
+ * - Status color coding (green/yellow/red)
  */
+
+/**
+ * FRC Inspection Types Configuration
+ * 
+ * Each type includes:
+ * - id: Internal identifier (matches DB inspection_type field)
+ * - name: Display name (Turkish)
+ * - nameLatin: Latin/English name for reference
+ * - icon: Emoji/icon for UI
+ * - duration: Default duration in minutes
+ * - order: Display/execution order (lower = earlier)
+ * - optional: Whether this inspection is optional (e.g., pneumatics)
+ * - color: Color code for grid view
+ * - description: Brief description
+ */
+const FRC_INSPECTION_TYPES = {
+  weight: {
+    id: "weight",
+    name: "Ağırlık",
+    nameLatin: "Weight",
+    icon: "⚖️",
+    duration: 5,
+    order: 1,
+    optional: false,
+    color: "#9b59b6", // Purple
+    description: "Robot ağırlık ölçümü (batarya ile ≤56.7 kg)"
+  },
+  size: {
+    id: "size",
+    name: "Boyut",
+    nameLatin: "Size",
+    icon: "📏",
+    duration: 10,
+    order: 2,
+    optional: false,
+    color: "#3498db", // Blue
+    description: "Robot boyut kontrolü (başlangıç: 120\" çevre)"
+  },
+  general_hardware: {
+    id: "general_hardware",
+    name: "Genel Donanım",
+    nameLatin: "General Hardware",
+    icon: "🔧",
+    duration: 20,
+    order: 3,
+    optional: false,
+    color: "#e74c3c", // Red
+    description: "COTS parça uyumluluğu, malzeme kısıtlamaları, keskin kenarlar"
+  },
+  electrical: {
+    id: "electrical",
+    name: "Elektrik Sistemi",
+    nameLatin: "Electrical",
+    icon: "⚡",
+    duration: 15,
+    order: 4,
+    optional: false,
+    color: "#f39c12", // Orange
+    description: "Ana devre kesici, batarya montajı, kablolama"
+  },
+  pneumatics: {
+    id: "pneumatics",
+    name: "Pnömatik Sistem",
+    nameLatin: "Pneumatics",
+    icon: "💨",
+    duration: 10,
+    order: 5,
+    optional: true, // Only if robot uses pneumatics
+    color: "#1abc9c", // Turquoise
+    description: "Basınç emniyet valfi, regülatör, hortum yönlendirme (opsiyonel)"
+  },
+  radio: {
+    id: "radio",
+    name: "Radio/İletişim",
+    nameLatin: "Radio/Communication",
+    icon: "📡",
+    duration: 10,
+    order: 6,
+    optional: false,
+    color: "#34495e", // Dark gray
+    description: "FRC Radio konfigürasyonu, bant genişliği uyumluluğu"
+  },
+  software: {
+    id: "software",
+    name: "Yazılım/Kontrol",
+    nameLatin: "Software/Control",
+    icon: "💻",
+    duration: 15,
+    order: 7,
+    optional: false,
+    color: "#16a085", // Green sea
+    description: "RoboRIO yapılandırması, yazılım sürümleri, sürücü istasyonu"
+  },
+  bumpers: {
+    id: "bumpers",
+    name: "Tamponlar",
+    nameLatin: "Bumpers",
+    icon: "🛡️",
+    duration: 5,
+    order: 8,
+    optional: false,
+    color: "#c0392b", // Dark red
+    description: "Tampon kuralları (renk, montaj, R-numarası)"
+  },
+  game_specific: {
+    id: "game_specific",
+    name: "Oyuna Özel",
+    nameLatin: "Game-Specific",
+    icon: "🎮",
+    duration: 10,
+    order: 9,
+    optional: false,
+    color: "#8e44ad", // Wisteria
+    description: "Manipülatör uyumluluğu, başlangıç konfigürasyonu, yıla özel mekanizmalar"
+  },
+  safety: {
+    id: "safety",
+    name: "Güvenlik",
+    nameLatin: "Safety",
+    icon: "⚠️",
+    duration: 15,
+    order: 10,
+    optional: false,
+    color: "#2ecc71", // Green
+    description: "Sıkışma noktaları güvenliği, acil durdurma işlevselliği"
+  }
+};
+
+/**
+ * Legacy type mappings for backward compatibility
+ * Old type IDs → FRC type IDs
+ */
+const LEGACY_TYPE_MAPPINGS = {
+  hardware: "general_hardware", // Renamed
+  custom: "game_specific" // Mapped to game-specific
+};
+
+/**
+ * Get inspection type metadata by ID
+ * Supports both FRC and legacy type IDs
+ */
+function getInspectionType(typeId) {
+  // Check if it's a legacy type that needs mapping
+  const mappedId = LEGACY_TYPE_MAPPINGS[typeId] || typeId;
+  return FRC_INSPECTION_TYPES[mappedId] || null;
+}
+
+/**
+ * Get all inspection types sorted by order
+ */
+function getAllInspectionTypes() {
+  return Object.values(FRC_INSPECTION_TYPES).sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Get type display name (with fallback for unknown types)
+ */
+function getTypeName(typeId) {
+  const type = getInspectionType(typeId);
+  return type ? type.name : typeId;
+}
+
+/**
+ * Get type icon (with fallback)
+ */
+function getTypeIcon(typeId) {
+  const type = getInspectionType(typeId);
+  return type ? type.icon : "📋";
+}
+
+/**
+ * Get type color (with fallback)
+ */
+function getTypeColor(typeId) {
+  const type = getInspectionType(typeId);
+  return type ? type.color : "#95a5a6";
+}
 
 /**
  * İnceleme slotlarını yükler ve tabloya ekler
@@ -30,6 +212,8 @@ async function loadInspectionSlots() {
     
     tbody.innerHTML = "";
     
+    // DEPRECATED: Old hardcoded type names - Now using FRC_INSPECTION_TYPES
+    // Kept for reference during migration
     const typeNames = {
       hardware: "Donanım",
       size: "Boyut",
@@ -42,18 +226,30 @@ async function loadInspectionSlots() {
     const statusNames = {
       scheduled: "Planlandı",
       completed: "Tamamlandı",
+      in_progress: "Devam Ediyor",
       passed: "Geçti",
+      passed_with_conditions: "Şartlı Geçti",
       failed: "Kaldı",
+      pending_reinspection: "Yeniden İnceleme",
       cancelled: "İptal",
       no_show: "Gelmedi",
     };
     
     slots.forEach((slot) => {
            const tr = document.createElement("tr");
+           
+           // Get type metadata from FRC system
+           const typeInfo = getInspectionType(slot.inspection_type);
+           const typeName = typeInfo ? `${typeInfo.icon} ${typeInfo.name}` : (typeNames[slot.inspection_type] || slot.inspection_type);
+           
+           // Apply status color class
+           const statusClass = `status-${slot.status}`;
+           tr.className = statusClass;
+           
            tr.innerHTML = `
         <td><input type="checkbox" class="inspection-select" data-slot-id="${slot.id}" /></td>
              <td>${escapeHtml(slot.team_number)}</td>
-             <td>${escapeHtml(typeNames[slot.inspection_type] || slot.inspection_type)}</td>
+             <td>${escapeHtml(typeName)}</td>
              <td>${escapeHtml(slot.slot_date)}</td>
              <td>${escapeHtml(slot.slot_time)}</td>
              <td>${slot.duration_minutes} dk</td>
@@ -62,9 +258,11 @@ async function loadInspectionSlots() {
              <td class="print-hide">
                <select data-slot-id="${slot.id}" data-field="status" class="status-select">
                  <option value="scheduled" ${slot.status === "scheduled" ? "selected" : ""}>Planlandı</option>
-                 <option value="completed" ${slot.status === "completed" ? "selected" : ""}>Tamamlandı</option>
-                 <option value="passed" ${slot.status === "passed" ? "selected" : ""}>Geçti</option>
-                 <option value="failed" ${slot.status === "failed" ? "selected" : ""}>Kaldı</option>
+                 <option value="in_progress" ${slot.status === "in_progress" ? "selected" : ""}>Devam Ediyor</option>
+                 <option value="passed" ${slot.status === "passed" ? "selected" : ""}>✓ Geçti</option>
+                 <option value="passed_with_conditions" ${slot.status === "passed_with_conditions" ? "selected" : ""}>⚠ Şartlı Geçti</option>
+                 <option value="failed" ${slot.status === "failed" ? "selected" : ""}>✗ Kaldı</option>
+                 <option value="pending_reinspection" ${slot.status === "pending_reinspection" ? "selected" : ""}>🔄 Yeniden İnceleme</option>
                  <option value="cancelled" ${slot.status === "cancelled" ? "selected" : ""}>İptal</option>
                  <option value="no_show" ${slot.status === "no_show" ? "selected" : ""}>Gelmedi</option>
                </select>
@@ -559,7 +757,8 @@ async function renderInspectionGrid() {
       currentTime = new Date(currentTime.getTime() + slotWidth * 60000);
     }
     
-    // İnceleme tipi renkleri
+    // DEPRECATED: Old type colors - Now using FRC_INSPECTION_TYPES
+    // Kept for backward compatibility during migration
     const typeColors = {
       hardware: "#e74c3c",    // Kırmızı
       size: "#3498db",        // Mavi
@@ -569,6 +768,7 @@ async function renderInspectionGrid() {
     custom: "#95a5a6",      // Gri
   };
   
+  // DEPRECATED: Old type names - Now using FRC_INSPECTION_TYPES
   const typeNames = {
     hardware: "Donanım",
     size: "Boyut",
@@ -641,12 +841,16 @@ async function renderInspectionGrid() {
       });
       
       if (slot) {
-        const color = typeColors[slot.inspection_type] || "#95a5a6";
-        const typeName = typeNames[slot.inspection_type] || slot.inspection_type;
+        // Use FRC type system for color and name
+        const typeInfo = getInspectionType(slot.inspection_type);
+        const color = typeInfo ? typeInfo.color : (typeColors[slot.inspection_type] || "#95a5a6");
+        const typeName = typeInfo ? typeInfo.name : (typeNames[slot.inspection_type] || slot.inspection_type);
+        const typeIcon = typeInfo ? typeInfo.icon : "";
+        
         const inspector = slot.inspector_name ? ` (${escapeHtml(slot.inspector_name)})` : "";
         const stationName = slot.station_name ? slot.station_name : "";
         const stationInfo = stationName ? ` - İstasyon: ${escapeHtml(stationName)}` : "";
-        const cellLabel = stationName ? `${typeName.charAt(0)} ${stationName}` : typeName.charAt(0);
+        const cellLabel = stationName ? `${typeIcon} ${stationName}` : typeIcon || typeName.charAt(0);
         
         // Slot kaç hücre kaplıyor?
         const slotDuration = slot.duration_minutes;
@@ -693,7 +897,8 @@ async function renderInspectionGrid() {
       // Slot detaylarını göster veya düzenle
       const slot = slots.find(s => s.id == slotId);
       if (slot) {
-        const typeName = typeNames[slot.inspection_type] || slot.inspection_type;
+        const typeInfo = getInspectionType(slot.inspection_type);
+        const typeName = typeInfo ? `${typeInfo.icon} ${typeInfo.name}` : (typeNames[slot.inspection_type] || slot.inspection_type);
         alert(`Slot Detayları:\nTakım: ${slot.team_number}\nTip: ${typeName}\nTarih: ${slot.slot_date}\nSaat: ${slot.slot_time}\nSüre: ${slot.duration_minutes} dk\nMüfettiş: ${slot.inspector_name || "Atanmamış"}\nDurum: ${slot.status}`);
       }
     });

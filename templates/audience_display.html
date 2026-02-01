@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MEMSKOR - Seyirci Ekranı</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/css/ceremony.css" />
   </head>
   <body class="audience-display" data-page="audience">
     <div class="audience-overlay" id="audience_overlay" style="display: none;">
@@ -43,7 +44,7 @@
         </div>
       </section>
 
-      <section class="audience-panel" id="audience_match_view">
+      <section class="audience-panel" id="audience_match_view" style="display: none;">
         <h1 id="audience_match_title">Maç Ekranı</h1>
         <div class="audience-scoreboard">
           <div class="audience-alliance blue">
@@ -103,8 +104,44 @@
       </section>
 
       <section class="audience-panel" id="audience_awards_view" style="display: none;">
-        <h1>Ödüller</h1>
-        <div id="audience_awards_list" class="audience-table"></div>
+        <h1>🏆 Tüm Ödül Kazananları</h1>
+        <div id="audience_awards_list" class="audience-table awards-winners-list"></div>
+      </section>
+
+      <!-- Ödül Töreni Sunumu -->
+      <section class="audience-panel ceremony-view" id="audience_ceremony_view" style="display: none;">
+        <div class="ceremony-container">
+          <!-- Ödül Adı -->
+          <div class="ceremony-award-name hidden" id="ceremony-award-name">
+            <span class="award-icon">🏆</span>
+            <h1 class="award-title">Ödül Adı</h1>
+          </div>
+          
+          <!-- Ödül Açıklaması -->
+          <div class="ceremony-award-description hidden" id="ceremony-award-description">
+            <p class="description-text">Ödül açıklaması...</p>
+          </div>
+          
+          <!-- Jüri Notu (takım numarasından önce gösterilir) -->
+          <div class="ceremony-jury-note hidden" id="ceremony-jury-note">
+            <div class="jury-note-label">Jüri Değerlendirmesi</div>
+            <p class="jury-note-text">Jüri notu...</p>
+          </div>
+          
+          <!-- Kazanan Takım (en son gösterilir) -->
+          <div class="ceremony-winner hidden" id="ceremony-winner">
+            <div class="winner-label">KAZANAN</div>
+            <div class="winner-team-number">000</div>
+            <div class="winner-team-name">Takım Adı</div>
+          </div>
+        </div>
+        
+        <!-- Idle State (Tören başlıyor) -->
+        <div class="ceremony-idle" id="ceremony-idle">
+          <div class="ceremony-logo">🏆</div>
+          <h2>Ödül Töreni Başlıyor</h2>
+          <p>Lütfen bekleyiniz...</p>
+        </div>
       </section>
     </main>
 
@@ -122,5 +159,7 @@
     <script src="/static/js/audience_display_sse.js"></script>
     <script src="/static/js/audience_display_views.js"></script>
     <script src="/static/js/audience_display.js"></script>
+    <!-- Ceremony Module -->
+    <script src="/static/js/audience_ceremony.js"></script>
   </body>
 </html>

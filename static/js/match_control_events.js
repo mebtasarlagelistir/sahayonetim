@@ -54,6 +54,11 @@ function switchTab(tabName) {
     if (typeof loadMatchControlScreens === "function") {
       loadMatchControlScreens();
     }
+  } else if (tabName === "ceremony") {
+    // Tören tab'ı açıldığında ceremony modülünü başlat
+    if (typeof initCeremony === "function") {
+      initCeremony();
+    }
   }
   if (tabName !== "score-edit") {
     if (typeof moveDetailedScoringTo === "function") {

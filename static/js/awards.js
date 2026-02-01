@@ -2,119 +2,120 @@
  * Ödül Yönetimi Modülü
  *
  * Ödül listesini yükleme, düzenleme ve kaydetme işlemlerini yönetir.
+ * TG (Tasarla Geliştir) yarışmaları için optimize edilmiştir.
  */
 
 /**
- * FTC Kılavuzundaki Ödül Şablonları
+ * TG (Tasarla Geliştir) Ödül Şablonları
  * 
- * Bu liste, FTC kılavuzunda belirtilen ödülleri içerir.
- * "FTC Örnekleri Yükle" butonu ile bu ödüller otomatik olarak yüklenir.
+ * Bu liste, TG yarışmalarında verilen 11 ödülü içerir.
+ * "TG Şablonları Yükle" butonu ile bu ödüller otomatik olarak yüklenir.
  */
 const awardPresets = [
-  // Jüri Değerlendirmeli Ödüller (9 Adet)
+  // ============================================
+  // JÜRİ DEĞERLENDİRMELİ ÖDÜLLER (8 Adet)
   // Bu ödüller, jürilerin takımlarla yaptığı mülakatlar ve inceledikleri portfolyolar sonucunda belirlenir.
+  // ============================================
   {
     name: "İlham Verici Takım Ödülü",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
-    description: "Diğer takımlara ilham kaynağı olan, \"Bilinçli Profesyonellik\" ile hareket eden takıma verilir.",
-  },
-  {
-    name: "Yaratıcı Tasarım Ödülü",
-    category: "Jüri Değerlendirmeli",
-    type: "Jüri",
-    sponsor: "",
-    description: "Robot tasarımı yaratıcı, benzersiz ve zarif olan takıma verilir.",
-  },
-  {
-    name: "Kontrol Ödülü",
-    category: "Jüri Değerlendirmeli",
-    type: "Jüri",
-    sponsor: "",
-    description: "Sensör ve yazılımı yenilikçi kullanarak robot işlevselliğini artıran takıma verilir.",
-  },
-  {
-    name: "Kalite Ödülü",
-    category: "Jüri Değerlendirmeli",
-    type: "Jüri",
-    sponsor: "",
-    description: "Robot yapısı düzenli, dayanıklı ve güvenli olan takıma verilir.",
+    icon: "🏆",
+    description: "Robot performansı, mühendislik süreci, işbirliği çalışmaları ve Tasarla Geliştir değerlerinde dengeli ve üstün başarı gösteren takıma verilir.",
   },
   {
     name: "İletişim Ödülü",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
-    description: "STEM topluluğuyla bağlantılar kuran ve bilgisini paylaşan takıma verilir.",
+    icon: "📣",
+    description: "STEM topluluğu, kurumlar ve diğer takımlarla kurduğu etkili ve sürdürülebilir iletişim ile takım katkısını öne çıkan takıma verilir.",
+  },
+  {
+    name: "Kalite Ödülü",
+    category: "Jüri Değerlendirmeli",
+    type: "Jüri",
+    sponsor: "",
+    icon: "⭐",
+    description: "Yüksek mühendislik standartlarıyla tasarlanmış, güvenilir, düzenli ve istikrarlı çalışan bir robot geliştiren takıma verilir.",
+  },
+  {
+    name: "Kontrol Ödülü",
+    category: "Jüri Değerlendirmeli",
+    type: "Jüri",
+    sponsor: "",
+    icon: "🎮",
+    description: "Yazılım mimarisi, sensör kullanımı ve otonom/sürüş kontrolünde teknik üstünlük gösteren takıma verilir.",
+  },
+  {
+    name: "Tasarım Ödülü",
+    category: "Jüri Değerlendirmeli",
+    type: "Jüri",
+    sponsor: "",
+    icon: "✏️",
+    description: "Özgün mekanik tasarım, yenilikçi, iyi gerekçelendirilmiş mühendislik temelli bir robot veya robot alt montajı tasarımı ve güçlü dokümantasyon sergileyen takıma verilir.",
   },
   {
     name: "Takım Ruhu Ödülü",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
-    description: "Takım içi uyumu, ortak hedefleri ve coşkusu yüksek olan takıma verilir.",
+    icon: "💪",
+    description: "Ekip çalışması, takım içi motivasyon, sahadaki pozitif tutum ve Tasarla Geliştir değerlerini en iyi yansıtan, çevresine ilham veren takıma verilir.",
   },
   {
-    name: "Usta-Çırak Ödülü",
+    name: "Usta–Çırak Ödülü",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
-    description: "Lise öğrencilerinin ortaokul öğrencilerine etkili mentörlük yaptığı takıma verilir.",
-  },
-  {
-    name: "İlham Veren Danışman Ödülü",
-    category: "Jüri Değerlendirmeli",
-    type: "Jüri",
-    sponsor: "",
-    description: "Takıma olağanüstü rehberlik eden öğretmene/danışmana verilir.",
+    icon: "🤝",
+    description: "Takım içi bilgi aktarımını, mentorluk yaklaşımı ve birlikte öğrenme kültürünü en etkili şekilde hayata geçiren takıma verilir.",
   },
   {
     name: "Jüri Özel Ödülü (Parlak Takım Ödülü)",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
-    description: "Sezon boyunca olağanüstü çaba ve gelişim gösteren takıma verilir.",
+    icon: "💎",
+    description: "Standart ödül kategorilerinin dışında olağanüstü çaba, dikkat çekici gelişim, özgün ve ilham verici yönüyle fark yaratan takıma verilir.",
   },
   
-  // Robot Performansına Dayalı Ödüller (5 Adet)
+  // ============================================
+  // ROBOT PERFORMANSINA DAYALI ÖDÜLLER (3 Adet)
   // Bu ödüller, saha içindeki maç sonuçlarına ve robotun oyun sırasındaki yeteneklerine göre belirlenir.
-  {
-    name: "Kazanan İttifak Ödülü (Robot Performansı 1.'lik Ödülü)",
-    category: "Robot Performansı",
-    type: "Performans",
-    sponsor: "",
-    description: "Final maçını kazanan ittifaktaki her takıma verilir.",
-  },
-  {
-    name: "Finalist İttifak Ödülü (Robot Performansı 2.'lik Ödülü)",
-    category: "Robot Performansı",
-    type: "Performans",
-    sponsor: "",
-    description: "Final maçını kaybeden ittifaktaki her takıma verilir.",
-  },
+  // ============================================
   {
     name: "Otonom Mod Ödülü",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
-    description: "Otonom süreçte üstün performans gösteren takıma verilir.",
+    icon: "🤖",
+    description: "Otonom (otomatik) kontrol sürecinde doğru, tutarlı ve stratejik performans sergileyen takıma verilir.",
   },
   {
     name: "Hızlı Başlangıç Ödülü",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
-    description: "Maç başlangıcında hızlı ve etkili puan toplayan takıma verilir.",
+    icon: "⚡",
+    description: "Maçın başlangıcında—özellikle otonom süreçte—hızlı, etkili ve stratejik bir performans sergileyerek erken avantaj sağlayan takıma verilir.",
   },
   {
     name: "Savunma Ödülü",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
-    description: "Rakiplerinin puan kazanmasını engellemede en etkili savunma stratejilerini sergileyen takıma verilir.",
+    icon: "🛡️",
+    description: "Oyun sırasında rakiplerinin puan kazanmasını kurallara uygun şekilde etkili savunma stratejisi uygulayan ve oyun dengesini değiştiren takıma verilir.",
   },
 ];
+
+/**
+ * Ödül kazananları state'i (global)
+ */
+let awardWinners = [];
+let teamsCache = [];
 
 async function loadAwards() {
   const table = qs("awards_table");

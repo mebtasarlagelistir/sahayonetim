@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MEMSKOR - Maç Kontrol</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/css/ceremony.css" />
   </head>
   <body data-page="match-control">
     <header class="header">
@@ -71,6 +72,7 @@
         <button class="tab-button" data-tab="schedule">Takvim</button>
         <button class="tab-button" data-tab="incomplete">Tamamlanmamış Maçlar</button>
         <button class="tab-button" data-tab="score-edit">Skor Düzenle</button>
+        <button class="tab-button" data-tab="ceremony">🏆 Ödül Töreni</button>
         <button class="tab-button" data-tab="settings">Ayarlar</button>
       </div>
 
@@ -901,6 +903,60 @@
         </div>
       </div>
 
+      <!-- Tab Content: Ceremony (Ödül Töreni) -->
+      <div class="tab-content" id="tab-ceremony" style="display: none;">
+        <div class="card">
+          <h2>🏆 Ödül Töreni Yönetimi</h2>
+          <p class="hint" style="margin-bottom: 16px;">
+            Ödül Atama sayfasındaki veriler otomatik olarak yüklenir. Sunumdan önce sıralamayı sürükle-bırak ile değiştirebilirsiniz.
+          </p>
+          
+          <!-- Tören Kontrol Paneli -->
+          <div class="card-section ceremony-control-panel">
+            <h3>Tören Kontrolü</h3>
+            <div class="ceremony-status" id="ceremony_status">
+              <span class="status-indicator status-inactive"></span>
+              <span id="ceremony_status_text">Tören Başlatılmadı</span>
+            </div>
+            <div class="ceremony-current-award" id="ceremony_current_award" style="display: none;">
+              <div class="current-award-info">
+                <span class="label">Şu An:</span>
+                <span id="ceremony_current_award_name" class="value">-</span>
+              </div>
+              <div class="current-award-step">
+                <span class="label">Adım:</span>
+                <span id="ceremony_current_step" class="value">-</span>
+              </div>
+            </div>
+            <div class="ceremony-buttons">
+              <button id="btn_ceremony_start" class="btn-success">▶️ Töreni Başlat</button>
+              <button id="btn_ceremony_next" class="btn-primary" disabled>⏭️ Sonraki Adım</button>
+              <button id="btn_ceremony_stop" class="btn-danger" disabled>⏹️ Töreni Durdur</button>
+            </div>
+            <div class="ceremony-screen-control" style="margin-top: 12px;">
+              <button id="btn_ceremony_show_screen" class="btn-secondary">📺 Seyirci Ekranında Göster</button>
+              <button id="btn_ceremony_show_all_winners" class="btn-secondary">📋 Tüm Kazananları Göster</button>
+            </div>
+          </div>
+          
+          <!-- Ödül Kazananları Listesi -->
+          <div class="card-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h3 style="margin: 0;">Ödül Sıralaması</h3>
+              <div style="display: flex; gap: 8px;">
+                <button id="btn_refresh_ceremony_data" class="btn-secondary btn-small">🔄 Yenile</button>
+                <button id="btn_save_ceremony_order" class="btn-primary btn-small">💾 Sıralamayı Kaydet</button>
+              </div>
+            </div>
+            <p class="hint">Ödülleri sürükle-bırak ile sıralayın. Veriler Ödül Atama sayfasından çekilir.</p>
+            
+            <div id="award_winners_list" class="award-winners-list ceremony-sortable">
+              <div class="loading">Ödüller yükleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab Content: Settings -->
       <div class="tab-content" id="tab-settings" style="display: none;">
         <div class="card">
@@ -915,6 +971,7 @@
                   <option value="inspection">İnceleme Durumu</option>
                   <option value="rankings">Sıralama Puanları</option>
                   <option value="awards">Ödüller</option>
+                  <option value="ceremony">Ödül Töreni</option>
                 </select>
               </label>
               <label class="checkbox">
@@ -965,6 +1022,9 @@
        <script src="/static/js/match_control_screens.js"></script>
        <script src="/static/js/match_control_events.js"></script>
        <script src="/static/js/match_control.js"></script>
+       
+       <!-- Ödül Töreni Modülü -->
+       <script src="/static/js/ceremony.js"></script>
     
     <script src="/static/app.js"></script>
   </body>

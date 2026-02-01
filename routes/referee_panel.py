@@ -8,6 +8,8 @@ Modüler yapı: Puanlama sistemi src/core/scoring modülünden alınır,
 bu sayede puanlama kuralları kolayca güncellenebilir.
 """
 
+from __future__ import annotations
+
 from flask import Blueprint, jsonify, request, render_template, session, current_app
 # ScoreCalculator artık realtime_manager içinde kullanılıyor (tek bir yerde hesaplama)
 from src.core.scoring.realtime import get_realtime_manager

@@ -808,6 +808,183 @@ body.vs-preview-mode .vs-container {
   border-radius: 6px;
 }
 
+/* Ödül Kazananları Listesi (Tüm Kazananlar) */
+.audience-table-row.award-winner-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #1a1f2e 0%, #141b2d 100%);
+  border-left: 4px solid #ffd700;
+  margin-bottom: 8px;
+}
+
+.award-winner-row .award-winner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.award-winner-row .award-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ffd700;
+}
+
+.award-winner-row .jury-note {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+  padding-left: 1.5rem;
+}
+
+.award-winner-row .winner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 1.5rem;
+}
+
+.award-winner-row .team-number {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: white;
+}
+
+.award-winner-row .team-name {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Awards View - Tam Ekran Kazananlar Listesi */
+#audience_awards_view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+
+#audience_awards_view h1 {
+  font-size: 2.5rem;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+
+#audience_awards_view .awards-winners-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Ödül kartları dinamik boyutlandırma */
+#audience_awards_view .award-winner-row {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  margin-bottom: 0;
+  max-height: none;
+  min-height: 0;
+  border-radius: 12px;
+}
+
+#audience_awards_view .award-winner-info {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+#audience_awards_view .award-name {
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  white-space: nowrap;
+  min-width: 200px;
+}
+
+#audience_awards_view .jury-note {
+  font-size: clamp(0.8rem, 1.5vw, 1.1rem);
+  padding-left: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#audience_awards_view .winner-info {
+  padding-left: 0;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+#audience_awards_view .team-number {
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+#audience_awards_view .team-name {
+  font-size: clamp(0.9rem, 1.5vw, 1.3rem);
+  min-width: 150px;
+  text-align: right;
+}
+
+/* Ödül sayısına göre font boyutu ayarlaması */
+#audience_awards_view[data-award-count="1"] .award-winner-row,
+#audience_awards_view[data-award-count="2"] .award-winner-row,
+#audience_awards_view[data-award-count="3"] .award-winner-row {
+  padding: 24px 32px;
+}
+
+#audience_awards_view[data-award-count="1"] .award-name,
+#audience_awards_view[data-award-count="2"] .award-name,
+#audience_awards_view[data-award-count="3"] .award-name {
+  font-size: 2rem;
+}
+
+#audience_awards_view[data-award-count="1"] .team-number,
+#audience_awards_view[data-award-count="2"] .team-number,
+#audience_awards_view[data-award-count="3"] .team-number {
+  font-size: 3rem;
+}
+
+#audience_awards_view[data-award-count="1"] .team-name,
+#audience_awards_view[data-award-count="2"] .team-name,
+#audience_awards_view[data-award-count="3"] .team-name {
+  font-size: 1.5rem;
+}
+
+/* 4-6 ödül */
+#audience_awards_view[data-award-count="4"] .award-winner-row,
+#audience_awards_view[data-award-count="5"] .award-winner-row,
+#audience_awards_view[data-award-count="6"] .award-winner-row {
+  padding: 16px 24px;
+}
+
+/* 7+ ödül için kompakt görünüm */
+#audience_awards_view[data-award-count="many"] .award-winner-row {
+  padding: 8px 16px;
+}
+
+#audience_awards_view[data-award-count="many"] .award-name {
+  font-size: 1rem;
+  min-width: 150px;
+}
+
+#audience_awards_view[data-award-count="many"] .team-number {
+  font-size: 1.4rem;
+}
+
+#audience_awards_view[data-award-count="many"] .team-name {
+  font-size: 0.9rem;
+  min-width: 100px;
+}
+
 .audience-placeholder {
   color: #cbd5f5;
 }

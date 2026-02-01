@@ -36,7 +36,7 @@
  * });
  */
 
-class AudienceCore {
+class AudienceCoreManager {
   constructor() {
     // State
     this.screenId = "";
@@ -62,6 +62,9 @@ class AudienceCore {
     // Overlay
     this.overlayEnabled = false;
     this.overlayText = "";
+    
+    // Ceremony state (tören durumu)
+    this.ceremonyState = null;
     
     // WebSocket bağlantıları
     this.audienceSocket = null;
@@ -103,6 +106,9 @@ class AudienceCore {
     
     // Screen settings'i yükle
     await this.loadScreenSettings();
+    
+    // WebSocket bağlantısını başlat (view_change için her zaman açık)
+    this.startWebSocketConnection();
     
     // Periyodik kontrolleri başlat
     this.startPeriodicChecks();
@@ -158,7 +164,8 @@ class AudienceCore {
       overlayEnabled: this.overlayEnabled,
       overlayText: this.overlayText,
       isWebSocketActive: this.isWebSocketActive,
-      hasPreview: this.previewState !== "none"
+      hasPreview: this.previewState !== "none",
+      ceremonyState: this.ceremonyState
     };
   }
   
@@ -316,11 +323,14 @@ class AudienceCore {
   
   /**
    * WebSocket bağlantısını başlatır
+   * 
+   * WebSocket her zaman açık tutulur (view_change event'leri için).
+   * match_update ve scores_update sadece match view'da ve preview yokken işlenir.
    */
   startWebSocketConnection() {
-    // Preview aktifken WebSocket başlatma
-    if (this.previewState !== "none") {
-      console.log("AudienceCore: Preview aktif, WebSocket başlatılmıyor");
+    // Zaten bağlıysa tekrar başlatma
+    if (this.audienceSocket && this.audienceSocket.connected) {
+      console.log("AudienceCore: WebSocket zaten bağlı");
       return;
     }
     
@@ -354,11 +364,65 @@ class AudienceCore {
         this.notify();
       });
       
-      // Maç güncellemesi
+      // ===== VIEW CHANGE EVENT (ANLIK GÜNCELLEME) =====
+      // Bu event her zaman dinlenir ve anlık view değişikliği sağlar
+      this.audienceSocket.on("view_change", (data) => {
+        try {
+          console.log("AudienceCore: view_change event alındı:", data);
+          
+          // Eğer ekran-spesifik bir mesajsa ve bu ekrana ait değilse yoksay
+          if (data.screen_id && data.screen_id !== this.screenId) {
+            console.log("AudienceCore: Farklı ekran için view_change, yoksayılıyor");
+            return;
+          }
+          
+          const newView = data.active_view || "match";
+          const newOverlayEnabled = !!data.overlay_enabled;
+          const newOverlayText = data.overlay_text || "";
+          
+          // Overlay güncelle
+          this.overlayEnabled = newOverlayEnabled;
+          this.overlayText = newOverlayText;
+          
+          // View değişikliği (preview yoksa)
+          if (this.previewState === "none" && this.currentView !== newView) {
+            console.log(`AudienceCore: View değiştiriliyor: ${this.currentView} -> ${newView}`);
+            this.switchView(newView);
+          } else {
+            // Sadece overlay değişikliği için notify
+            this.notify();
+          }
+        } catch (err) {
+          console.error("AudienceCore: view_change error:", err);
+        }
+      });
+      
+      // ===== CEREMONY UPDATE EVENT (TÖREN GÜNCELLEMELERİ) =====
+      // Bu event her zaman dinlenir ve anlık tören güncellemesi sağlar
+      this.audienceSocket.on("ceremony_update", (data) => {
+        try {
+          console.log("AudienceCore: ceremony_update event alındı:", data);
+          
+          // Ceremony state'i güncelle
+          this.ceremonyState = data;
+          
+          // Ceremony view aktifse VEYA henüz değilse ama tören başladıysa UI'ı güncelle
+          // Bu sayede view geçişi sırasında da güncellemeler kaybolmaz
+          if (typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {
+            window.AudienceCeremony.handleUpdate(data);
+          }
+          
+          this.notify();
+        } catch (err) {
+          console.error("AudienceCore: ceremony_update error:", err);
+        }
+      });
+      
+      // Maç güncellemesi (sadece match view'da ve preview yokken)
       this.audienceSocket.on("match_update", (data) => {
         try {
-          // Preview aktifken WebSocket mesajlarını yoksay
-          if (this.previewState !== "none") {
+          // Preview aktifken veya match view değilken yoksay
+          if (this.previewState !== "none" || this.currentView !== "match") {
             return;
           }
           
@@ -399,11 +463,11 @@ class AudienceCore {
         }
       });
       
-      // Skor güncellemesi
+      // Skor güncellemesi (sadece match view'da ve preview yokken)
       this.audienceSocket.on("scores_update", (data) => {
         try {
-          // Preview aktifken WebSocket mesajlarını yoksay
-          if (this.previewState !== "none") {
+          // Preview aktifken veya match view değilken yoksay
+          if (this.previewState !== "none" || this.currentView !== "match") {
             return;
           }
           
@@ -434,16 +498,15 @@ class AudienceCore {
         this.isWebSocketActive = false;
         this.notify();
         
+        // Her zaman yeniden bağlanmayı dene (view_change için gerekli)
         if (reason === "io server disconnect" || reason === "transport close") {
-          if (this.retryCount < this.MAX_RETRY_COUNT && this.currentView === "match" && this.previewState === "none") {
+          if (this.retryCount < this.MAX_RETRY_COUNT) {
             const retryDelay = Math.min(30000, this.RETRY_DELAY_BASE * Math.pow(2, this.retryCount));
             this.retryCount++;
             
             setTimeout(() => {
-              if (this.currentView === "match" && this.previewState === "none") {
-                console.log(`AudienceCore: WebSocket yeniden bağlanma denemesi ${this.retryCount}/${this.MAX_RETRY_COUNT}...`);
-                this.startWebSocketConnection();
-              }
+              console.log(`AudienceCore: WebSocket yeniden bağlanma denemesi ${this.retryCount}/${this.MAX_RETRY_COUNT}...`);
+              this.startWebSocketConnection();
             }, retryDelay);
           }
         }
@@ -551,17 +614,43 @@ class AudienceCore {
     
     this.currentView = viewName;
     
-    // Match view için WebSocket yönetimi
+    // WebSocket yönetimi - match ve ceremony view'ları için WebSocket açık tutulmalı
     if (viewName === "match" && this.previewState === "none") {
       this.startWebSocketConnection();
       // Match view için maç verilerini yükle
       this.loadMatchView();
+    } else if (viewName === "ceremony") {
+      // Ceremony view için WebSocket açık tutulmalı (ceremony_update için)
+      this.startWebSocketConnection();
+      // Ceremony state'i yükle
+      this.loadCeremonyState();
     } else {
       this.stopWebSocketConnection();
     }
     
     // View değişikliği için UI güncellemesi yapılacak (notify ile)
     this.notify();
+  }
+  
+  /**
+   * Ceremony state'i API'den yükler
+   */
+  async loadCeremonyState() {
+    try {
+      const data = await apiGet("/api/public/ceremony");
+      console.log("AudienceCore: Ceremony state yüklendi:", data);
+      
+      this.ceremonyState = data;
+      
+      // AudienceCeremony modülüne ilet
+      if (typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {
+        window.AudienceCeremony.handleUpdate(data);
+      }
+      
+      this.notify();
+    } catch (err) {
+      console.error("AudienceCore: loadCeremonyState error:", err);
+    }
   }
   
   /**
@@ -601,7 +690,7 @@ class AudienceCore {
 }
 
 // Global instance (class adı ile instance adı farklı olmalı)
-const audienceCoreInstance = new AudienceCore();
+const audienceCoreInstance = new AudienceCoreManager();
 
 // Export (geriye dönük uyumluluk için AudienceCore adıyla da export ediyoruz)
 if (typeof window !== "undefined") {

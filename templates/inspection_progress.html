@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - İnceleme Durum Girişi</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .inspection-layout {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      
+      .card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+      }
+      
+      .card h2 {
+        margin: 0 0 16px 0;
+        font-size: 1.3rem;
+        color: #333;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 8px;
+      }
+      
+      /* Stats */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      
+      .stat-card {
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        color: white;
+      }
+      
+      .stat-card.total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+      .stat-card.passed { background: linear-gradient(135deg, #4caf50 0%, #43a047 100%); }
+      .stat-card.failed { background: linear-gradient(135deg, #f44336 0%, #e53935 100%); }
+      .stat-card.pending { background: linear-gradient(135deg, #ff9800 0%, #fb8c00 100%); }
+      
+      .stat-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+      }
+      
+      .stat-card .label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+      }
+      
+      /* Progress Bar */
+      .progress-container {
+        background: #e0e0e0;
+        border-radius: 6px;
+        height: 20px;
+        overflow: hidden;
+        margin-bottom: 16px;
+      }
+      
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+        transition: width 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      
+      /* Filter */
+      .filter-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      
+      .filter-btn {
+        padding: 6px 14px;
+        border: 1px solid #ddd;
+        border-radius: 16px;
+        background: white;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      
+      .filter-btn.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+      
+      .search-box {
+        flex: 1;
+        min-width: 180px;
+        padding: 6px 14px;
+        border: 1px solid #ddd;
+        border-radius: 16px;
+        font-size: 0.85rem;
+      }
+      
+      /* Team Cards */
+      .teams-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      
+      .team-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 14px;
+        border-left: 4px solid #667eea;
+      }
+      
+      .team-card.status-passed {
+        border-left-color: #4caf50;
+        background: #f1f8e9;
+      }
+      
+      .team-card.status-failed {
+        border-left-color: #f44336;
+        background: #ffebee;
+      }
+      
+      .team-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      
+      .team-info .team-number {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #667eea;
+      }
+      
+      .team-info .team-name {
+        font-size: 0.85rem;
+        color: #666;
+      }
+      
+      .team-info .team-time {
+        font-size: 0.75rem;
+        color: #999;
+        margin-top: 2px;
+      }
+      
+      .status-select {
+        padding: 6px 10px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        min-width: 110px;
+      }
+      
+      .status-select.status-passed {
+        border-color: #4caf50;
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      
+      .status-select.status-failed {
+        border-color: #f44336;
+        background: #ffebee;
+        color: #c62828;
+      }
+      
+      .notes-input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        resize: vertical;
+        min-height: 50px;
+        margin-top: 8px;
+      }
+      
+      .save-indicator {
+        font-size: 0.7rem;
+        color: #999;
+        margin-top: 4px;
+        text-align: right;
+      }
+      
+      .save-indicator.saving { color: #ff9800; }
+      .save-indicator.saved { color: #4caf50; }
+      
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+      }
+      
+      .empty-state .icon {
+        font-size: 3rem;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body data-page="inspection-progress">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">← Dashboard</a>
+          <a href="/inspection-schedule" class="button btn-small">📋 Program Oluştur</a>
+          <a href="/inspection-tracking" class="button btn-small">📊 Takip Paneli</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="inspection-layout">
+      <!-- Özet -->
+      <section class="card">
+        <h2>✅ İnceleme Durum Girişi</h2>
+        
+        <div class="stats-grid">
+          <div class="stat-card total">
+            <div class="value" id="stat_total">0</div>
+            <div class="label">Toplam</div>
+          </div>
+          <div class="stat-card passed">
+            <div class="value" id="stat_passed">0</div>
+            <div class="label">Geçti ✓</div>
+          </div>
+          <div class="stat-card failed">
+            <div class="value" id="stat_failed">0</div>
+            <div class="label">Kaldı ✗</div>
+          </div>
+          <div class="stat-card pending">
+            <div class="value" id="stat_not_started">0</div>
+            <div class="label">Başlamadı</div>
+          </div>
+        </div>
+        
+        <div class="progress-container">
+          <div id="progress_bar" class="progress-fill" style="width: 0%;">0%</div>
+        </div>
+      </section>
+      
+      <!-- Takım Listesi -->
+      <section class="card">
+        <div class="filter-row">
+          <button class="filter-btn active" data-filter="all">Tümü</button>
+          <button class="filter-btn" data-filter="not-started">📋 Başlamadı</button>
+          <button class="filter-btn" data-filter="passed">✅ Geçti</button>
+          <button class="filter-btn" data-filter="failed">❌ Kaldı</button>
+          <input type="text" class="search-box" id="search_box" placeholder="Takım ara..." />
+        </div>
+        
+        <div id="teams_container" class="teams-grid">
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <p>Henüz program oluşturulmamış</p>
+            <p><a href="/inspection-schedule">Program Oluştur</a></p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/app.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    (function() {
+      'use strict';
+      
+      let teamsData = [];
+      let currentFilter = 'all';
+      let searchTerm = '';
+      let saveTimers = {};
+      let socket = null;
+      
+      async function init() {
+        try {
+          socket = io();
+        } catch (e) {
+          console.log('Socket.IO not available');
+        }
+        
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.dataset.filter;
+            renderTeams();
+          });
+        });
+        
+        document.getElementById('search_box').addEventListener('input', (e) => {
+          searchTerm = e.target.value.toLowerCase();
+          renderTeams();
+        });
+        
+        await loadTeams();
+      }
+      
+      async function loadTeams() {
+        try {
+          const response = await fetch('/api/inspection-slots');
+          if (!response.ok) throw new Error('API error');
+          teamsData = await response.json();
+          updateStats();
+          renderTeams();
+        } catch (err) {
+          console.error('Load teams error:', err);
+        }
+      }
+      
+      function updateStats() {
+        const total = teamsData.length;
+        const passed = teamsData.filter(t => t.status === 'passed').length;
+        const failed = teamsData.filter(t => t.status === 'failed').length;
+        const notStarted = total - passed - failed;
+        
+        document.getElementById('stat_total').textContent = total;
+        document.getElementById('stat_passed').textContent = passed;
+        document.getElementById('stat_failed').textContent = failed;
+        document.getElementById('stat_not_started').textContent = notStarted;
+        
+        const pct = total > 0 ? Math.round(((passed + failed) / total) * 100) : 0;
+        const bar = document.getElementById('progress_bar');
+        bar.style.width = pct + '%';
+        bar.textContent = pct + '%';
+      }
+      
+      function renderTeams() {
+        const container = document.getElementById('teams_container');
+        
+        let filtered = teamsData.filter(team => {
+          if (currentFilter === 'not-started' && (team.status === 'passed' || team.status === 'failed')) return false;
+          if (currentFilter === 'passed' && team.status !== 'passed') return false;
+          if (currentFilter === 'failed' && team.status !== 'failed') return false;
+          
+          if (searchTerm) {
+            const num = (team.team_number || '').toLowerCase();
+            const name = (team.team_name || '').toLowerCase();
+            if (!num.includes(searchTerm) && !name.includes(searchTerm)) return false;
+          }
+          
+          return true;
+        });
+        
+        filtered.sort((a, b) => {
+          return ((a.slot_date || '') + ' ' + (a.slot_time || '')).localeCompare((b.slot_date || '') + ' ' + (b.slot_time || ''));
+        });
+        
+        if (filtered.length === 0) {
+          if (teamsData.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Henüz program oluşturulmamış</p><p><a href="/inspection-schedule">Program Oluştur</a></p></div>';
+          } else {
+            container.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Filtreye uygun takım bulunamadı</p></div>';
+          }
+          return;
+        }
+        
+        container.innerHTML = filtered.map(team => renderTeamCard(team)).join('');
+        
+        container.querySelectorAll('.status-select').forEach(select => {
+          select.addEventListener('change', handleStatusChange);
+        });
+        
+        container.querySelectorAll('.notes-input').forEach(input => {
+          input.addEventListener('input', handleNotesChange);
+        });
+      }
+      
+      function renderTeamCard(team) {
+        const statusClass = team.status === 'passed' ? 'status-passed' : (team.status === 'failed' ? 'status-failed' : '');
+        const date = team.slot_date ? team.slot_date.split('-').reverse().join('/') : '';
+        
+        return '<div class="team-card ' + statusClass + '" data-id="' + team.id + '">' +
+          '<div class="team-card-header">' +
+            '<div class="team-info">' +
+              '<div class="team-number">' + esc(team.team_number) + '</div>' +
+              '<div class="team-name">' + esc(team.team_name) + '</div>' +
+              '<div class="team-time">📅 ' + date + ' ⏰ ' + esc(team.slot_time) + '</div>' +
+            '</div>' +
+            '<select class="status-select ' + statusClass + '" data-id="' + team.id + '">' +
+              '<option value="not-started"' + (team.status !== 'passed' && team.status !== 'failed' ? ' selected' : '') + '>📋 Başlamadı</option>' +
+              '<option value="passed"' + (team.status === 'passed' ? ' selected' : '') + '>✅ Geçti</option>' +
+              '<option value="failed"' + (team.status === 'failed' ? ' selected' : '') + '>❌ Kaldı</option>' +
+            '</select>' +
+          '</div>' +
+          '<textarea class="notes-input" data-id="' + team.id + '" placeholder="Notlar...">' + esc(team.notes || '') + '</textarea>' +
+          '<div class="save-indicator" id="ind_' + team.id + '"></div>' +
+        '</div>';
+      }
+      
+      async function handleStatusChange(e) {
+        const id = e.target.dataset.id;
+        const newStatus = e.target.value;
+        
+        const team = teamsData.find(t => t.id == id);
+        if (team) team.status = newStatus;
+        
+        const card = document.querySelector('.team-card[data-id="' + id + '"]');
+        card.className = 'team-card' + (newStatus === 'passed' ? ' status-passed' : (newStatus === 'failed' ? ' status-failed' : ''));
+        e.target.className = 'status-select' + (newStatus === 'passed' ? ' status-passed' : (newStatus === 'failed' ? ' status-failed' : ''));
+        
+        await saveSlot(id, { status: newStatus });
+        updateStats();
+        
+        if (socket) socket.emit('inspection_update', { id, status: newStatus });
+      }
+      
+      function handleNotesChange(e) {
+        const id = e.target.dataset.id;
+        const notes = e.target.value;
+        
+        const team = teamsData.find(t => t.id == id);
+        if (team) team.notes = notes;
+        
+        showIndicator(id, 'saving', 'Kaydediliyor...');
+        
+        clearTimeout(saveTimers[id]);
+        saveTimers[id] = setTimeout(async () => {
+          const ok = await saveSlot(id, { notes });
+          showIndicator(id, ok ? 'saved' : 'error', ok ? '✓ Kaydedildi' : '✗ Hata');
+        }, 800);
+      }
+      
+      async function saveSlot(id, data) {
+        try {
+          const response = await fetch('/api/inspection-slots/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          return response.ok;
+        } catch (err) {
+          return false;
+        }
+      }
+      
+      function showIndicator(id, type, msg) {
+        const el = document.getElementById('ind_' + id);
+        if (el) {
+          el.className = 'save-indicator ' + type;
+          el.textContent = msg;
+          if (type === 'saved') setTimeout(() => { el.textContent = ''; }, 2000);
+        }
+      }
+      
+      function esc(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+    </script>
+  </body>
+</html>

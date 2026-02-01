@@ -5,11 +5,7 @@
  * SSE yerine WebSocket kullanıyor (daha iyi performans ve timer senkronizasyonu için).
  */
 
-// WebSocket bağlantısı
-let audienceSocket = null;
-let retryCount = 0;
-const MAX_RETRY_COUNT = 5;
-const RETRY_DELAY_BASE = 1000;
+// WebSocket bağlantısı state'i audience_display_core.js içinde tutulur
 
 /**
  * WebSocket bağlantısını başlatır (gerçek zamanlı maç güncellemeleri için)

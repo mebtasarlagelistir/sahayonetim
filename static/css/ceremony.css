@@ -1,0 +1,577 @@
+/* ========================================== */
+/* ÖDÜL TÖRENİ STİLLERİ                       */
+/* ========================================== */
+
+/* Ceremony Control Panel */
+.ceremony-control-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.ceremony-control-panel h3 {
+  color: white;
+  margin-top: 0;
+}
+
+.ceremony-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+}
+
+.ceremony-status .status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.ceremony-status .status-indicator.status-active {
+  background: #4caf50;
+  box-shadow: 0 0 10px #4caf50;
+}
+
+.ceremony-status .status-indicator.status-inactive {
+  background: #9e9e9e;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ceremony-current-award {
+  background: rgba(255,255,255,0.1);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.ceremony-current-award .current-award-info,
+.ceremony-current-award .current-award-step {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ceremony-current-award .label {
+  opacity: 0.8;
+}
+
+.ceremony-current-award .value {
+  font-weight: 600;
+}
+
+.ceremony-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ceremony-buttons button {
+  padding: 10px 20px;
+  font-size: 1rem;
+}
+
+.ceremony-screen-control {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Award Winners List */
+.award-winners-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.award-winner-card {
+  border: 1px solid #e1e4ee;
+  border-radius: 10px;
+  background: white;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.award-winner-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.award-winner-card.announced {
+  border-left: 4px solid #4caf50;
+  background: #f1f8f4;
+}
+
+.award-winner-card.ready {
+  border-left: 4px solid #2196f3;
+  background: #e3f2fd;
+}
+
+.award-winner-card.pending {
+  border-left: 4px solid #9e9e9e;
+}
+
+.award-winner-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e1e4ee;
+}
+
+.award-order {
+  width: 50px;
+}
+
+.award-order input {
+  width: 40px;
+  padding: 4px 8px;
+  text-align: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.award-info {
+  flex: 1;
+}
+
+.award-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+}
+
+.award-category {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-badge.announced {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.ready {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-badge.pending {
+  background: #f5f5f5;
+  color: #757575;
+}
+
+.award-winner-body {
+  padding: 16px;
+}
+
+.award-description {
+  color: #666;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.award-winner-form {
+  display: grid;
+  gap: 12px;
+}
+
+.award-winner-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.award-winner-form select,
+.award-winner-form textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.award-winner-actions {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-top: 1px solid #e1e4ee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ========================================== */
+/* AUDIENCE CEREMONY VIEW                     */
+/* ========================================== */
+
+.ceremony-view {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.ceremony-container {
+  text-align: center;
+  max-width: 80%;
+  z-index: 1;
+}
+
+.ceremony-idle {
+  text-align: center;
+  color: white;
+  animation: fadeIn 1s ease;
+}
+
+.ceremony-idle .ceremony-logo {
+  font-size: 6rem;
+  margin-bottom: 20px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+.ceremony-idle h2 {
+  font-size: 3rem;
+  margin: 0 0 10px 0;
+  background: linear-gradient(45deg, #f093fb, #f5576c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ceremony-idle p {
+  font-size: 1.5rem;
+  opacity: 0.8;
+}
+
+/* Award Name Display */
+.ceremony-award-name {
+  animation: slideInFromTop 0.8s ease;
+}
+
+.ceremony-award-name .award-icon {
+  font-size: 5rem;
+  display: block;
+  margin-bottom: 20px;
+  animation: bounce 1s ease infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.ceremony-award-name .award-title {
+  font-size: 3.5rem;
+  color: white;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  margin: 0;
+  background: linear-gradient(45deg, #ffd700, #ffaa00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Award Description */
+.ceremony-award-description {
+  animation: fadeIn 0.8s ease;
+  margin-top: 30px;
+}
+
+.ceremony-award-description .description-text {
+  font-size: 1.5rem;
+  color: rgba(255,255,255,0.9);
+  line-height: 1.6;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Winner Display */
+.ceremony-winner {
+  animation: scaleIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  margin-top: 40px;
+}
+
+.ceremony-winner .winner-label {
+  font-size: 1.5rem;
+  color: #ffd700;
+  letter-spacing: 0.5em;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+
+.ceremony-winner .winner-team-number {
+  font-size: 8rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 0 40px rgba(255,215,0,0.5);
+  line-height: 1;
+}
+
+.ceremony-winner .winner-team-name {
+  font-size: 2.5rem;
+  color: white;
+  margin-top: 10px;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Jury Note */
+.ceremony-jury-note {
+  animation: slideInFromBottom 0.8s ease;
+  margin-top: 40px;
+  background: rgba(255,255,255,0.1);
+  padding: 30px 40px;
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.ceremony-jury-note .jury-note-label {
+  font-size: 1rem;
+  color: #ffd700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 15px;
+}
+
+.ceremony-jury-note .jury-note-text {
+  font-size: 1.5rem;
+  color: white;
+  font-style: italic;
+  line-height: 1.6;
+  margin: 0;
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Spotlight Effect */
+.ceremony-view::before {
+  content: "";
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgba(255,215,0,0.1) 0%, transparent 40%);
+  animation: spotlightRotate 20s linear infinite;
+}
+
+@keyframes spotlightRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Confetti particles */
+.confetti-particle {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  background: gold;
+  animation: confettiFall 3s ease-in-out infinite;
+}
+
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Hidden state */
+.ceremony-award-name.hidden,
+.ceremony-award-description.hidden,
+.ceremony-winner.hidden,
+.ceremony-jury-note.hidden,
+.ceremony-idle.hidden {
+  display: none;
+}
+
+/* ========================================== */
+/* DRAG AND DROP STYLES                       */
+/* ========================================== */
+
+.ceremony-sortable .award-winner-card {
+  display: flex;
+  align-items: stretch;
+  cursor: grab;
+  user-select: none;
+}
+
+.ceremony-sortable .award-winner-card:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  background: #f0f0f0;
+  color: #999;
+  font-size: 1.2rem;
+  cursor: grab;
+  border-right: 1px solid #e1e4ee;
+}
+
+.drag-handle:hover {
+  background: #e0e0e0;
+  color: #666;
+}
+
+.award-winner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.award-winner-card.dragging {
+  opacity: 0.5;
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+.award-winner-card.drag-over {
+  border-top: 3px solid #667eea;
+}
+
+.award-order-badge {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.ceremony-sortable .award-winner-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e1e4ee;
+}
+
+.ceremony-sortable .award-winner-body {
+  padding: 12px 16px;
+}
+
+.winner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.winner-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.winner-team .label {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.winner-team .team-number {
+  font-weight: 700;
+  color: #667eea;
+  font-size: 1.1rem;
+}
+
+.winner-team .team-name {
+  color: #333;
+}
+
+.jury-notes {
+  background: #fff9e6;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid #ffc107;
+}
+
+.jury-notes .label {
+  color: #856404;
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.jury-notes .note-text {
+  color: #664d03;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.ceremony-sortable .award-winner-actions {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #f8f9fa;
+  border-left: 1px solid #e1e4ee;
+}
+

@@ -99,10 +99,38 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         data = request.get_json(force=True) or {}
         event_data = datastore.get_event()
         event_data.setdefault("screens", {})
-        event_data["screens"]["active_view"] = (data.get("active_view") or "match").strip()
-        event_data["screens"]["overlay_enabled"] = bool(data.get("overlay_enabled", False))
-        event_data["screens"]["overlay_text"] = (data.get("overlay_text") or "").strip()
+        
+        new_active_view = (data.get("active_view") or "match").strip()
+        new_overlay_enabled = bool(data.get("overlay_enabled", False))
+        new_overlay_text = (data.get("overlay_text") or "").strip()
+        
+        # Mevcut ayarları al (değişiklik kontrolü için)
+        old_active_view = event_data["screens"].get("active_view", "match")
+        old_overlay_enabled = event_data["screens"].get("overlay_enabled", False)
+        old_overlay_text = event_data["screens"].get("overlay_text", "")
+        
+        # Yeni ayarları kaydet
+        event_data["screens"]["active_view"] = new_active_view
+        event_data["screens"]["overlay_enabled"] = new_overlay_enabled
+        event_data["screens"]["overlay_text"] = new_overlay_text
         datastore.save_event(event_data)
+        
+        # Değişiklik varsa tüm seyirci ekranlarına WebSocket ile bildir
+        settings_changed = (
+            old_active_view != new_active_view or
+            old_overlay_enabled != new_overlay_enabled or
+            old_overlay_text != new_overlay_text
+        )
+        
+        if settings_changed and socketio:
+            # Tüm /audience namespace'indeki ekranlara broadcast yap
+            socketio.emit("view_change", {
+                "active_view": new_active_view,
+                "overlay_enabled": new_overlay_enabled,
+                "overlay_text": new_overlay_text
+            }, namespace="/audience")
+            logger.info(f"View change broadcast: {new_active_view}")
+        
         return jsonify({"ok": True})
 
     @bp.post("/api/screens/heartbeat")
@@ -113,7 +141,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
             return jsonify({"error": "screen_id gerekli"}), 400
         existing = _screen_registry.get(screen_id, {})
         desired_view = existing.get("desired_view") or (data.get("desired_view") or "").strip() or "match"
-        follow_global = bool(existing.get("follow_global", False))
+        # Yeni ekranlar varsayılan olarak global ayarları takip etsin
+        follow_global = existing.get("follow_global", True) if existing else True
         ip = request.remote_addr or ""
         screen_name = (data.get("screen_name") or "").strip() or existing.get("screen_name") or _assign_screen_name(ip)
         _screen_registry[screen_id] = {
@@ -144,7 +173,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         screen_id = (request.args.get("screen_id") or "").strip()
         global_settings = _get_global_screen_settings(datastore)
         screen = _screen_registry.get(screen_id, {})
-        follow_global = bool(screen.get("follow_global", False))
+        # Varsayılan olarak global ayarları takip et (yeni ekranlar için)
+        follow_global = screen.get("follow_global", True) if screen else True
         desired_view = screen.get("desired_view") or "match"
         override_view = screen.get("override_view")
         override_until = screen.get("override_until")
@@ -217,6 +247,18 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         screen["desired_view"] = desired_view
         screen["follow_global"] = follow_global
         _screen_registry[screen_id] = screen
+        
+        # Eğer ekran global takip etmiyorsa, WebSocket ile view değişikliğini bildir
+        if not follow_global and socketio:
+            global_settings = _get_global_screen_settings(datastore)
+            socketio.emit("view_change", {
+                "active_view": desired_view,
+                "overlay_enabled": global_settings.get("overlay_enabled", False),
+                "overlay_text": global_settings.get("overlay_text", ""),
+                "screen_id": screen_id  # Hangi ekran için olduğunu belirt
+            }, namespace="/audience")
+            logger.info(f"Screen-specific view change: {screen_id} -> {desired_view}")
+        
         return jsonify({"ok": True})
 
     @bp.post("/api/screens/close")

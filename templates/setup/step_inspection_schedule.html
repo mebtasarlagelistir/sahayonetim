@@ -1,57 +1,5 @@
 <section class="card" id="step-inspection-schedule">
   <h2>İnceleme Programı</h2>
-  
-  <!-- İnceleme Tipi Süre Ayarları -->
-  <div class="card-section">
-    <h3>İnceleme Tipi Süreleri (dakika)</h3>
-    <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
-      Her inceleme tipi için süreyi belirleyin. Checkbox'ları işaretleyerek otomatik takvim oluşturulurken hangi tiplerin kullanılacağını seçebilirsiniz.
-    </p>
-    <div class="checkbox-group" id="inspection_duration_settings" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="hardware" checked />
-        <span style="flex: 1;">Donanım</span>
-        <input type="number" data-inspection-type="hardware" data-duration-input value="20" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="size" checked />
-        <span style="flex: 1;">Boyut</span>
-        <input type="number" data-inspection-type="size" data-duration-input value="10" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="safety" checked />
-        <span style="flex: 1;">Güvenlik</span>
-        <input type="number" data-inspection-type="safety" data-duration-input value="15" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="software" />
-        <span style="flex: 1;">Yazılım</span>
-        <input type="number" data-inspection-type="software" data-duration-input value="15" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="weight" />
-        <span style="flex: 1;">Ağırlık</span>
-        <input type="number" data-inspection-type="weight" data-duration-input value="5" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-      <label class="checkbox" style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e1e4ee; border-radius: 4px;">
-        <input type="checkbox" data-inspection-type="custom" />
-        <span style="flex: 1;">Özel</span>
-        <input type="number" data-inspection-type="custom" data-duration-input value="15" min="5" max="120" style="width: 60px; padding: 4px 8px;" />
-        <span>dk</span>
-      </label>
-    </div>
-    <label style="display: block; margin-top: 16px;">
-      Yazdırma Notu
-      <textarea id="inspection_print_note" rows="4" style="width: 100%; margin-top: 6px;"></textarea>
-    </label>
-    <button id="save_inspection_print_note" class="btn-secondary" style="margin-top: 8px;">Yazdırma Notunu Kaydet</button>
-    <button id="save_inspection_durations" class="btn-secondary" style="margin-top: 16px;">Süreleri Kaydet</button>
-  </div>
 
   <!-- Görünüm Seçimi -->
   <div class="card-section">
@@ -160,12 +108,20 @@
         İnceleme Tipi
         <select id="filter_inspection_type">
           <option value="">Tümü</option>
-          <option value="hardware">Donanım</option>
-          <option value="size">Boyut</option>
-          <option value="safety">Güvenlik</option>
-          <option value="software">Yazılım</option>
-          <option value="weight">Ağırlık</option>
-          <option value="custom">Özel</option>
+          <!-- FRC Types -->
+          <option value="weight">⚖️ Ağırlık</option>
+          <option value="size">📏 Boyut</option>
+          <option value="general_hardware">🔧 Genel Donanım</option>
+          <option value="electrical">⚡ Elektrik Sistemi</option>
+          <option value="pneumatics">💨 Pnömatik</option>
+          <option value="radio">📡 Radio/İletişim</option>
+          <option value="software">💻 Yazılım/Kontrol</option>
+          <option value="bumpers">🛡️ Tamponlar</option>
+          <option value="game_specific">🎮 Oyuna Özel</option>
+          <option value="safety">⚠️ Güvenlik</option>
+          <!-- Legacy (backward compatibility) -->
+          <option value="hardware">Donanım (Eski)</option>
+          <option value="custom">Özel (Eski)</option>
         </select>
       </label>
       <label>
@@ -177,9 +133,11 @@
         <select id="filter_inspection_status">
           <option value="">Tümü</option>
           <option value="scheduled">Planlandı</option>
-          <option value="completed">Tamamlandı</option>
-          <option value="passed">Geçti</option>
-          <option value="failed">Kaldı</option>
+          <option value="in_progress">Devam Ediyor</option>
+          <option value="passed">✓ Geçti</option>
+          <option value="passed_with_conditions">⚠ Şartlı Geçti</option>
+          <option value="failed">✗ Kaldı</option>
+          <option value="pending_reinspection">🔄 Yeniden İnceleme</option>
           <option value="cancelled">İptal</option>
           <option value="no_show">Gelmedi</option>
         </select>
@@ -213,9 +171,11 @@
           <select id="bulk_inspection_status">
             <option value="">Değiştirme</option>
             <option value="scheduled">Planlandı</option>
-            <option value="completed">Tamamlandı</option>
-            <option value="passed">Geçti</option>
-            <option value="failed">Kaldı</option>
+            <option value="in_progress">Devam Ediyor</option>
+            <option value="passed">✓ Geçti</option>
+            <option value="passed_with_conditions">⚠ Şartlı Geçti</option>
+            <option value="failed">✗ Kaldı</option>
+            <option value="pending_reinspection">🔄 Yeniden İnceleme</option>
             <option value="cancelled">İptal</option>
             <option value="no_show">Gelmedi</option>
           </select>
@@ -266,12 +226,17 @@
       <label>
         İnceleme Tipi
         <select id="new_inspection_type">
-          <option value="hardware">Donanım</option>
-          <option value="size">Boyut</option>
-          <option value="safety">Güvenlik</option>
-          <option value="software">Yazılım</option>
-          <option value="weight">Ağırlık</option>
-          <option value="custom">Özel</option>
+          <!-- FRC Types (in order) -->
+          <option value="weight">⚖️ Ağırlık</option>
+          <option value="size">📏 Boyut</option>
+          <option value="general_hardware" selected>🔧 Genel Donanım</option>
+          <option value="electrical">⚡ Elektrik Sistemi</option>
+          <option value="pneumatics">💨 Pnömatik</option>
+          <option value="radio">📡 Radio/İletişim</option>
+          <option value="software">💻 Yazılım/Kontrol</option>
+          <option value="bumpers">🛡️ Tamponlar</option>
+          <option value="game_specific">🎮 Oyuna Özel</option>
+          <option value="safety">⚠️ Güvenlik</option>
         </select>
       </label>
       <label>
