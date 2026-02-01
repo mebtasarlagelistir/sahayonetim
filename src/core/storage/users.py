@@ -44,7 +44,7 @@ class UsersStorage:
             ).fetchone()
             if row:
                 return
-            password_hash = generate_password_hash("admin123")
+            password_hash = generate_password_hash("admin123", method="pbkdf2:sha256")
             conn.execute(
                 "INSERT INTO users (username, password_hash, role, event_id) VALUES (?, ?, ?, NULL)",
                 ("admin", password_hash, "admin"),
@@ -137,7 +137,7 @@ class UsersStorage:
             if event_id is None:
                 raise ValueError("Aktif etkinlik yok. Kullanıcılar etkinlik bazlı oluşturulmalıdır.")
         
-        password_hash = generate_password_hash(password)
+        password_hash = generate_password_hash(password, method="pbkdf2:sha256")
         token = secrets.token_urlsafe(24)
         with self._get_connection() as conn:
             conn.execute(
@@ -180,7 +180,7 @@ class UsersStorage:
         if event_id is None:
             event_id = self.get_active_event_id()
         
-        password_hash = generate_password_hash(password)
+        password_hash = generate_password_hash(password, method="pbkdf2:sha256")
         token = secrets.token_urlsafe(24)
         with self._get_connection() as conn:
             if event_id is not None:

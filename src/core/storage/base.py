@@ -188,6 +188,40 @@ class BaseStorage:
                 )
                 """
             )
+            # Ödül kazananları tablosu
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS award_winners (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL,
+                    award_name TEXT NOT NULL,
+                    award_category TEXT,
+                    award_description TEXT,
+                    winner_team_number TEXT,
+                    winner_team_name TEXT,
+                    jury_note TEXT,
+                    presentation_order INTEGER DEFAULT 0,
+                    announced INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                )
+                """
+            )
+            # Tören durumu tablosu (aktif ödül sunumu için)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ceremony_state (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL UNIQUE,
+                    is_active INTEGER DEFAULT 0,
+                    current_award_id INTEGER,
+                    current_step TEXT DEFAULT 'idle',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                    FOREIGN KEY (current_award_id) REFERENCES award_winners(id)
+                )
+                """
+            )
             conn.commit()
         # Migration'ları çalıştır
         self._ensure_user_token_column()

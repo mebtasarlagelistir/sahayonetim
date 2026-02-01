@@ -297,14 +297,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         applyOverlay();
       }
       
+      // Ceremony state değişikliğini AudienceCeremony modülüne ilet
+      if (state.ceremonyState && state.currentView === "ceremony") {
+        if (typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {
+          window.AudienceCeremony.handleUpdate(state.ceremonyState);
+        }
+      }
+      
       // View değişikliği için UI güncellemesi (sadece preview yoksa)
       if (!state.hasPreview) {
         // View elementlerini güncelle
-        const views = ["match", "inspection", "rankings", "awards"];
+        const views = ["match", "inspection", "rankings", "awards", "ceremony"];
         views.forEach((view) => {
           const el = qs(`audience_${view}_view`);
           if (el) {
-            el.style.display = view === state.currentView ? "block" : "none";
+            if (view === state.currentView) {
+              // Awards ve ceremony view'ları flex olarak göster
+              el.style.display = (view === "awards" || view === "ceremony") ? "flex" : "block";
+            } else {
+              el.style.display = "none";
+            }
           }
         });
         
@@ -320,6 +332,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           loadInspectionView();
         } else if (state.currentView === "awards" && typeof loadAwardsView === "function") {
           loadAwardsView();
+        } else if (state.currentView === "ceremony" && typeof showCeremonyView === "function") {
+          showCeremonyView();
         }
       }
     });

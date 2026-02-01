@@ -302,6 +302,47 @@ def create_app() -> Flask:
         """
         return render_template("dashboard.html")
 
+    @app.get("/inspection-tracking")
+    @require_login
+    def inspection_tracking():
+        """
+        İnceleme takip paneli.
+        
+        Takımların inceleme durumlarını gösteren dashboard.
+        Bar chart ve liste görünümü içerir.
+        """
+        return render_template("inspection_tracking.html")
+    
+    @app.get("/inspection-schedule")
+    @require_login
+    def inspection_schedule():
+        """
+        İnceleme programı oluşturma sayfası.
+        
+        Takımlar için basit inceleme programı oluşturur (yazdırılabilir).
+        """
+        return render_template("inspection_schedule.html")
+    
+    @app.get("/inspection-progress")
+    @require_login
+    def inspection_progress():
+        """
+        İnceleme durum girişi sayfası.
+        
+        Takımların inceleme sonuçlarını (geçti/geçmedi) ve notlarını girme ekranı.
+        """
+        return render_template("inspection_progress.html")
+
+    @app.get("/award-assignment")
+    @require_login
+    def award_assignment():
+        """
+        Ödül atama sayfası.
+        
+        Jüri üyeleri için ödül-takım eşleştirmesi yapma ekranı.
+        """
+        return render_template("award_assignment.html")
+
     @app.get("/setup")
     @app.get("/setup/<step>")
     @require_login
@@ -694,6 +735,279 @@ def create_app() -> Flask:
         datastore.save_event(event_data)
         return jsonify({"ok": True, "count": len(cleaned)})
 
+    # --- ÖDÜL KAZANANLARI VE TÖREN YÖNETİMİ ---
+    
+    @app.get("/api/award-winners")
+    @require_login
+    def get_award_winners():
+        """
+        Aktif etkinliğin ödül kazananlarını döndürür.
+        """
+        try:
+            winners = datastore.get_award_winners()
+            return jsonify(winners)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.get("/api/public/award-winners")
+    def get_award_winners_public():
+        """
+        Seyirci ekranı için ödül kazananlarını döndürür (giriş gerektirmez).
+        """
+        try:
+            winners = datastore.get_award_winners()
+            return jsonify(winners)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.post("/api/award-winners")
+    @require_login
+    def save_award_winners():
+        """
+        Ödül kazananlarını toplu olarak kaydeder.
+        
+        Request Body:
+            [
+                {
+                    "award_name": "...",
+                    "award_category": "...",
+                    "award_description": "...",
+                    "winner_team_number": "...",
+                    "winner_team_name": "...",
+                    "jury_note": "...",
+                    "presentation_order": 0
+                },
+                ...
+            ]
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_edit = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "yonetici" in role_lower
+            or "juri" in role_lower
+            or "seremoni" in role_lower
+        )
+        if not can_edit:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        data = request.get_json(force=True) or []
+        if not isinstance(data, list):
+            return jsonify({"error": "invalid payload"}), 400
+        
+        try:
+            count = datastore.bulk_save_award_winners(data)
+            return jsonify({"ok": True, "count": count})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.delete("/api/award-winners/<int:winner_id>")
+    @require_login
+    def delete_award_winner(winner_id):
+        """
+        Ödül kazananını siler.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_edit = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "yonetici" in role_lower
+        )
+        if not can_edit:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            success = datastore.delete_award_winner(winner_id)
+            if success:
+                return jsonify({"ok": True})
+            else:
+                return jsonify({"error": "Kayıt bulunamadı"}), 404
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    # --- TÖREN KONTROL API'leri ---
+    
+    @app.get("/api/ceremony/state")
+    @require_login
+    def get_ceremony_state():
+        """
+        Tören durumunu döndürür.
+        """
+        try:
+            state = datastore.get_ceremony_state()
+            return jsonify(state)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.get("/api/public/ceremony")
+    def get_ceremony_state_public():
+        """
+        Seyirci ekranı için tören durumunu döndürür (giriş gerektirmez).
+        """
+        try:
+            state = datastore.get_ceremony_state()
+            return jsonify(state)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.post("/api/ceremony/start")
+    @require_login
+    def start_ceremony():
+        """
+        Tören sunumunu başlatır.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_control = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "seremoni" in role_lower
+            or "mc" in role_lower
+        )
+        if not can_control:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            result = datastore.start_ceremony()
+            if "error" in result:
+                return jsonify(result), 400
+            
+            # SocketIO ile tüm seyirci ekranlarına bildir (/audience namespace)
+            socketio.emit("ceremony_update", result, namespace="/audience")
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.post("/api/ceremony/next")
+    @require_login
+    def next_ceremony_step():
+        """
+        Tören sunumunda bir sonraki adıma geçer.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_control = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "seremoni" in role_lower
+            or "mc" in role_lower
+        )
+        if not can_control:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            result = datastore.next_ceremony_step()
+            if "error" in result:
+                return jsonify(result), 400
+            
+            # SocketIO ile tüm seyirci ekranlarına bildir (/audience namespace)
+            socketio.emit("ceremony_update", result, namespace="/audience")
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.post("/api/ceremony/show/<int:award_id>")
+    @require_login
+    def show_ceremony_award(award_id):
+        """
+        Belirli bir ödülü gösterir.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_control = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "seremoni" in role_lower
+            or "mc" in role_lower
+        )
+        if not can_control:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            result = datastore.show_specific_award(award_id)
+            if "error" in result:
+                return jsonify(result), 400
+            
+            # SocketIO ile tüm seyirci ekranlarına bildir (/audience namespace)
+            socketio.emit("ceremony_update", result, namespace="/audience")
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.post("/api/ceremony/stop")
+    @require_login
+    def stop_ceremony():
+        """
+        Töreni durdurur.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_control = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "seremoni" in role_lower
+            or "mc" in role_lower
+        )
+        if not can_control:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            result = datastore.stop_ceremony()
+            
+            # SocketIO ile tüm seyirci ekranlarına bildir (/audience namespace)
+            socketio.emit("ceremony_update", {"is_active": False, "current_step": "idle"}, namespace="/audience")
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/ceremony/show-by-name")
+    @require_login
+    def show_ceremony_award_by_name():
+        """
+        Belirli bir ödülü ismine göre gösterir.
+        """
+        username = session.get("user")
+        role = datastore.get_user_role(username) or ""
+        role_lower = role.lower()
+        can_control = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "seremoni" in role_lower
+            or "mc" in role_lower
+        )
+        if not can_control:
+            return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+        
+        try:
+            data = request.get_json(force=True) or {}
+            award_name = data.get("award_name", "").strip()
+            if not award_name:
+                return jsonify({"error": "award_name gerekli"}), 400
+            
+            # Ödülü ismine göre bul
+            winners = datastore.get_award_winners()
+            award = next((w for w in winners if w["award_name"] == award_name), None)
+            if not award:
+                return jsonify({"error": "Ödül bulunamadı"}), 404
+            
+            result = datastore.show_specific_award(award["id"])
+            if "error" in result:
+                return jsonify(result), 400
+            
+            # SocketIO ile tüm seyirci ekranlarına bildir (/audience namespace)
+            socketio.emit("ceremony_update", result, namespace="/audience")
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # --- TAKIM YÖNETİMİ ---
     
     @app.get("/api/teams")
@@ -968,6 +1282,9 @@ def create_app() -> Flask:
     # SocketIO instance'ını döndür (route modüllerinde kullanmak için)
     return app, socketio
 
+# Flask CLI ve gunicorn için module-level değişkenler
+application, socketio_instance = create_app()
+app = application  # Flask CLI için alias
 
 if __name__ == "__main__":
     """
@@ -985,10 +1302,8 @@ if __name__ == "__main__":
         python app_web.py
         
         # Üretim (eventlet ile)
-        gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 app_web:application
+        gunicorn -k eventlet -w 1 -b 0.0.0.0:5001 app_web:application
     """
-    application, socketio_instance = create_app()
-    
     # Ortam tespiti
     flask_env = os.environ.get("FLASK_ENV", "development").lower()
     is_production = flask_env == "production"
@@ -1000,15 +1315,16 @@ if __name__ == "__main__":
             "ÜRETİM MODU: Bu script doğrudan çalıştırılmamalı. "
             "Lütfen gunicorn ile eventlet worker kullanın."
         )
-        logger.info("Örnek: waitress-serve --host=0.0.0.0 --port=5000 app_web:application")
+        logger.info("Örnek: waitress-serve --host=0.0.0.0 --port=5001 app_web:application")
         # Yine de çalıştır ama uyarı ver
-        socketio_instance.run(application, host="0.0.0.0", port=5000, debug=False)
+        socketio_instance.run(application, host="0.0.0.0", port=5001, debug=False)
     else:
         # Geliştirme modu - aynı ağdaki diğer cihazlardan erişim için 0.0.0.0 kullan
         local_ip = _get_local_ip()
         logger = logging.getLogger(__name__)
         logger.info(f"Sunucu başlatılıyor...")
-        logger.info(f"Yerel erişim: http://127.0.0.1:5000")
+        logger.info(f"Yerel erişim: http://127.0.0.1:5001")
         if local_ip != "127.0.0.1":
-            logger.info(f"Ağ erişimi: http://{local_ip}:5000")
-        socketio_instance.run(application, host="0.0.0.0", port=5000, debug=True)
+            logger.info(f"Ağ erişimi: http://{local_ip}:5001")
+        socketio_instance.run(application, host="0.0.0.0", port=5001, debug=True)
+

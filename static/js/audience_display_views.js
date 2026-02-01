@@ -216,25 +216,91 @@ async function loadInspectionView() {
 }
 
 /**
- * Ödüller görünümünü yükler
+ * Ödüller görünümünü yükler (Tüm Kazananlar - Tam Ekran)
  */
 async function loadAwardsView() {
   try {
-    const awards = await apiGet("/api/public/awards");
+    // Ödül kazananlarını yükle (sadece atanmış olanlar)
+    const winners = await apiGet("/api/public/award-winners");
     const list = qs("audience_awards_list");
+    const container = qs("audience_awards_view");
     if (!list) return;
-    if (!awards.length) {
-      list.innerHTML = "<div class='audience-placeholder'>Ödül bulunamadı.</div>";
+    
+    // Sadece takım atanmış ödülleri göster
+    const assignedWinners = (winners || []).filter(w => w.winner_team_number);
+    
+    if (!assignedWinners.length) {
+      list.innerHTML = "<div class='audience-placeholder'>Henüz ödül kazananı belirlenmemiş.</div>";
+      if (container) container.removeAttribute("data-award-count");
       return;
     }
-    list.innerHTML = awards.map((award) => {
-      const winner = award.winner || award.team || "";
-      return `<div class="audience-table-row">
-        <span>${award.name || "Ödül"}</span>
-        <span>${winner || "-"}</span>
+    
+    // Ödül sayısına göre data-attribute ayarla (CSS için)
+    const count = assignedWinners.length;
+    if (container) {
+      if (count <= 6) {
+        container.setAttribute("data-award-count", count.toString());
+      } else {
+        container.setAttribute("data-award-count", "many");
+      }
+    }
+    
+    // Sunum sırasına göre sırala
+    const sortedWinners = assignedWinners.sort((a, b) => 
+      (a.presentation_order || 0) - (b.presentation_order || 0)
+    );
+    
+    list.innerHTML = sortedWinners.map((winner) => {
+      return `<div class="audience-table-row award-winner-row">
+        <div class="award-winner-info">
+          <span class="award-name">🏆 ${escapeHtml(winner.award_name || "Ödül")}</span>
+          ${winner.jury_note ? `<span class="jury-note">${escapeHtml(winner.jury_note)}</span>` : ""}
+        </div>
+        <div class="winner-info">
+          <span class="team-number">${escapeHtml(winner.winner_team_number)}</span>
+          <span class="team-name">${escapeHtml(winner.winner_team_name || "")}</span>
+        </div>
       </div>`;
     }).join("");
   } catch (err) {
     console.error("Awards view error:", err);
   }
+}
+
+/**
+ * Ödül töreni görünümünü yükler
+ */
+async function loadCeremonyView() {
+  try {
+    // Audience Ceremony modülü varsa onu kullan
+    if (typeof AudienceCeremony !== "undefined" && AudienceCeremony.loadState) {
+      await AudienceCeremony.loadState();
+      return;
+    }
+    
+    // Fallback: Basit yükleme
+    const data = await apiGet("/api/public/ceremony");
+    console.log("Ceremony state loaded:", data);
+  } catch (err) {
+    console.error("Ceremony view error:", err);
+  }
+}
+
+/**
+ * Ödül töreni görünümünü gösterir
+ */
+function showCeremonyView() {
+  // Tüm audience panellerini gizle
+  document.querySelectorAll('.audience-panel').forEach(panel => {
+    panel.style.display = 'none';
+  });
+  
+  // Ceremony view'ı göster
+  const ceremonyView = document.getElementById('audience_ceremony_view');
+  if (ceremonyView) {
+    ceremonyView.style.display = 'flex';
+  }
+  
+  // State'i yükle
+  loadCeremonyView();
 }

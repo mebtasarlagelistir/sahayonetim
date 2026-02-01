@@ -87,15 +87,35 @@ def default_config_dict() -> Dict:
                 "notes": "",
             },
             "inspection_settings": {
+                # Phase 1: FRC Enhancement - 10 inspection types
                 "type_durations": {
-                    "hardware": 20,
-                    "size": 10,
-                    "safety": 15,
-                    "software": 15,
+                    # FRC Core Inspections
                     "weight": 5,
+                    "size": 10,
+                    "general_hardware": 20,
+                    "electrical": 15,
+                    "pneumatics": 10,  # Optional
+                    "radio": 10,
+                    "software": 15,
+                    "bumpers": 5,
+                    "game_specific": 10,
+                    "safety": 15,
+                    # Legacy types (backward compatibility)
+                    "hardware": 20,
                     "custom": 15,
                 },
-                "selected_types": ["hardware", "size", "safety"],
+                "selected_types": [
+                    "weight",
+                    "size",
+                    "general_hardware",
+                    "electrical",
+                    "radio",
+                    "software",
+                    "bumpers",
+                    "game_specific",
+                    "safety"
+                    # pneumatics is optional, not selected by default
+                ],
                 "print_note": (
                     "İnceleme İstanyonu Ekipleri programda bir sakma olmama durumunda belirtilen saatte "
                     "Pit Alanınıza inceleme için ziyaret gerçekleştirecektir. Bu saatte robotunuz ve ilgili "

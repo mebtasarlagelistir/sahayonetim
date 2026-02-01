@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - İnceleme Takip Paneli</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .tracking-layout {
+        display: grid;
+        gap: 20px;
+        padding: 20px;
+      }
+      
+      .tracking-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 16px;
+      }
+      
+      .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      .summary-card .value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      
+      .summary-card .label {
+        font-size: 0.9rem;
+        color: #666;
+      }
+      
+      .summary-card.passed .value { color: #4caf50; }
+      .summary-card.failed .value { color: #f44336; }
+      .summary-card.pending .value { color: #ff9800; }
+      .summary-card.not-started .value { color: #9e9e9e; }
+      
+      /* Progress Bar Chart */
+      .progress-chart {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      .progress-chart h3 {
+        margin: 0 0 20px 0;
+        color: #333;
+      }
+      
+      .progress-bar-visual {
+        height: 40px;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        background: #e0e0e0;
+        margin-bottom: 16px;
+      }
+      
+      .progress-segment {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: width 0.5s ease;
+      }
+      
+      .progress-segment.passed { background: #4caf50; }
+      .progress-segment.failed { background: #f44336; }
+      .progress-segment.pending { background: #ff9800; }
+      .progress-segment.not-started { background: #9e9e9e; }
+      
+      .progress-legend {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+      }
+      
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+      }
+      
+      .legend-color.passed { background: #4caf50; }
+      .legend-color.failed { background: #f44336; }
+      .legend-color.pending { background: #ff9800; }
+      .legend-color.not-started { background: #9e9e9e; }
+      
+      /* Teams List */
+      .teams-list-container {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      .teams-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      
+      .teams-list-header h3 {
+        margin: 0;
+      }
+      
+      .filter-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      
+      .filter-btn {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+      
+      .filter-btn:hover {
+        background: #f5f5f5;
+      }
+      
+      .filter-btn.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+      
+      .teams-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      
+      .teams-table th,
+      .teams-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e1e4ee;
+      }
+      
+      .teams-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #555;
+      }
+      
+      .teams-table tr:hover td {
+        background: #f8f9fa;
+      }
+      
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      
+      .status-badge.passed {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      
+      .status-badge.failed {
+        background: #ffebee;
+        color: #c62828;
+      }
+      
+      .status-badge.pending {
+        background: #fff3e0;
+        color: #ef6c00;
+      }
+      
+      .status-badge.not-started {
+        background: #f5f5f5;
+        color: #757575;
+      }
+      
+      .inspection-time {
+        font-size: 0.85rem;
+        color: #666;
+      }
+      
+      .refresh-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .auto-refresh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body data-page="inspection-tracking">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">← Dashboard</a>
+          <a href="/inspection-schedule" class="button btn-small">📋 Program Oluştur</a>
+          <a href="/inspection-progress" class="button btn-small">✅ Durum Girişi</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="tracking-layout">
+      <!-- Özet Kartları -->
+      <section class="tracking-summary">
+        <div class="summary-card passed">
+          <div class="value" id="count-passed">0</div>
+          <div class="label">✅ Geçti</div>
+        </div>
+        <div class="summary-card failed">
+          <div class="value" id="count-failed">0</div>
+          <div class="label">❌ Kaldı</div>
+        </div>
+        <div class="summary-card not-started">
+          <div class="value" id="count-not-started">0</div>
+          <div class="label">📋 Başlamadı</div>
+        </div>
+      </section>
+
+      <!-- İlerleme Grafiği -->
+      <section class="card progress-chart">
+        <h3>📊 İnceleme İlerleme Durumu</h3>
+        <div class="progress-bar-visual" id="progress-bar">
+          <div class="progress-segment passed" id="bar-passed" style="width: 0%"></div>
+          <div class="progress-segment failed" id="bar-failed" style="width: 0%"></div>
+          <div class="progress-segment not-started" id="bar-not-started" style="width: 0%"></div>
+        </div>
+        <div class="progress-legend">
+          <div class="legend-item">
+            <span class="legend-color passed"></span>
+            <span>Geçti (<span id="legend-passed">0</span>%)</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color failed"></span>
+            <span>Kaldı (<span id="legend-failed">0</span>%)</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color not-started"></span>
+            <span>Başlamadı (<span id="legend-not-started">0</span>%)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Takım Listesi -->
+      <section class="card teams-list-container">
+        <div class="teams-list-header">
+          <h3>📋 Takım İnceleme Durumları</h3>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <div class="filter-buttons">
+              <button class="filter-btn active" data-filter="all">Tümü</button>
+              <button class="filter-btn" data-filter="passed">Geçti</button>
+              <button class="filter-btn" data-filter="failed">Kaldı</button>
+              <button class="filter-btn" data-filter="not-started">Başlamadı</button>
+            </div>
+            <div class="auto-refresh">
+              <input type="checkbox" id="auto-refresh" checked>
+              <label for="auto-refresh">Otomatik Yenile (30sn)</label>
+            </div>
+            <button class="btn-small refresh-btn" id="refresh-btn">
+              🔄 Yenile
+            </button>
+          </div>
+        </div>
+        <table class="teams-table">
+          <thead>
+            <tr>
+              <th>Takım No</th>
+              <th>Takım Adı</th>
+              <th>Durum</th>
+              <th>Son İnceleme</th>
+              <th>Notlar</th>
+            </tr>
+          </thead>
+          <tbody id="teams-table-body">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 40px; color: #666;">
+                Yükleniyor...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/inspection_tracking.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

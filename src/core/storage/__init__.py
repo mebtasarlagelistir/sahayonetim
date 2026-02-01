@@ -8,9 +8,12 @@ Bu modül tüm veritabanı işlemlerini yönetir. Modüler yapıda organize edil
 - users: Kullanıcı yönetimi
 - inspection: İnceleme slotları yönetimi
 - practice_matches: Deneme maçları yönetimi
+- awards: Ödül kazananları ve tören yönetimi
 
 DataStore sınıfı tüm bu modülleri birleştirir ve tek bir arayüz sunar.
 """
+
+from __future__ import annotations
 
 from .base import BaseStorage
 from .events import EventsStorage
@@ -19,6 +22,7 @@ from .users import UsersStorage
 from .inspection import InspectionStorage
 from .practice_matches import PracticeMatchesStorage
 from .match_schedule import MatchScheduleStorage
+from .awards import AwardWinnersStorage
 
 from pathlib import Path
 
@@ -31,6 +35,7 @@ class DataStore(
     InspectionStorage,
     PracticeMatchesStorage,
     MatchScheduleStorage,
+    AwardWinnersStorage,
 ):
     """
     Veritabanı işlemlerini yöneten ana sınıf.
