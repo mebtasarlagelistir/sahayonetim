@@ -467,7 +467,7 @@ class MatchStateManager:
                     "post_match": MatchConstants.POST_MATCH_DURATION,
                 }
             except ImportError:
-                # Fallback değerler
+                # Fallback değerler (constants.py ile aynı: OKS 30, SKS 120)
                 MATCH_TIMINGS = {
                     "autonomous": 30,
                     "prepare_teleop": 5,
@@ -487,8 +487,9 @@ class MatchStateManager:
                 
                 # State geçişleri
                 needs_update = False
+                # SKS (driver_controlled) bitince doğrudan Maç Sonrası'na geç; Oyun Sonu aşaması yok
                 if time_remaining == 0 and current_state not in ["post_match", "completed"]:
-                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"]
+                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"]
                     if current_state in state_order:
                         current_index = state_order.index(current_state)
                         if current_index < len(state_order) - 1:

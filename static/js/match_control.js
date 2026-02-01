@@ -5,6 +5,17 @@
  * 
  * NOT: Bu dosya diğer match_control_*.js modüllerinden SONRA yüklenmelidir.
  * 
+ * ROBOT HAZIRLIK (TEAM_STATUSES) SENKRON MANTIĞI
+ * ==============================================
+ * - Tek referans: Backend (realtime_manager). Match kontrol ana referans ekranıdır; tüm paneller aynı state'i görür.
+ * - Herhangi bir panelden seçim (Maç kontrol veya hakem tabletleri):
+ *   1) Panel backend'e yazar (match control: POST /api/match-control/team-status tam state; hakem: POST /api/referee/score/update sadece kendi ittifakı).
+ *   2) Backend birleştirir (hakem sadece kendi ittifakını günceller; match control tam state gönderir).
+ *   3) Backend "scores" event'i ile odadaki tüm client'lara gönderir.
+ *   4) MatchCore teamStatuses günceller ve notify() ile abonelere iletir.
+ *   5) Maç kontrol applyTeamStatuses(state.teamStatuses), hakem paneli loadRefereeRobotStatuses({ team_statuses }) uygular.
+ * - Sonuç: Her panelden yapılan seçim anında her yerde senkron kalır.
+ * 
  * MODÜL YAPISI:
  * =============
  * - match_control_core.js: Sabitler, global değişkenler, sayfa başlatma
@@ -48,42 +59,59 @@ async function initializeMatchControl() {
   }
   
   // Match Core'a subscribe ol (merkezi state yönetimi)
+  // Önce window.MatchCore'u kontrol et (match_core.js'de window'a ekleniyor)
+  const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                            (typeof MatchCore !== "undefined" && MatchCore) ||
+                            (typeof globalThis !== "undefined" && globalThis.MatchCore);
+  
   let matchCoreUnsubscribe = null;
-  if (typeof MatchCore !== "undefined") {
-    matchCoreUnsubscribe = MatchCore.subscribe((state) => {
-      // State değiştiğinde UI'ı güncelle
+  let lastAppliedMatchId = null;
+  /** Robot durumunu sadece backend verisi gerçekten değiştiğinde uygula (timer ile üzerine yazmayı önler) */
+  let lastAppliedTeamStatusesKey = "";
+  if (matchCoreInstance && typeof matchCoreInstance.subscribe === "function") {
+    matchCoreUnsubscribe = matchCoreInstance.subscribe((state) => {
       currentMatch = state.match;
       currentState = state.currentState;
       timeRemaining = state.timeRemaining;
       
-      // UI'ı güncelle
       if (typeof renderMatchDisplay === "function") {
         renderMatchDisplay();
       }
-      
-      // Timer görünümünü güncelle
       if (typeof updateStateDisplay === "function") {
         updateStateDisplay();
       }
       
-      // Skorları güncelle
-      if (state.scores.red || state.scores.blue) {
-        if (typeof applyScoringData === "function") {
-          // Match Core'dan gelen scores formatını uyumlu hale getir
-          const scoringData = {
-            red: state.scores.red,
-            blue: state.scores.blue
-          };
-          applyScoringData(scoringData);
-        }
-        if (typeof calculateScoreBreakdown === "function") {
-          calculateScoreBreakdown();
-        }
+      var matchId = state.match ? state.match.id : null;
+      var matchChanged = matchId !== lastAppliedMatchId;
+      if (matchChanged) {
+        lastAppliedMatchId = matchId;
+        lastAppliedTeamStatusesKey = "";
       }
       
-      // Team statuses güncelle
-      if (state.teamStatuses && typeof applyTeamStatuses === "function") {
-        applyTeamStatuses(state.teamStatuses);
+      var hasNewScores = state.scoresJustUpdated && state.scores && (state.scores.red != null || state.scores.blue != null);
+      if (hasNewScores && typeof applyScoringData === "function") {
+        var scoringData = {
+          red: state.scores.red || {},
+          blue: state.scores.blue || {},
+          team_statuses: state.teamStatuses || {}
+        };
+        applyScoringData(scoringData);
+      }
+      
+      var ts = state.teamStatuses != null ? state.teamStatuses : {};
+      var tsKey = JSON.stringify(ts);
+      if (tsKey !== lastAppliedTeamStatusesKey && typeof applyTeamStatuses === "function") {
+        applyTeamStatuses(ts);
+        lastAppliedTeamStatusesKey = tsKey;
+      }
+      
+      if (typeof calculateScoreBreakdown === "function") {
+        calculateScoreBreakdown();
+      }
+      
+      // Baş hakem onayı göstergesi: maç onaylandığında skor kontrol ekranında görünsün
+      if (typeof updateHeadRefereeApprovedIndicator === "function" && state.scores) {
+        updateHeadRefereeApprovedIndicator(state.scores.referee_meta);
       }
       
       // Otomatik durum geçişi (timer süre dolduğunda)
@@ -97,12 +125,22 @@ async function initializeMatchControl() {
     });
     
     // Aktif maçı yükle
-    await MatchCore.loadActiveMatch();
+    if (typeof matchCoreInstance.loadActiveMatch === "function") {
+      await matchCoreInstance.loadActiveMatch();
+    }
     
     // Periyodik kontrol başlat (Match Core'da)
-    MatchCore.startPeriodicCheck(5000);
+    if (typeof matchCoreInstance.startPeriodicCheck === "function") {
+      matchCoreInstance.startPeriodicCheck(5000);
+    }
   } else {
-    console.error("MatchCore tanımlı değil! match_core.js yüklenmemiş olabilir.");
+    console.warn("MatchCore.subscribe bulunamadı, gerçek zamanlı güncellemeler devre dışı", {
+      windowMatchCore: typeof window !== "undefined" && !!window.MatchCore,
+      globalMatchCore: typeof MatchCore !== "undefined",
+      matchCoreInstance: !!matchCoreInstance,
+      hasSubscribe: matchCoreInstance && typeof matchCoreInstance.subscribe === "function"
+    });
+    console.error("MatchCore tanımlı değil! match_core.js yüklenmemiş olabilir veya instance oluşturulurken hata oluştu.");
     // Fallback: Eski yöntem
     if (typeof checkActiveMatch === "function") {
       checkActiveMatch().catch(err => console.warn("checkActiveMatch hatası:", err));

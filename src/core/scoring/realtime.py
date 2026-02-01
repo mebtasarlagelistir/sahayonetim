@@ -8,6 +8,14 @@ Modüler yapı: Farklı real-time teknolojileri kolayca değiştirilebilir.
 
 ÖNEMLİ: Skor ve SP hesaplamaları bu modülde tek bir yerde yapılır.
 Bu sayede hesaplama mantığı değiştiğinde sadece burada güncelleme yapılır.
+
+Robot hazırlık (team_statuses) senkron mantığı:
+- Tek referans bu modüldeki _active_scores[match_key]["team_statuses"].
+- Maç kontrol: update_team_statuses_only() ile tam state (red + blue) yazar.
+- Hakem paneli: update_score(alliance, scoring_data) ile sadece kendi ittifakı
+  birleştirilir; diğer ittifak korunur.
+- Route'lar güncelleme sonrası "scores" event'i ile odadaki tüm client'lara
+  gönderir; böylece her panel aynı state'i görür.
 """
 
 from typing import Dict, Set, Callable, Optional
@@ -115,6 +123,24 @@ class RealtimeScoreManager:
         
         # Tüm bağlı cihazlara bildir
         self._broadcast_update(match_key, alliance, scoring_data)
+
+    def update_team_statuses_only(self, match_key: str, team_statuses: Dict) -> None:
+        """
+        Sadece robot hazırlık durumlarını günceller (maç kontrol veya hakem paneli senkronu).
+        Red/blue skor verisini değiştirmez; sadece team_statuses birleştirilir.
+
+        Args:
+            match_key: Maç anahtarı
+            team_statuses: { "red": { "r1": "ready", ... }, "blue": { ... } }
+        """
+        if match_key not in self._active_scores:
+            self.register_match(match_key)
+        if "team_statuses" not in self._active_scores[match_key]:
+            self._active_scores[match_key]["team_statuses"] = {}
+        for alliance, statuses in (team_statuses or {}).items():
+            if isinstance(statuses, dict):
+                self._active_scores[match_key]["team_statuses"][alliance] = dict(statuses)
+        self._active_scores[match_key]["last_updated"] = datetime.now().isoformat()
 
     def update_referee_meta(self, match_key: str, meta_updates: Dict) -> None:
         """

@@ -2198,17 +2198,31 @@ body.vs-preview-mode .vs-container {
   background: #45a049;
 }
 
-/* Baş hakem detaylı skorlama - Yan Yana Görünüm */
-.head-referee-scores-side-by-side {
+/* Baş hakem detaylı skorlama - Yan Yana Görünüm (match control ile aynı davranış) */
+#head_referee_detailed_scores .head-referee-scores-side-by-side {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-top: 16px;
+  min-width: min(100%, 720px);
 }
 
-@media (max-width: 1200px) {
+/* Baş hakem: kırmızı ve mavi skor girişleri yan yana; dar ekranda yatay kaydırma */
+[data-page="head-referee"] #head_referee_detailed_scores {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.head-referee-alliance-section-compact {
+  min-width: 320px;
+}
+
+@media (max-width: 900px) {
   .head-referee-scores-side-by-side {
     grid-template-columns: 1fr;
+    min-width: 100%;
+  }
+  .head-referee-alliance-section-compact {
+    min-width: 100%;
   }
 }
 
@@ -2496,16 +2510,17 @@ body.vs-preview-mode .vs-container {
   border-radius: 8px;
 }
 
+/* Her zaman: Mavi solda, Kırmızı sağda */
 .central-alliance-panel.alliance-blue {
   background: #e3f2fd;
   border: 3px solid #2196f3;
-  order: 1;
+  order: -1;
 }
 
 .central-alliance-panel.alliance-red {
   background: #ffebee;
   border: 3px solid #f44336;
-  order: -1;
+  order: 1;
 }
 
 .central-match-status {
@@ -2612,6 +2627,26 @@ body.vs-preview-mode .vs-container {
   border-color: #bdbdbd;
 }
 
+.status-square.status-yellow {
+  background: #ffeb3b;
+  border-color: #f9a825;
+}
+
+.status-square.status-red {
+  background: #d32f2f;
+  border-color: #b71c1c;
+}
+
+.status-square.status-ry {
+  background: #ff9800;
+  border-color: #f57c00;
+}
+
+.status-square.status-bypass {
+  background: #2196f3;
+  border-color: #1565c0;
+}
+
 .central-match-status {
   display: flex;
   flex-direction: column;
@@ -2628,6 +2663,26 @@ body.vs-preview-mode .vs-container {
   font-size: 18px;
   font-weight: 600;
   color: #666;
+}
+
+/* Baş hakem maçı onayladığında skor kontrol ekranında görünen gösterge */
+.head-referee-approved-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2e7d32;
+  background: rgba(46, 125, 50, 0.12);
+  border: 1px solid rgba(46, 125, 50, 0.4);
+  border-radius: 6px;
+}
+.head-referee-approved-indicator .indicator-icon {
+  color: #2e7d32;
+  font-weight: 700;
 }
 
 .central-scores {
@@ -2666,16 +2721,17 @@ body.vs-preview-mode .vs-container {
   border: 3px solid;
 }
 
+/* Maç kontrol: iki ittifak yan yana, mavi solda kırmızı sağda */
 .detailed-scoring-panel.alliance-blue {
   border-color: #2196f3;
   background: #f5f9ff;
-  order: 1;
+  order: -1;
 }
 
 .detailed-scoring-panel.alliance-red {
   border-color: #f44336;
   background: #fff5f5;
-  order: -1;
+  order: 1;
 }
 
 /* Match Control Compact Tweaks */
@@ -3001,6 +3057,60 @@ body.vs-preview-mode .vs-container {
 
 .scoring-section:last-of-type {
   border-bottom: none;
+}
+
+/* OKS (Otonom) ve SKS (Sürücü Kontrollü) bölümlerini ayırt etmek için farklı renk ve çerçeve */
+.scoring-section.auto-section {
+  background: rgba(5, 150, 105, 0.06);
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  border-left: 4px solid #059669;
+  border-radius: 8px;
+  padding: 14px 14px 16px 14px;
+  margin-bottom: 16px;
+}
+.scoring-section.auto-section .section-title {
+  color: #047857;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scoring-section.auto-section .section-title::before {
+  content: "OKS";
+  display: inline-block;
+  background: #059669;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.scoring-section.teleop-section {
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 14px 14px 16px 14px;
+  margin-bottom: 16px;
+}
+.scoring-section.teleop-section .section-title {
+  color: #1d4ed8;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scoring-section.teleop-section .section-title::before {
+  content: "SKS";
+  display: inline-block;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
 }
 
 .section-title {
@@ -3350,14 +3460,32 @@ body.vs-preview-mode .vs-container {
   border-top: 1px solid #e0e0e0;
 }
 
+/* Kırmızı ve mavi skor girişleri yan yana: dar ekranda yatay kaydırma ile iki panel görünür */
+#detailed_scoring_home {
+  overflow-x: auto;
+  overflow-y: visible;
+  margin-bottom: 12px;
+}
+.detailed-scoring-container {
+  min-width: min(100%, 720px); /* İki panel en az yan yana sığacak genişlik */
+}
+.detailed-scoring-panel {
+  min-width: 320px; /* Tek panel dar ekranda okunaklı kalsın */
+}
+
 /* Responsive */
 @media (max-width: 1400px) {
-  .detailed-scoring-container {
-    grid-template-columns: 1fr;
-  }
-  
   .central-alliance-display {
     grid-template-columns: 150px 1fr 150px;
+  }
+}
+@media (max-width: 900px) {
+  .detailed-scoring-container {
+    grid-template-columns: 1fr;
+    min-width: 100%;
+  }
+  .detailed-scoring-panel {
+    min-width: 100%;
   }
 }
 

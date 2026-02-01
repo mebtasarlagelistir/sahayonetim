@@ -56,7 +56,7 @@
           <button id="btn_load_next_match" class="btn-success btn-medium">Sıradaki Maçı Yükle</button>
           <button id="btn_show_preview" class="btn-secondary btn-medium">Önizleme Göster</button>
           <button id="btn_show_live" class="btn-secondary btn-medium">Maçı Göster</button>
-          <button id="btn_start_match" class="btn-primary btn-medium">Maçı Başlat</button>
+          <button id="btn_start_match" class="btn-primary btn-medium" disabled title="Tüm robotlar için hazırlık durumu işaretleyin (Hazır, DQ, RY veya Bypass)">Maçı Başlat</button>
           <button id="btn_next_state" class="btn-primary btn-medium" style="display: none;">Sonraki Aşama</button>
           <button id="btn_stop_match" class="btn-danger btn-medium" style="display: none;">Maçı Durdur</button>
           <button id="btn_show_results" class="btn-secondary btn-medium" style="display: none;">Sonuçları Göster</button>
@@ -127,6 +127,11 @@
             <!-- Merkezi Match Status -->
             <div class="central-match-status">
               <div class="match-status-text" id="central_match_status">Aktif Maç Yok</div>
+              <!-- Baş hakem maçı onayladığında skor kontrol ekranında görünen gösterge -->
+              <div class="head-referee-approved-indicator" id="head_referee_approved_indicator" style="display: none;" title="Baş hakem bu maçı onayladı">
+                <span class="indicator-icon" aria-hidden="true">✓</span>
+                <span id="head_referee_approved_text">Baş hakem onayı: Onaylandı</span>
+              </div>
               <div class="central-scores">
                 <div class="central-score alliance-blue" id="central_blue_score">0</div>
                 <div class="central-score alliance-red" id="central_red_score">0</div>
@@ -172,7 +177,7 @@
               
               <!-- AUTO (Otonom) Bölümü -->
               <div class="scoring-section auto-section">
-                <h4 class="section-title">OTONOM (OKS) - İlk 30 Saniye</h4>
+                <h4 class="section-title">Otonom - İlk 30 Saniye</h4>
                 
                 <!-- Başlangıç Alanını Terk -->
                 <div class="scoring-group">
@@ -280,7 +285,7 @@
 
               <!-- TELEOP (Sürücü Kontrollü) Bölümü -->
               <div class="scoring-section teleop-section">
-                <h4 class="section-title">SÜRÜCÜ KONTROLLÜ (SKS) - 30. Saniyeden Sonra</h4>
+                <h4 class="section-title">Sürücü Kontrollü - 30. Saniyeden Sonra</h4>
                 
                 <!-- Bent Seviye 1 -->
                 <div class="scoring-group compact-group">
@@ -504,7 +509,7 @@
               
               <!-- AUTO (Otonom) Bölümü -->
               <div class="scoring-section auto-section">
-                <h4 class="section-title">OTONOM (OKS) - İlk 30 Saniye</h4>
+                <h4 class="section-title">Otonom - İlk 30 Saniye</h4>
                 
                 <!-- Başlangıç Alanını Terk -->
                 <div class="scoring-group">
@@ -612,7 +617,7 @@
 
               <!-- TELEOP (Sürücü Kontrollü) Bölümü -->
               <div class="scoring-section teleop-section">
-                <h4 class="section-title">SÜRÜCÜ KONTROLLÜ (SKS) - 30. Saniyeden Sonra</h4>
+                <h4 class="section-title">Sürücü Kontrollü - 30. Saniyeden Sonra</h4>
                 
                 <!-- Bent Seviye 1 -->
                 <div class="scoring-group compact-group">

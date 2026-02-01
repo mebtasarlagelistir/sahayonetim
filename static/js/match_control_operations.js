@@ -12,7 +12,22 @@
  * ÖNEMLİ: Match Core kullanılıyor - maç başlatma Match Core üzerinden yapılır.
  */
 async function startMatch() {
-  if (!currentMatch) return;
+  if (!currentMatch) {
+    showToast("Önce bir maç seçin", "warning");
+    return;
+  }
+  
+  // Tüm robotlar için hazırlık durumu (Hazır, DQ, RY veya Bypass) zorunlu
+  if (typeof canStartMatch === "function" && !canStartMatch()) {
+    showToast("Tüm robotlar için hazırlık durumu işaretleyin (Hazır, DQ, RY veya Bypass)", "warning");
+    return;
+  }
+  
+  // Çift tıklamayı önle
+  const btnStart = qs("btn_start_match");
+  if (btnStart && btnStart.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
   
   // Robot durumlarını topla (maç başlatıldığında kaydedilmeli)
   let teamStatuses = {};
@@ -20,21 +35,40 @@ async function startMatch() {
     teamStatuses = collectTeamStatuses();
   }
   
+  // Buton loading state
+  if (btnStart && typeof setButtonLoading === "function") {
+    setButtonLoading(btnStart, true);
+  }
+  
   try {
-    // Match Core üzerinden maçı başlat
-    if (typeof MatchCore !== "undefined") {
-      await MatchCore.startMatch(
-        currentMatch.id,
-        currentMatch.source || "schedule",
-        currentMatch.field_number,
-        teamStatuses
-      );
+    // Match Core instance'ı al (window.MatchCore = instance, MatchCore sınıf değil)
+    const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) ||
+                              (typeof globalThis !== "undefined" && globalThis.MatchCore) ||
+                              (typeof MatchCore !== "undefined" && MatchCore);
+    const matchCoreAvailable = matchCoreInstance && typeof matchCoreInstance.startMatch === "function";
+
+    if (!matchCoreAvailable) {
+      console.warn("MatchCore instance veya startMatch bulunamadı, fallback yöntemi kullanılıyor", {
+        hasInstance: !!matchCoreInstance,
+        hasStartMatch: matchCoreInstance ? typeof matchCoreInstance.startMatch : "N/A"
+      });
+    }
+
+    if (matchCoreAvailable) {
+      if (matchCoreInstance && typeof matchCoreInstance.startMatch === "function") {
+        await matchCoreInstance.startMatch(
+          currentMatch.id,
+          currentMatch.source || "schedule",
+          currentMatch.field_number,
+          teamStatuses
+        );
+      }
       
       // Match Core otomatik olarak state'i güncelleyecek ve notify edecek
       // UI güncellemesi Match Core subscribe callback'inde yapılacak
       showToast("Maç başlatıldı", "success");
     } else {
-      // Fallback: Eski yöntem (Match Core yoksa)
+      // Fallback: Eski yöntem (Match Core yoksa veya startMatch metodu yoksa)
       const data = await apiPost("/api/match-control/start", {
         match_id: currentMatch.id,
         field_number: currentMatch.field_number,
@@ -65,6 +99,11 @@ async function startMatch() {
   } catch (err) {
     console.error("Start match error:", err);
     showToast("Maç başlatılırken hata oluştu", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnStart && typeof setButtonLoading === "function") {
+      setButtonLoading(btnStart, false);
+    }
   }
 }
 
@@ -81,14 +120,29 @@ async function nextMatchState() {
     return;
   }
   
+  // Çift tıklamayı önle
+  const btnNextState = qs("btn_next_state");
+  if (btnNextState && btnNextState.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
+  
+  // Buton loading state
+  if (btnNextState && typeof setButtonLoading === "function") {
+    setButtonLoading(btnNextState, true);
+  }
+  
   try {
     // Match Core üzerinden durum geçişi yap
-    if (typeof MatchCore !== "undefined") {
-      await MatchCore.nextState();
+    const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                              (typeof MatchCore !== "undefined" && MatchCore) ||
+                              (typeof globalThis !== "undefined" && globalThis.MatchCore);
+    
+    if (matchCoreInstance && typeof matchCoreInstance.nextState === "function") {
+      await matchCoreInstance.nextState();
       
       // Match Core otomatik olarak state'i güncelleyecek ve notify edecek
       // UI güncellemesi Match Core subscribe callback'inde yapılacak
-      const newState = MatchCore.currentState;
+      const newState = matchCoreInstance.currentState;
       showToast(`${MATCH_STATES[newState]?.label || "Durum"} başladı`, "success");
       
       // Önemli anları göster
@@ -96,8 +150,8 @@ async function nextMatchState() {
         showImportantMoment(newState);
       }
     } else {
-      // Fallback: Eski yöntem (Match Core yoksa)
-      const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"];
+      // Fallback: Eski yöntem (Match Core yoksa). SKS bitince doğrudan Maç Sonrası.
+      const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"];
       const currentIndex = stateOrder.indexOf(currentState);
       
       if (currentIndex === -1 || currentIndex >= stateOrder.length - 1) {
@@ -133,6 +187,11 @@ async function nextMatchState() {
   } catch (err) {
     console.error("nextMatchState: Hata:", err);
     showToast("Durum güncellenirken hata oluştu", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnNextState && typeof setButtonLoading === "function") {
+      setButtonLoading(btnNextState, false);
+    }
   }
 }
 
@@ -140,10 +199,24 @@ async function nextMatchState() {
  * Maçı durdurur
  */
 async function stopMatch() {
-  if (!currentMatch) return;
+  if (!currentMatch) {
+    showToast("Önce bir maç seçin", "warning");
+    return;
+  }
   
   if (!confirm("Maçı durdurmak istediğinizden emin misiniz?")) {
     return;
+  }
+  
+  // Çift tıklamayı önle
+  const btnStop = qs("btn_stop_match");
+  if (btnStop && btnStop.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
+  
+  // Buton loading state
+  if (btnStop && typeof setButtonLoading === "function") {
+    setButtonLoading(btnStop, true);
   }
   
   try {
@@ -156,19 +229,29 @@ async function stopMatch() {
     if (data.match) {
       currentMatch = data.match;
       // Match Core kullanılıyorsa, Match Core'u da güncelle
-      if (typeof MatchCore !== "undefined") {
-        MatchCore.setMatch(data.match);
+      const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                                (typeof MatchCore !== "undefined" && MatchCore) ||
+                                (typeof globalThis !== "undefined" && globalThis.MatchCore);
+      if (matchCoreInstance && typeof matchCoreInstance.setMatch === "function") {
+        matchCoreInstance.setMatch(data.match);
       }
     } else {
       // Fallback: Manuel güncelleme
       currentMatch.status = "scheduled";
       // Match Core kullanılıyorsa, Match Core'u da güncelle
-      if (typeof MatchCore !== "undefined" && MatchCore.match) {
-        MatchCore.match.status = "scheduled";
-        MatchCore.currentState = "idle";
-        MatchCore.timeRemaining = 0;
-        MatchCore.stopTimer();
-        MatchCore.notify();
+      const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                                (typeof MatchCore !== "undefined" && MatchCore) ||
+                                (typeof globalThis !== "undefined" && globalThis.MatchCore);
+      if (matchCoreInstance && matchCoreInstance.match) {
+        matchCoreInstance.match.status = "scheduled";
+        matchCoreInstance.currentState = "idle";
+        matchCoreInstance.timeRemaining = 0;
+        if (typeof matchCoreInstance.stopTimer === "function") {
+          matchCoreInstance.stopTimer();
+        }
+        if (typeof matchCoreInstance.notify === "function") {
+          matchCoreInstance.notify();
+        }
       }
     }
     
@@ -205,6 +288,11 @@ async function stopMatch() {
   } catch (err) {
     console.error("Stop match error:", err);
     showToast("Maç durdurulurken hata oluştu", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnStop && typeof setButtonLoading === "function") {
+      setButtonLoading(btnStop, false);
+    }
   }
 }
 
@@ -212,7 +300,16 @@ async function stopMatch() {
  * Maçı tamamlar
  */
 async function completeMatch() {
-  if (!currentMatch) return;
+  if (!currentMatch) {
+    showToast("Önce bir maç seçin", "warning");
+    return;
+  }
+  
+  // Çift tıklamayı önle
+  const btnComplete = qs("btn_complete_match");
+  if (btnComplete && btnComplete.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
   
   // Detaylı skorlama sisteminden skorları al
   if (typeof calculateScoreBreakdown === "function") {
@@ -240,6 +337,11 @@ async function completeMatch() {
     return;
   }
   
+  // Buton loading state
+  if (btnComplete && typeof setButtonLoading === "function") {
+    setButtonLoading(btnComplete, true);
+  }
+  
   try {
     const data = await apiPost("/api/match-control/complete", {
       match_id: currentMatch.id,
@@ -254,8 +356,11 @@ async function completeMatch() {
     if (data.match) {
       currentMatch = data.match;
       // Match Core kullanılıyorsa, Match Core'u da güncelle
-      if (typeof MatchCore !== "undefined") {
-        MatchCore.setMatch(data.match);
+      const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                                (typeof MatchCore !== "undefined" && MatchCore) ||
+                                (typeof globalThis !== "undefined" && globalThis.MatchCore);
+      if (matchCoreInstance && typeof matchCoreInstance.setMatch === "function") {
+        matchCoreInstance.setMatch(data.match);
       }
     } else {
       // Fallback: Manuel güncelleme
@@ -263,14 +368,21 @@ async function completeMatch() {
       currentMatch.red_score = redScore;
       currentMatch.blue_score = blueScore;
       // Match Core kullanılıyorsa, Match Core'u da güncelle
-      if (typeof MatchCore !== "undefined" && MatchCore.match) {
-        MatchCore.match.status = "completed";
-        MatchCore.match.red_score = redScore;
-        MatchCore.match.blue_score = blueScore;
-        MatchCore.currentState = "completed";
-        MatchCore.timeRemaining = 0;
-        MatchCore.stopTimer();
-        MatchCore.notify();
+      const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                                (typeof MatchCore !== "undefined" && MatchCore) ||
+                                (typeof globalThis !== "undefined" && globalThis.MatchCore);
+      if (matchCoreInstance && matchCoreInstance.match) {
+        matchCoreInstance.match.status = "completed";
+        matchCoreInstance.match.red_score = redScore;
+        matchCoreInstance.match.blue_score = blueScore;
+        matchCoreInstance.currentState = "completed";
+        matchCoreInstance.timeRemaining = 0;
+        if (typeof matchCoreInstance.stopTimer === "function") {
+          matchCoreInstance.stopTimer();
+        }
+        if (typeof matchCoreInstance.notify === "function") {
+          matchCoreInstance.notify();
+        }
       }
     }
     
@@ -283,7 +395,10 @@ async function completeMatch() {
     }
     
     // Gerçek zamanlı güncellemeleri durdur (Match Core kullanılıyorsa gerek yok)
-    if (typeof MatchCore === "undefined" && typeof stopRealtimeScoreUpdates === "function") {
+    const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || 
+                              (typeof MatchCore !== "undefined" && MatchCore) ||
+                              (typeof globalThis !== "undefined" && globalThis.MatchCore);
+    if (!matchCoreInstance && typeof stopRealtimeScoreUpdates === "function") {
       stopRealtimeScoreUpdates();
     }
     
@@ -327,10 +442,14 @@ async function completeMatch() {
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
     
-    // Match Core kullanılıyorsa, Match Core'u da temizle
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.clearManualSelection();
-      MatchCore.clearMatch();
+    // Match Core kullanılıyorsa, Match Core'u da temizle (matchCoreInstance yukarıda tanımlı)
+    if (matchCoreInstance) {
+      if (typeof matchCoreInstance.clearManualSelection === "function") {
+        matchCoreInstance.clearManualSelection();
+      }
+      if (typeof matchCoreInstance.clearMatch === "function") {
+        matchCoreInstance.clearMatch();
+      }
     }
     
     // UI'ı güncelle (ekranı temizler)
@@ -356,6 +475,11 @@ async function completeMatch() {
   } catch (err) {
     console.error("Complete match error:", err);
     showToast("Maç tamamlanırken hata oluştu", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnComplete && typeof setButtonLoading === "function") {
+      setButtonLoading(btnComplete, false);
+    }
   }
 }
 

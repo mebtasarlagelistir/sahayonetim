@@ -48,16 +48,17 @@
 
       <div class="card" id="head_referee_scores" style="display: none;">
         <h3>Hakem Giriş Durumu</h3>
+        <!-- Mavi solda, Kırmızı sağda (match control ile aynı) -->
         <div class="head-referee-status-grid">
-          <div class="status-card alliance-red">
-            <div class="status-title">Kırmızı İttifak</div>
-            <div class="status-score" id="head_red_score">0</div>
-            <div class="status-meta" id="head_red_status">Giriş bekleniyor</div>
-          </div>
           <div class="status-card alliance-blue">
             <div class="status-title">Mavi İttifak</div>
             <div class="status-score" id="head_blue_score">0</div>
             <div class="status-meta" id="head_blue_status">Giriş bekleniyor</div>
+          </div>
+          <div class="status-card alliance-red">
+            <div class="status-title">Kırmızı İttifak</div>
+            <div class="status-score" id="head_red_score">0</div>
+            <div class="status-meta" id="head_red_status">Giriş bekleniyor</div>
           </div>
         </div>
         <div class="referee-actions">
@@ -67,36 +68,41 @@
       </div>
 
       <!-- Detaylı Skorlama Formları (Baş Hakem Düzenleme) - Yan Yana Görünüm -->
+      <!-- Akış: Kırmızı/Mavi hakemler giriş yapar → Baş hakem canlı görür, düzenleyebilir, Kaydet ile kaydeder → Maçı Onayla -->
       <div class="card" id="head_referee_detailed_scores" style="display: none;">
         <h3>Detaylı Skorlama (Düzenlenebilir)</h3>
-        
-        <!-- Yan Yana Görünüm Container -->
+        <p class="text-muted" style="margin-top: -0.5rem; font-size: 0.9rem;">Kırmızı ve Mavi hakemler &quot;Maç Girişini Bitir&quot; dedikten sonra aşağıdaki alanları düzenleyebilirsiniz. Değişiklikler otomatik kaydedilir (hakem panelleri gibi). Ardından &quot;Maçı Onayla&quot; ile onaylayın.</p>
+        <div id="head_referee_edit_message" class="alert alert-info" style="display: none; margin-bottom: 0.75rem;">
+          Kırmızı ve Mavi hakemler <strong>Maç Girişini Bitir</strong> dedikten sonra düzenleme yapabilirsiniz.
+        </div>
+        <div class="referee-actions-compact" style="margin-bottom: 0.75rem;">
+          <button type="button" class="btn-secondary btn-small" id="btn_head_refresh_scores">Skorları Yenile</button>
+        </div>
+        <!-- Yan Yana Görünüm: Mavi solda, Kırmızı sağda (match control ile aynı) -->
         <div class="head-referee-scores-side-by-side">
-          <!-- Kırmızı İttifak Detaylı Skorlama -->
-          <div class="head-referee-alliance-section-compact" id="head_red_detailed_section">
-            <h4 class="alliance-title-red">Kırmızı İttifak</h4>
-            <div class="head-referee-scoring-form-compact" id="head_red_scoring_form">
-              <!-- Skorlama formu JavaScript ile dinamik olarak doldurulacak -->
-              <div class="scoring-summary">
-                <p>Kırmızı hakem skorları yükleniyor...</p>
-              </div>
-            </div>
-            <div class="referee-actions-compact">
-              <button class="btn-primary btn-small" id="btn_head_save_red">Kaydet</button>
-            </div>
-          </div>
-
-          <!-- Mavi İttifak Detaylı Skorlama -->
+          <!-- Mavi İttifak Detaylı Skorlama (Sol) -->
           <div class="head-referee-alliance-section-compact" id="head_blue_detailed_section">
             <h4 class="alliance-title-blue">Mavi İttifak</h4>
             <div class="head-referee-scoring-form-compact" id="head_blue_scoring_form">
-              <!-- Skorlama formu JavaScript ile dinamik olarak doldurulacak -->
               <div class="scoring-summary">
                 <p>Mavi hakem skorları yükleniyor...</p>
               </div>
             </div>
             <div class="referee-actions-compact">
               <button class="btn-primary btn-small" id="btn_head_save_blue">Kaydet</button>
+            </div>
+          </div>
+
+          <!-- Kırmızı İttifak Detaylı Skorlama (Sağ) -->
+          <div class="head-referee-alliance-section-compact" id="head_red_detailed_section">
+            <h4 class="alliance-title-red">Kırmızı İttifak</h4>
+            <div class="head-referee-scoring-form-compact" id="head_red_scoring_form">
+              <div class="scoring-summary">
+                <p>Kırmızı hakem skorları yükleniyor...</p>
+              </div>
+            </div>
+            <div class="referee-actions-compact">
+              <button class="btn-primary btn-small" id="btn_head_save_red">Kaydet</button>
             </div>
           </div>
         </div>

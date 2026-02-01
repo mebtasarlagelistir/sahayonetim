@@ -79,7 +79,8 @@ let scoreEditSelected = null;
 let detailedScoringHome = null;
 
 // Gerçek zamanlı güncelleme için WebSocket (SSE yerine WebSocket kullanılıyor)
-let matchControlSocket = null;
+// NOT: matchControlSocket match_control_realtime.js'de tanımlı, burada tanımlanmamalı
+// let matchControlSocket = null; // match_control_realtime.js'de tanımlı
 let retryCount = 0;
 const MAX_RETRY_COUNT = NETWORK_CONSTANTS.SSE_RETRY_MAX;
 const RETRY_DELAY_BASE = NETWORK_CONSTANTS.SSE_RETRY_DELAY_BASE;

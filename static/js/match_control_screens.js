@@ -144,7 +144,22 @@ async function loadMatchControlScreens() {
  * Sonuçları seyirci ekranına gönderir
  */
 async function sendMatchResultsToScreens() {
-  if (!currentMatch) return;
+  if (!currentMatch) {
+    showToast("Önce bir maç seçin", "warning");
+    return;
+  }
+  
+  // Çift tıklamayı önle
+  const btnShowResults = qs("btn_show_results");
+  if (btnShowResults && btnShowResults.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
+  
+  // Buton loading state
+  if (btnShowResults && typeof setButtonLoading === "function") {
+    setButtonLoading(btnShowResults, true);
+  }
+  
   try {
     if (typeof buildMatchResultsPayloadForMatch === "function") {
       const payload = buildMatchResultsPayloadForMatch(currentMatch);
@@ -159,6 +174,11 @@ async function sendMatchResultsToScreens() {
   } catch (err) {
     console.error("Show results error:", err);
     showToast("Sonuçlar gönderilemedi", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnShowResults && typeof setButtonLoading === "function") {
+      setButtonLoading(btnShowResults, false);
+    }
   }
 }
 

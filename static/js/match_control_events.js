@@ -32,9 +32,40 @@ function switchTab(tabName) {
   
   // Tab'a özel veri yükleme
   if (tabName === "schedule") {
-    if (typeof loadScheduleMatches === "function") {
-      loadScheduleMatches();
+    const listContainer = qs("schedule_match_list");
+    if (listContainer) {
+      listContainer.innerHTML = "<div class='loading'>Yükleniyor...</div>";
     }
+    // Event ile tetikle (match_control_data.js dinliyor); birkaç kez dene (script sırası gecikmeli olabilir)
+    var scheduleRetries = [0, 80, 200];
+    scheduleRetries.forEach(function (delay) {
+      setTimeout(function () {
+        var listEl = qs("schedule_match_list");
+        if (listEl && (listEl.querySelector(".match-item") || listEl.querySelector(".empty") || listEl.querySelector(".error"))) {
+          return;
+        }
+        if (typeof window !== "undefined" && window.scheduleLoadInProgress) return;
+        document.dispatchEvent(new CustomEvent("match-control-schedule-tab-open"));
+        if (delay === 200) {
+          // Son denemeden 100ms sonra hâlâ dolmadıysa global fonksiyonu dene veya hata göster
+          setTimeout(function () {
+            var el = qs("schedule_match_list");
+            if (!el || el.querySelector(".match-item") || el.querySelector(".empty") || el.querySelector(".error")) return;
+            if (window.scheduleLoadInProgress) return;
+            var fn = (typeof window !== "undefined" && window.loadScheduleMatches) || (typeof loadScheduleMatches === "function" ? loadScheduleMatches : null);
+            if (typeof fn === "function") {
+              fn().catch(function (err) {
+                console.error("switchTab: loadScheduleMatches fallback hatası:", err);
+                if (el) el.innerHTML = "<div class='error'>Maç listesi yüklenirken hata: " + (err && err.message ? err.message : "Bilinmeyen hata") + "</div>";
+              });
+            } else if (el && !el.querySelector(".error")) {
+              console.warn("switchTab: loadScheduleMatches fonksiyonu bulunamadı (match_control_data.js yüklü mü?)");
+              el.innerHTML = "<div class='error'>Maç listesi yüklenemedi. Sayfayı yenileyin (Ctrl+F5).</div>";
+            }
+          }, 100);
+        }
+      }, delay);
+    });
   } else if (tabName === "incomplete") {
     if (typeof loadIncompleteMatches === "function") {
       loadIncompleteMatches();
@@ -170,6 +201,16 @@ function setupEventListeners() {
   const btnPreview = qs("btn_show_preview");
   if (btnPreview) {
     btnPreview.addEventListener("click", async () => {
+      // Çift tıklamayı önle
+      if (btnPreview.disabled) {
+        return; // Zaten işlem yapılıyor
+      }
+      
+      // Buton loading state
+      if (typeof setButtonLoading === "function") {
+        setButtonLoading(btnPreview, true);
+      }
+      
       try {
         console.log("Ön izleme göster butonuna tıklandı");
         console.log("Ön izleme göster: Mevcut durum - currentMatch:", currentMatch);
@@ -280,6 +321,11 @@ function setupEventListeners() {
       } catch (err) {
         console.error("Ön izleme göster: Hata:", err);
         showToast("Önizleme gönderilemedi", "error");
+      } finally {
+        // Buton loading state'i kaldır
+        if (typeof setButtonLoading === "function") {
+          setButtonLoading(btnPreview, false);
+        }
       }
     });
   }
@@ -287,6 +333,16 @@ function setupEventListeners() {
   const btnShowLive = qs("btn_show_live");
   if (btnShowLive) {
     btnShowLive.addEventListener("click", async () => {
+      // Çift tıklamayı önle
+      if (btnShowLive.disabled) {
+        return; // Zaten işlem yapılıyor
+      }
+      
+      // Buton loading state
+      if (typeof setButtonLoading === "function") {
+        setButtonLoading(btnShowLive, true);
+      }
+      
       try {
         // Preview'i temizle ve canlı moda geç
         await apiPost("/api/screens/preview", {
@@ -299,6 +355,11 @@ function setupEventListeners() {
       } catch (err) {
         console.error("Show live error:", err);
         showToast("Maç ekranı canlı moda alınamadı", "error");
+      } finally {
+        // Buton loading state'i kaldır
+        if (typeof setButtonLoading === "function") {
+          setButtonLoading(btnShowLive, false);
+        }
       }
     });
   }
@@ -510,11 +571,33 @@ function setupEventListeners() {
     }
   });
   
-  // Skor alanları değiştiğinde de hesapla
+  // Skor alanları değiştiğinde hesapla ve otomatik kaydet
   document.addEventListener("input", (e) => {
-    if (e.target.classList.contains("score-field-compact") || e.target.classList.contains("score-field")) {
+    // Skor alanları için
+    if (e.target.classList.contains("score-field-compact") || 
+        e.target.classList.contains("score-field") ||
+        e.target.matches("#detailed_scoring input, #detailed_scoring select")) {
+      // Skor dökümünü hesapla
       if (typeof calculateScoreBreakdown === "function") {
         calculateScoreBreakdown();
+      }
+      // Otomatik kaydetmeyi planla (debounce)
+      if (typeof scheduleAutoSaveScore === "function") {
+        scheduleAutoSaveScore();
+      }
+    }
+  });
+  
+  // Checkbox değişiklikleri için de otomatik kaydet
+  document.addEventListener("change", (e) => {
+    if (e.target.matches("#detailed_scoring input[type='checkbox'], #detailed_scoring input[type='number']")) {
+      // Skor dökümünü hesapla
+      if (typeof calculateScoreBreakdown === "function") {
+        calculateScoreBreakdown();
+      }
+      // Otomatik kaydetmeyi planla (debounce)
+      if (typeof scheduleAutoSaveScore === "function") {
+        scheduleAutoSaveScore();
       }
     }
   });

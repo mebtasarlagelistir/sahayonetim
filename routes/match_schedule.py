@@ -717,3 +717,158 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
             current_time += timedelta(minutes=match_duration)
 
         return jsonify({"ok": True, "created_count": created_count})
+
+    @bp.post("/match-schedule/generate-finals")
+    @require_login
+    @require_event_manager
+    def generate_final_matches():
+        """
+        SP puanlarına göre final maçlarını otomatik oluşturur.
+        
+        Bu endpoint:
+        1. Tamamlanmış sıralama maçlarından SP puanlarını toplar
+        2. Takımları SP puanına göre sıralar
+        3. Final maçları için bracket oluşturur
+        4. Final maçlarını veritabanına kaydeder
+        
+        Modüler yapı:
+        - SP toplama: TeamRankingsCalculator modülü
+        - Bracket oluşturma: BracketGenerator modülü
+        - Storage: MatchScheduleStorage modülü
+        
+        Request body:
+        {
+            "start_date": "2026-02-06",      # Final maçları başlangıç tarihi
+            "start_time": "14:00",            # Final maçları başlangıç saati
+            "field_number": 1,                # Saha numarası (varsayılan: 1)
+            "teams_per_alliance": 2,          # İttifak başına takım sayısı (varsayılan: 2)
+            "max_teams": 8,                   # Maksimum takım sayısı (None ise tüm takımlar)
+            "match_cycle_minutes": 5,         # Maç döngüsü süresi (dakika)
+            "clear_existing": false           # Mevcut final maçlarını temizle (varsayılan: false)
+        }
+        
+        Response:
+        {
+            "ok": true,
+            "created_count": 4,               # Oluşturulan maç sayısı
+            "rankings": [...],                # Takım sıralaması
+            "bracket_info": {...}             # Bracket bilgileri
+        }
+        """
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        from src.core.tournament.bracket_generator import BracketGenerator
+        
+        data = request.get_json(force=True) or {}
+        
+        # Parametreleri al
+        start_date = (data.get("start_date") or "").strip()
+        start_time = (data.get("start_time") or "").strip()
+        field_number = _parse_int(data.get("field_number"), 1)
+        teams_per_alliance = _parse_int(data.get("teams_per_alliance"), 2)
+        max_teams = _parse_int(data.get("max_teams"))
+        match_cycle_minutes = _parse_int(data.get("match_cycle_minutes"))
+        clear_existing = bool(data.get("clear_existing", False))
+        
+        # Tarih ve saat kontrolü
+        if not start_date or not start_time:
+            return jsonify({"error": "Başlangıç tarihi ve saati gerekli"}), 400
+        
+        try:
+            initial_datetime = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return jsonify({"error": "Geçersiz tarih/saat formatı"}), 400
+        
+        # Etkinlik kontrolü
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
+        
+        event_data = datastore.get_event()
+        
+        # Etkinlik formatından varsayılan değerleri al
+        format_data = event_data.get("format", {})
+        event_teams_per_alliance = _parse_int(format_data.get("teams_per_alliance"), 2)
+        if event_teams_per_alliance:
+            teams_per_alliance = event_teams_per_alliance
+        
+        # Maç süresini al
+        event_cycle = int(event_data.get("schedule", {}).get("match_cycle_seconds", 150))
+        match_duration = max(1, (match_cycle_minutes or (event_cycle // 60)))
+        
+        # Tamamlanmış sıralama maçlarını al
+        qualification_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            match_type="qualification",
+            status="completed"
+        )
+        
+        if not qualification_matches:
+            return jsonify({"error": "Tamamlanmış sıralama maçı bulunamadı"}), 400
+        
+        # SP puanlarını topla ve takımları sırala
+        rankings_calculator = TeamRankingsCalculator()
+        rankings = rankings_calculator.calculate_team_rankings(qualification_matches)
+        
+        if not rankings:
+            return jsonify({"error": "Takım sıralaması hesaplanamadı"}), 400
+        
+        # Bracket oluştur
+        bracket_generator = BracketGenerator()
+        bracket_info = bracket_generator.get_bracket_info(rankings, teams_per_alliance)
+        
+        if bracket_info["num_matches"] == 0:
+            return jsonify({"error": "Yeterli takım yok (en az {} takım gerekli)".format(
+                teams_per_alliance * 2
+            )}), 400
+        
+        final_matches = bracket_generator.generate_final_matches(
+            rankings=rankings,
+            teams_per_alliance=teams_per_alliance,
+            max_teams=max_teams
+        )
+        
+        if not final_matches:
+            return jsonify({"error": "Final maçları oluşturulamadı"}), 400
+        
+        # Mevcut final maçlarını temizle (eğer istenirse)
+        if clear_existing:
+            existing_finals = datastore.get_match_schedule(
+                event_id=event_id,
+                match_type="final"
+            )
+            for match in existing_finals:
+                datastore.delete_match(match["id"])
+        
+        # Final maçlarını oluştur
+        created_count = 0
+        current_time = initial_datetime
+        next_number = _get_next_match_number(event_id, "final")
+        
+        for match_data in final_matches:
+            try:
+                datastore.create_match(
+                    match_number=next_number,
+                    match_type="final",
+                    field_number=field_number,
+                    match_date=current_time.strftime("%Y-%m-%d"),
+                    match_time=current_time.strftime("%H:%M"),
+                    red_alliance=match_data["red_alliance"],
+                    blue_alliance=match_data["blue_alliance"],
+                    status="scheduled",
+                    event_id=event_id,
+                )
+                created_count += 1
+                next_number += 1
+                
+                # Zamanı ilerlet
+                current_time += timedelta(minutes=match_duration)
+            except Exception as e:
+                # Hata durumunda devam et (loglama yapılabilir)
+                continue
+        
+        return jsonify({
+            "ok": True,
+            "created_count": created_count,
+            "rankings": rankings,
+            "bracket_info": bracket_info
+        })

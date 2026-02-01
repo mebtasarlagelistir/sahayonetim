@@ -167,9 +167,11 @@ function loadRefereeRobotStatuses(scoringData = null) {
   // team_statuses formatından robot durumlarını oku
   const teamStatuses = scoringData.team_statuses || {};
   const allianceStatuses = teamStatuses[assignedAlliance] || {};
+  const teams = assignedAlliance === "red" ? (currentMatch.red_alliance || []) : (currentMatch.blue_alliance || []);
+  const robotCount = Math.max(teams.length, 2);
   
-  // Robot durumlarını butonlara uygula
-  for (let robotIndex = 1; robotIndex <= 2; robotIndex++) {
+  // Robot durumlarını butonlara uygula (maçtaki tüm robotlar için)
+  for (let robotIndex = 1; robotIndex <= robotCount; robotIndex++) {
     const robotKey = `r${robotIndex}`;
     const status = allianceStatuses[robotKey];
     

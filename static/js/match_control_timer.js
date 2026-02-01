@@ -50,6 +50,7 @@ function startMatchTimer() {
     updateStateDisplay();
   }
   
+  // 200ms aralık: kararlı sayım, tam saniye (OKS 20 sn, SKS 120 sn backend ile uyumlu)
   matchTimer = setInterval(() => {
     if (!timerStartTime) {
       stopMatchTimer();

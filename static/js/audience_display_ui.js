@@ -1,12 +1,13 @@
 /**
  * Audience Display - UI Module
- * 
- * Bu modül UI güncellemeleri ile ilgili tüm fonksiyonları içerir:
- * - Timer güncellemeleri
- * - Skor güncellemeleri
- * - Overlay yönetimi
- * - Takım formatlama
+ * Timer tüm arayüzlerde akıcı ve senkron: sunucudan gelen time_remaining ile yerel geri sayım.
  */
+
+/** Yerel timer (akıcı geri sayım, WebSocket ile senkron) */
+let audienceTimerInterval = null;
+let audienceTimerStartTime = null;
+let audienceTimerInitialTime = null;
+let audienceTimerState = null;
 
 /**
  * Zamanı formatlar (MM:SS formatında)
@@ -33,33 +34,46 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
     console.warn("updateTimerDisplay: Timer elementi bulunamadı");
     return;
   }
-  
-  // timeOffset kullanarak senkronize zaman hesapla (eğer verilmişse)
-  let displayTime = timeRemaining;
-  if (timeOffset !== 0 && timeRemaining > 0) {
-    // timeOffset pozitif ise client server'dan ileride, negatif ise geride
-    // Bu durumda timeRemaining'i timeOffset'e göre ayarla
-    // (Basit yaklaşım: timeOffset'i göz ardı et, server'dan gelen timeRemaining'i kullan)
-    displayTime = timeRemaining;
+
+  function applyTimerDisplay(displayTime) {
+    const formattedTime = formatTime(displayTime);
+    if (timerEl.textContent !== formattedTime) {
+      timerEl.textContent = formattedTime;
+    }
+    timerEl.classList.remove("warning", "critical");
+    if (displayTime <= 10 && displayTime > 0) {
+      timerEl.classList.add("critical");
+    } else if (displayTime <= 30 && displayTime > 10) {
+      timerEl.classList.add("warning");
+    }
   }
-  
-  const formattedTime = formatTime(displayTime);
-  const oldTime = timerEl.textContent;
-  
-  // Zaman değiştiyse güncelle
-  if (formattedTime !== oldTime) {
-    timerEl.textContent = formattedTime;
+
+  var isActive = timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed";
+  var stateOrTimeChanged = audienceTimerState !== currentState || audienceTimerInitialTime !== timeRemaining;
+
+  if (audienceTimerInterval) {
+    clearInterval(audienceTimerInterval);
+    audienceTimerInterval = null;
   }
-  
-  // Durum bazlı stil güncellemeleri
-  timerEl.classList.remove("warning", "critical");
-  
-  if (displayTime <= 10 && displayTime > 0) {
-    // Kritik: Son 10 saniye
-    timerEl.classList.add("critical");
-  } else if (displayTime <= 30 && displayTime > 10) {
-    // Uyarı: Son 30 saniye
-    timerEl.classList.add("warning");
+
+  if (isActive && stateOrTimeChanged) {
+    audienceTimerState = currentState;
+    audienceTimerInitialTime = timeRemaining;
+    audienceTimerStartTime = Date.now() - timeOffset;
+    applyTimerDisplay(timeRemaining);
+    audienceTimerInterval = setInterval(function () {
+      var elapsed = Math.floor((Date.now() - audienceTimerStartTime) / 1000);
+      var remaining = Math.max(0, audienceTimerInitialTime - elapsed);
+      applyTimerDisplay(remaining);
+      if (remaining <= 0) {
+        clearInterval(audienceTimerInterval);
+        audienceTimerInterval = null;
+      }
+    }, 100);
+  } else {
+    audienceTimerState = currentState;
+    audienceTimerInitialTime = timeRemaining;
+    applyTimerDisplay(timeRemaining);
   }
 }
 

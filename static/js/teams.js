@@ -124,7 +124,9 @@ async function saveTeams() {
   }
   
   const button = qs("save-teams");
-  setButtonLoading(button, true);
+  if (button && typeof setButtonLoading === "function") {
+    setButtonLoading(button, true);
+  }
   
   try {
     await apiPost("/api/teams", payload);
@@ -140,7 +142,9 @@ async function saveTeams() {
     console.error("Save teams error:", err);
     showToast(`Kaydetme sırasında hata oluştu: ${err.message}`, "error");
   } finally {
-    setButtonLoading(button, false);
+    if (button && typeof setButtonLoading === "function") {
+      setButtonLoading(button, false);
+    }
   }
 }
 

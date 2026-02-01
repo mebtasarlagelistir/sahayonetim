@@ -6,11 +6,19 @@
  * Bağımlılıklar: match_control_core.js, match_control_scoring.js, match_control_timer.js
  */
 
+/** Takım durumu alanı sadece maç veya takım listesi değiştiğinde yeniden oluşturulur (seçimler silinmesin) */
+let lastRenderedMatchId = null;
+let lastRenderedRedKey = "";
+let lastRenderedBlueKey = "";
+
 /**
  * Maç görünümünü render eder
  */
 function renderMatchDisplay() {
   if (!currentMatch) {
+    lastRenderedMatchId = null;
+    lastRenderedRedKey = "";
+    lastRenderedBlueKey = "";
     // Maç yoksa tüm UI'ı temizle
     const matchStatusCard = qs("match_status_card");
     if (matchStatusCard) matchStatusCard.style.display = "none";
@@ -141,16 +149,36 @@ function renderMatchDisplay() {
   renderCentralAlliance("blue", currentMatch.blue_alliance);
   renderCentralAlliance("red", currentMatch.red_alliance);
   
-  // Detaylı skorlama panellerinde takımları göster
-  renderDetailedAllianceTeams("blue", currentMatch.blue_alliance);
-  renderDetailedAllianceTeams("red", currentMatch.red_alliance);
+  // Detaylı skorlama: takım durumu alanını SADECE maç veya takım listesi değiştiğinde yeniden oluştur.
+  // Her notify'da (timer vb.) yeniden oluşturmak kullanıcı seçimlerini siliyordu.
+  const redKey = JSON.stringify(currentMatch.red_alliance || []);
+  const blueKey = JSON.stringify(currentMatch.blue_alliance || []);
+  const matchOrTeamsChanged =
+    currentMatch.id !== lastRenderedMatchId ||
+    redKey !== lastRenderedRedKey ||
+    blueKey !== lastRenderedBlueKey;
+  if (matchOrTeamsChanged) {
+    renderDetailedAllianceTeams("blue", currentMatch.blue_alliance);
+    renderDetailedAllianceTeams("red", currentMatch.red_alliance);
+    lastRenderedMatchId = currentMatch.id;
+    lastRenderedRedKey = redKey;
+    lastRenderedBlueKey = blueKey;
+  }
   
   // Buton durumları
   const isActive = currentMatch.status === "in_progress";
   const isCompleted = currentMatch.status === "completed";
   
   const btnStartMatch = qs("btn_start_match");
-  if (btnStartMatch) btnStartMatch.style.display = (isActive || isCompleted) ? "none" : "inline-block";
+  if (btnStartMatch) {
+    const showStart = !isActive && !isCompleted && !!currentMatch;
+    btnStartMatch.style.display = showStart ? "inline-block" : "none";
+    if (showStart) {
+      const canStart = typeof canStartMatch === "function" ? canStartMatch() : false;
+      btnStartMatch.disabled = !canStart;
+      btnStartMatch.title = canStart ? "" : "Tüm robotlar için hazırlık durumu işaretleyin (Hazır, DQ, RY veya Bypass)";
+    }
+  }
   const btnNextState = qs("btn_next_state");
   if (btnNextState) btnNextState.style.display = isActive ? "inline-block" : "none";
   const btnStopMatch = qs("btn_stop_match");
@@ -182,6 +210,29 @@ function renderMatchDisplay() {
   // Durum görünümünü güncelle
   if (typeof updateStateDisplay === "function") {
     updateStateDisplay();
+  }
+}
+
+/**
+ * Baş hakem onayı göstergesini günceller.
+ * Baş hakem maçı onayladığında skor kontrol ekranında "Baş hakem onayı: Onaylandı" görünür.
+ *
+ * @param {Object} refereeMeta - state.scores.referee_meta (MatchCore'dan)
+ */
+function updateHeadRefereeApprovedIndicator(refereeMeta) {
+  const el = typeof qs === "function" ? qs("head_referee_approved_indicator") : document.getElementById("head_referee_approved_indicator");
+  const textEl = typeof qs === "function" ? qs("head_referee_approved_text") : document.getElementById("head_referee_approved_text");
+  if (!el) return;
+  const head = refereeMeta && refereeMeta.head;
+  const approved = head && head.approved === true;
+  if (approved) {
+    el.style.display = "";
+    if (textEl) {
+      const by = head.approved_by ? ` (${head.approved_by})` : "";
+      textEl.textContent = "Baş hakem onayı: Onaylandı" + by;
+    }
+  } else {
+    el.style.display = "none";
   }
 }
 
@@ -267,6 +318,7 @@ function renderDetailedAllianceTeams(alliance, teams) {
               <button class="team-status-btn" data-status="red" data-team="${alliance}-${index + 1}" title="Kırmızı Kart">🔴</button>
               <button class="team-status-btn" data-status="dq" data-team="${alliance}-${index + 1}" title="Diskalifiye">DQ</button>
               <button class="team-status-btn" data-status="ry" data-team="${alliance}-${index + 1}" title="Robot Yok">RY</button>
+              <button class="team-status-btn" data-status="bypass" data-team="${alliance}-${index + 1}" title="Bypass">⏭️</button>
             </div>
           </div>
         `).join("")}
@@ -314,6 +366,10 @@ function toggleTeamStatus(alliance, teamId, status, button) {
         }
       }
     }
+    if (typeof renderMatchDisplay === "function") {
+      renderMatchDisplay();
+    }
+    persistTeamStatusesToBackend();
     return;
   }
   
@@ -327,6 +383,11 @@ function toggleTeamStatus(alliance, teamId, status, button) {
   // Seçilen butonu aktif yap
   button.classList.add("active");
   
+  // Maç başlat butonunun aktif/pasif durumunu güncelle (robot hazırlık zorunluluğu)
+  if (typeof renderMatchDisplay === "function") {
+    renderMatchDisplay();
+  }
+  
   // Status square'i güncelle (merkezi display'de)
   const statusSquare = document.querySelector(`.status-square[data-team="${teamId}"]`);
   if (statusSquare) {
@@ -338,7 +399,8 @@ function toggleTeamStatus(alliance, teamId, status, button) {
       yellow: "Sarı Kart",
       red: "Kırmızı Kart",
       dq: "Diskalifiye",
-      ry: "Robot Yok"
+      ry: "Robot Yok",
+      bypass: "Bypass"
     };
     const teamNumber = button.closest(".team-status-item").dataset.teamNumber;
     statusSquare.title = `Takım ${teamNumber} - ${statusLabels[status] || "Bilinmiyor"}`;
@@ -363,7 +425,24 @@ function toggleTeamStatus(alliance, teamId, status, button) {
     }
   }
   
-  // DQ ve RY durumları için bilgilendirme mesajları gösterilebilir
+  // Maç kontrolünden yapılan seçim backend'e kaydedilir; hakem panelleri ile senkron kalır
+  persistTeamStatusesToBackend();
+}
+
+/**
+ * Robot hazırlık durumlarını backend'e kaydeder (maç kontrol ↔ hakem panelleri senkronu).
+ */
+function persistTeamStatusesToBackend() {
+  if (!currentMatch || !currentMatch.id) return;
+  if (typeof collectTeamStatuses !== "function" || typeof apiPost !== "function") return;
+  const team_statuses = collectTeamStatuses();
+  apiPost("/api/match-control/team-status", {
+    match_id: currentMatch.id,
+    match_source: currentMatch.match_source || "schedule",
+    team_statuses
+  }).catch((err) => {
+    console.error("Robot durumu kaydedilirken hata:", err);
+  });
 }
 
 /**

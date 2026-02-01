@@ -87,6 +87,9 @@ class MatchCore {
     
     // Periyodik kontrol
     this.periodicCheckInterval = null;
+    
+    // Hakem panelinden gelen skor güncellemesi (match control'de formu güncellemek için tek seferlik bayrak)
+    this._scoresJustUpdated = false;
   }
   
   /**
@@ -133,6 +136,8 @@ class MatchCore {
    * Mevcut state'i döndürür
    */
   getState() {
+    const scoresJustUpdated = this._scoresJustUpdated;
+    this._scoresJustUpdated = false;
     return {
       match: this.match,
       currentState: this.currentState,
@@ -141,7 +146,8 @@ class MatchCore {
       teamStatuses: this.teamStatuses,
       isActive: this.match?.status === "in_progress",
       isPreview: this.match?.status === "preview",
-      manuallySelected: this.manuallySelectedMatchId !== null
+      manuallySelected: this.manuallySelectedMatchId !== null,
+      scoresJustUpdated
     };
   }
   
@@ -238,6 +244,7 @@ class MatchCore {
     }
     
     console.log("MatchCore: setMatch çağrıldı - id:", match.id, "status:", match.status, "skipWebSocket:", skipWebSocket);
+    const previousMatchId = this.match?.id;
     this.match = match;
     
     // State ve timer bilgilerini güncelle
@@ -257,7 +264,12 @@ class MatchCore {
       if (!skipWebSocket && match.id) {
         const matchSource = match.match_source || match.source || "schedule";
         console.log("MatchCore: WebSocket bağlantısı başlatılıyor - matchId:", match.id, "matchSource:", matchSource);
-        this.startWebSocketConnection(match.id, matchSource);
+        try {
+          this.startWebSocketConnection(match.id, matchSource);
+        } catch (err) {
+          console.warn("MatchCore: WebSocket bağlantısı başlatılamadı, polling kullanılacak:", err);
+          // Hata olsa bile devam et, polling otomatik olarak kullanılacak
+        }
       }
     } else {
       // Preview veya diğer durumlar için de state'i güncelle
@@ -286,12 +298,18 @@ class MatchCore {
       };
     }
     
-    // Team statuses
-    if (match.scoring_data?.team_statuses) {
-      this.teamStatuses = match.scoring_data.team_statuses;
-    } else {
+    // Team statuses: Sadece backend'den anlamlı veri gelirse güncelle; boş gelirse mevcut seçimleri koru
+    // (Periodic loadActiveMatch boş team_statuses döndüğünde seçimlerin silinmesini önler)
+    const incomingTeamStatuses = match.scoring_data?.team_statuses;
+    if (incomingTeamStatuses && typeof incomingTeamStatuses === "object" && Object.keys(incomingTeamStatuses).length > 0) {
+      this.teamStatuses = typeof incomingTeamStatuses === "object" && !Array.isArray(incomingTeamStatuses)
+        ? { ...incomingTeamStatuses }
+        : {};
+    } else if (previousMatchId !== match.id) {
+      // Farklı maça geçildi; robot durumlarını temizle
       this.teamStatuses = {};
     }
+    // Aksi halde this.teamStatuses değiştirme (aynı maç, boş gelen veri)
     
     console.log("MatchCore: setMatch tamamlandı, notify çağrılıyor - subscriber sayısı:", this.subscribers.size);
     this.notify();
@@ -333,12 +351,15 @@ class MatchCore {
     
     try {
       this.matchSocket = io("/match", {
-        transports: ["websocket", "polling"],
+        transports: ["polling", "websocket"], // Polling'i önce dene (daha güvenilir)
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: this.MAX_RETRY_COUNT,
-        timeout: 20000
+        timeout: 20000,
+        forceNew: false, // Mevcut bağlantıyı yeniden kullan
+        upgrade: true, // Polling'den WebSocket'e yükseltmeyi dene
+        rememberUpgrade: false // Her seferinde polling'den başla
       });
       
       // Bağlantı kurulduğunda
@@ -359,14 +380,13 @@ class MatchCore {
           const matchData = data.match;
           
           if (matchData) {
-            // Server timestamp ile senkronize et
-            if (matchData.server_timestamp) {
-              this.syncWithServerTime(matchData.server_timestamp, matchData.time_remaining);
-            }
+            const previousState = this.currentState;
+            const newState = matchData.current_state || this.currentState;
+            const stateChanged = previousState !== newState;
             
-            // State güncelle
-            this.currentState = matchData.current_state || this.currentState;
-            this.timeRemaining = matchData.time_remaining || this.timeRemaining;
+            // State ve süre güncelle
+            this.currentState = newState;
+            this.timeRemaining = matchData.time_remaining ?? this.timeRemaining;
             
             // Match bilgisini güncelle
             if (this.match) {
@@ -375,14 +395,22 @@ class MatchCore {
               this.match.status = matchData.status;
             }
             
-            // Timer'ı yeniden başlat (eğer aktifse)
+            // Timer: Sadece aşama değiştiğinde veya maç artık in_progress değilse start/stop yap.
+            // Her match_state'te startTimer() çağrılmaz; böylece SKS tekrar başlamaz.
             if (this.match?.status === "in_progress") {
-              this.startTimer();
+              if (stateChanged) {
+                this.syncWithServerTime(matchData.server_timestamp, matchData.time_remaining);
+                this.startTimer();
+              } else if (matchData.server_timestamp != null) {
+                this.syncWithServerTime(matchData.server_timestamp, matchData.time_remaining);
+                this.notify();
+              } else {
+                this.notify();
+              }
             } else {
               this.stopTimer();
+              this.notify();
             }
-            
-            this.notify();
           } else {
             // Maç tamamlandı
             this.clearMatch();
@@ -392,43 +420,38 @@ class MatchCore {
         }
       });
       
-      // Skor güncellemesi
+      // Skor güncellemesi (hakem paneli veya match control'den; tüm ekranlarda eşzamanlı görünsün)
       this.matchSocket.on("scores", (data) => {
         try {
           const scores = data.scores || data;
           
-          // Scores formatı: { red: {scoring_data: {...}, calculated_scores: {...}}, blue: {...}, referee_meta: {...} }
-          if (scores.red) {
-            // Eğer scoring_data içinde ise
-            if (scores.red.scoring_data) {
-              this.scores.red = scores.red.scoring_data;
-            } else {
-              this.scores.red = scores.red;
-            }
+          // Scores formatı: { red: {...}, blue: {...}, referee_meta: {...}, team_statuses: {...} }
+          if (scores.red != null) {
+            this.scores.red = scores.red && typeof scores.red === "object" && !Array.isArray(scores.red)
+              ? scores.red
+              : (scores.red?.scoring_data || scores.red || {});
           }
-          if (scores.blue) {
-            if (scores.blue.scoring_data) {
-              this.scores.blue = scores.blue.scoring_data;
-            } else {
-              this.scores.blue = scores.blue;
-            }
+          if (scores.blue != null) {
+            this.scores.blue = scores.blue && typeof scores.blue === "object" && !Array.isArray(scores.blue)
+              ? scores.blue
+              : (scores.blue?.scoring_data || scores.blue || {});
           }
           if (scores.referee_meta) {
             this.scores.referee_meta = scores.referee_meta;
           }
-          if (scores.team_statuses) {
-            this.teamStatuses = scores.team_statuses;
+          if (scores.team_statuses !== undefined) {
+            this.teamStatuses = scores.team_statuses && typeof scores.team_statuses === "object" ? scores.team_statuses : {};
           }
           
           // Match objesini de güncelle (calculated_scores varsa)
           if (this.match && scores.calculated_scores) {
-            // Match objesine calculated_scores ekle (UI'lar için)
             if (!this.match.scoring_data) {
               this.match.scoring_data = {};
             }
             this.match.scoring_data.calculated_scores = scores.calculated_scores;
           }
           
+          this._scoresJustUpdated = true;
           this.notify();
         } catch (err) {
           console.error("MatchCore: scores error:", err);
@@ -438,6 +461,14 @@ class MatchCore {
       // Hata mesajı
       this.matchSocket.on("error", (error) => {
         console.error("MatchCore: WebSocket error:", error);
+        // WebSocket hatası olsa bile uygulama çalışmaya devam etmeli
+        // Sadece gerçek zamanlı güncellemeler çalışmayabilir
+      });
+      
+      // Bağlantı hatası (transport hatası)
+      this.matchSocket.on("connect_error", (error) => {
+        console.warn("MatchCore: WebSocket bağlantı hatası:", error.message);
+        // Polling'e fallback yapılacak (otomatik)
       });
       
       // Bağlantı kesildiğinde
@@ -525,12 +556,9 @@ class MatchCore {
       return;
     }
     
-    // Server timestamp ile senkronize başlangıç zamanı
-    // timerStartTime, server'ın timer'ı başlattığı zamana göre hesaplanır
+    // Server timestamp ile senkronize: süreler backend'den gelir (OKS 20 sn, SKS 120 sn)
     const now = Date.now();
-    // Timer'ın başlangıç zamanını hesapla
-    // Eğer server 30 saniye kaldı diyorsa ve initial duration 30 ise, şimdi başlamış demektir
-    // Eğer initial duration farklıysa, geçen süreyi hesapla
+    // Başlangıç zamanı: server'dan gelen time_remaining ile tutarlı sayım için
     if (this.timerInitialDuration > 0 && this.timerInitialDuration !== this.timeRemaining) {
       // Timer zaten başlamış, geçen süreyi hesapla
       const elapsed = this.timerInitialDuration - this.timeRemaining;
@@ -550,7 +578,7 @@ class MatchCore {
         return;
       }
       
-      // Client zamanından elapsed hesapla
+      // Tam saniye ile kararlı sayım (floating point kayması önlenir)
       const elapsed = Math.floor((Date.now() - this.timerStartTime) / 1000);
       const newTimeRemaining = Math.max(0, this.timerInitialDuration - elapsed);
       
@@ -559,10 +587,9 @@ class MatchCore {
         this.notify();
       }
       
-      // Süre doldu
+      // Süre dolunca bir kez bildir ve dur
       if (this.timeRemaining <= 0) {
         this.stopTimer();
-        // Otomatik durum geçişi için event fırlat (sadece match_control dinler)
         this.notify();
       }
     }, 100);
@@ -636,14 +663,14 @@ class MatchCore {
   }
   
   /**
-   * Sonraki durumu döndürür
+   * Sonraki durumu döndürür.
+   * SKS (driver_controlled) bitince doğrudan Maç Sonrası'na geçer; Oyun Sonu aşaması yok.
    */
   getNextState(currentState) {
     const stateOrder = [
       "autonomous",
       "prepare_teleop",
       "driver_controlled",
-      "end_game",
       "post_match"
     ];
     
@@ -672,18 +699,55 @@ class MatchCore {
 }
 
 // Global instance (class adı ile instance adı farklı olmalı)
-const matchCoreInstance = new MatchCore();
+let matchCoreInstance = null;
 
-// Global erişim için window'a ekle (geriye dönük uyumluluk)
-if (typeof window !== "undefined") {
-  window.MatchCore = matchCoreInstance;
-  // Global scope'a da ekle (script tag'lerinde erişim için)
-  if (typeof globalThis !== "undefined") {
-    globalThis.MatchCore = matchCoreInstance;
+try {
+  // Bağımlılıkları kontrol et
+  if (typeof apiGet === "undefined") {
+    console.warn("MatchCore: apiGet tanımlı değil, network_utils.js yüklenmemiş olabilir");
   }
-  // Eski tarayıcılar için
-  if (typeof global !== "undefined") {
-    global.MatchCore = matchCoreInstance;
+  if (typeof apiPost === "undefined") {
+    console.warn("MatchCore: apiPost tanımlı değil, network_utils.js yüklenmemiş olabilir");
+  }
+  if (typeof io === "undefined") {
+    console.warn("MatchCore: io (Socket.IO) tanımlı değil, Socket.IO kütüphanesi yüklenmemiş olabilir");
+  }
+  
+  matchCoreInstance = new MatchCore();
+  
+  // Instance'ın doğru oluşturulduğunu kontrol et
+  if (!matchCoreInstance || !matchCoreInstance.constructor || matchCoreInstance.constructor.name !== "MatchCore") {
+    throw new Error("MatchCore instance doğru oluşturulamadı");
+  }
+  
+  // Global erişim için window'a ekle (geriye dönük uyumluluk)
+  if (typeof window !== "undefined") {
+    window.MatchCore = matchCoreInstance;
+    // Global scope'a da ekle (script tag'lerinde erişim için)
+    if (typeof globalThis !== "undefined") {
+      globalThis.MatchCore = matchCoreInstance;
+    }
+    // Eski tarayıcılar için
+    if (typeof global !== "undefined") {
+      global.MatchCore = matchCoreInstance;
+    }
+  }
+  
+  console.log("MatchCore: Instance başarıyla oluşturuldu ve window'a eklendi");
+} catch (error) {
+  console.error("MatchCore: Instance oluşturulurken hata oluştu:", error);
+  console.error("MatchCore: Hata detayları:", {
+    errorMessage: error.message,
+    errorStack: error.stack,
+    hasApiGet: typeof apiGet !== "undefined",
+    hasApiPost: typeof apiPost !== "undefined",
+    hasIo: typeof io !== "undefined"
+  });
+  // Hata durumunda null bırak (fallback kodları çalışsın)
+  matchCoreInstance = null;
+  // window.MatchCore'u undefined bırak ki fallback kodları çalışsın
+  if (typeof window !== "undefined") {
+    window.MatchCore = undefined;
   }
 }
 
@@ -692,9 +756,43 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = matchCoreInstance;
 }
 
-// Yükleme onayı
-console.log("MatchCore: Modül yüklendi ve hazır", {
-  instance: !!matchCoreInstance,
-  window: typeof window !== "undefined" && !!window.MatchCore,
-  subscribers: matchCoreInstance.subscribers.size
-});
+// Yükleme onayı ve metod kontrolü
+if (matchCoreInstance && matchCoreInstance.constructor && matchCoreInstance.constructor.name === "MatchCore") {
+  console.log("MatchCore: Modül yüklendi ve hazır", {
+    instance: !!matchCoreInstance,
+    window: typeof window !== "undefined" && !!window.MatchCore,
+    hasStartMatch: typeof matchCoreInstance.startMatch === "function",
+    hasNextState: typeof matchCoreInstance.nextState === "function",
+    hasSetMatch: typeof matchCoreInstance.setMatch === "function",
+    hasSubscribe: typeof matchCoreInstance.subscribe === "function",
+    subscribers: matchCoreInstance.subscribers ? matchCoreInstance.subscribers.size : 0
+  });
+
+  // Global MatchCore'un doğru şekilde tanımlandığını kontrol et
+  if (typeof window !== "undefined" && window.MatchCore) {
+    const requiredMethods = ["startMatch", "nextState", "setMatch", "subscribe", "loadActiveMatch"];
+    const missingMethods = requiredMethods.filter(method => typeof window.MatchCore[method] !== "function");
+    
+    if (missingMethods.length > 0) {
+      console.error("MatchCore: Bazı metodlar bulunamadı!", {
+        missingMethods: missingMethods,
+        instanceType: typeof window.MatchCore,
+        constructor: window.MatchCore.constructor ? window.MatchCore.constructor.name : "no constructor",
+        availableMethods: Object.getOwnPropertyNames(window.MatchCore).filter(name => typeof window.MatchCore[name] === "function")
+      });
+    } else {
+      console.log("MatchCore: Tüm gerekli metodlar mevcut ve hazır");
+    }
+  }
+} else {
+  console.error("MatchCore: Instance oluşturulamadı veya geçersiz!", {
+    instance: matchCoreInstance,
+    type: typeof matchCoreInstance,
+    constructor: matchCoreInstance?.constructor?.name || "no constructor"
+  });
+  
+  // Hata durumunda bile temel metodları eklemeye çalış (fallback)
+  if (matchCoreInstance && typeof matchCoreInstance === "object") {
+    console.warn("MatchCore: Fallback modunda - bazı metodlar çalışmayabilir");
+  }
+}
