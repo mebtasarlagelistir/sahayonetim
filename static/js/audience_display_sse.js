@@ -3,13 +3,8 @@
  * 
  * Bu modül WebSocket bağlantı yönetimi ile ilgili tüm fonksiyonları içerir.
  * SSE yerine WebSocket kullanıyor (daha iyi performans ve timer senkronizasyonu için).
+ * NOT: audienceSocket, retryCount, MAX_RETRY_COUNT, RETRY_DELAY_BASE audience_display_core.js içinde tanımlı (burada tekrar tanımlanmaz).
  */
-
-// WebSocket bağlantısı
-let audienceSocket = null;
-let retryCount = 0;
-const MAX_RETRY_COUNT = 5;
-const RETRY_DELAY_BASE = 1000;
 
 /**
  * WebSocket bağlantısını başlatır (gerçek zamanlı maç güncellemeleri için)

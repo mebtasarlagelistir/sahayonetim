@@ -10,58 +10,58 @@
     <div class="audience-overlay" id="audience_overlay" style="display: none;">
       <span id="audience_overlay_text"></span>
     </div>
+    <!-- İlk açılışta önizleme/ayar gelene kadar kırpılmış maç ekranı yerine bu gösterilir -->
+    <div class="audience-initial-loading" id="audience_initial_loading">Yükleniyor...</div>
 
     <main class="audience-container">
-      <!-- VS Preview Sayfası -->
+      <!-- VS Preview: Üst bar (başlık + ittifaklar) + altında yeşil ekran (chroma key / overlay) -->
       <section class="audience-panel" id="audience_vs_preview" style="display: none;">
         <div class="vs-container">
-          <div class="vs-header">
-            <div class="vs-match-info">
-              <div class="vs-match-name" id="vs_match_name">Maç Önizlemesi</div>
-              <div class="vs-match-meta">
-                <span class="vs-match-type" id="vs_match_type">Maç</span>
-                <span class="vs-match-separator">•</span>
-                <span class="vs-match-number" id="vs_match_number">#0</span>
-                <span class="vs-match-separator" id="vs_field_separator" style="display: none;">•</span>
-                <span class="vs-match-field" id="vs_match_field" style="display: none;">Saha 1</span>
+          <!-- Üst bar: yayında görünsün; altındaki alan chroma ile video bindirilir -->
+          <div class="vs-top-bar">
+            <div class="vs-top-bar-row vs-top-bar-title-row">
+              <div class="vs-top-bar-event" id="vs_event_name">Maç Önizlemesi</div>
+              <div class="vs-top-bar-match" id="vs_match_info">Sıralama #0</div>
+            </div>
+            <div class="vs-top-bar-row vs-bar-alliances">
+              <div class="vs-bar-alliance vs-red">
+                <div class="vs-bar-alliance-title">Kırmızı İttifak</div>
+                <div class="vs-bar-teams" id="vs_red_teams"></div>
+              </div>
+              <div class="vs-bar-alliance vs-blue">
+                <div class="vs-bar-alliance-title">Mavi İttifak</div>
+                <div class="vs-bar-teams" id="vs_blue_teams"></div>
               </div>
             </div>
           </div>
-          <!-- Her zaman: Mavi solda, Kırmızı sağda -->
-          <div class="vs-content">
-            <div class="vs-alliance vs-blue">
-              <div class="vs-alliance-title">Mavi İttifak</div>
-              <div class="vs-teams" id="vs_blue_teams"></div>
-            </div>
-            <div class="vs-divider">
-              <span class="vs-text">VS</span>
-            </div>
-            <div class="vs-alliance vs-red">
-              <div class="vs-alliance-title">Kırmızı İttifak</div>
-              <div class="vs-teams" id="vs_red_teams"></div>
-            </div>
-          </div>
+          <!-- Chroma key alanı: OBS vb. ile bu renk key'lenip video bindirilir -->
+          <div class="vs-chroma-area" id="vs_chroma_area"></div>
         </div>
       </section>
 
+      <!-- Canlı maç: üst bar (Kırmızı | Timer | Mavi) + altında yeşil ekran (video overlay) -->
       <section class="audience-panel" id="audience_match_view">
-        <h1 id="audience_match_title">Maç Ekranı</h1>
-        <div class="audience-scoreboard">
-          <div class="audience-alliance blue">
-            <div class="alliance-title">Mavi İttifak</div>
-            <div class="alliance-score" id="audience_blue_score">0</div>
-            <div class="alliance-teams" id="audience_blue_teams">-</div>
+        <div class="match-live-wrap">
+          <div class="match-top-bar">
+            <div class="match-bar-meta" id="audience_match_meta"></div>
+            <div class="match-bar-row">
+              <div class="match-bar-alliance red">
+                <div class="match-bar-alliance-title">Kırmızı</div>
+                <div class="match-bar-score" id="audience_red_score">0</div>
+                <div class="match-bar-teams" id="audience_red_teams">-</div>
+              </div>
+              <div class="match-bar-center">
+                <div class="match-bar-state" id="audience_state_label">Beklemede</div>
+                <div class="match-bar-timer" id="audience_timer_value">--:--</div>
+              </div>
+              <div class="match-bar-alliance blue">
+                <div class="match-bar-alliance-title">Mavi</div>
+                <div class="match-bar-score" id="audience_blue_score">0</div>
+                <div class="match-bar-teams" id="audience_blue_teams">-</div>
+              </div>
+            </div>
           </div>
-          <div class="audience-timer">
-            <div class="timer-label" id="audience_state_label">Beklemede</div>
-            <div class="timer-value" id="audience_timer_value">--:--</div>
-            <div class="timer-meta" id="audience_match_meta"></div>
-          </div>
-          <div class="audience-alliance red">
-            <div class="alliance-title">Kırmızı İttifak</div>
-            <div class="alliance-score" id="audience_red_score">0</div>
-            <div class="alliance-teams" id="audience_red_teams">-</div>
-          </div>
+          <div class="match-chroma-area" id="match_chroma_area"></div>
         </div>
         <div class="audience-results" id="audience_results" style="display: none;">
           <div class="audience-results-title">Maç Sonucu</div>
@@ -89,7 +89,7 @@
             </div>
           </div>
         </div>
-        <div class="audience-up-next" id="audience_next_match">Sıradaki maç yükleniyor...</div>
+        <div class="audience-up-next" id="audience_next_match">Maç seçilmedi</div>
       </section>
 
       <section class="audience-panel" id="audience_inspection_view" style="display: none;">

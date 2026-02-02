@@ -1174,38 +1174,80 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     @require_login
     def get_next_match():
         """
-        Sıradaki maçı döner.
+        Sıradaki maçı döner (takvim + deneme maçları birlikte; tarih/saat sırasına göre en erken).
         
         Returns:
-            JSON: Sıradaki maç bilgisi
+            JSON: { "match": {...}, "match_source": "schedule" | "practice" } veya {"match": None}
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
         
-        # Scheduled durumundaki ilk maçı al
-        matches = datastore.get_match_schedule(
+        # Takvim: scheduled durumundaki ilk maç (zaten tarih/saat sıralı)
+        schedule_matches = datastore.get_match_schedule(
             event_id=event_id,
             status="scheduled"
         )
+        next_schedule = schedule_matches[0] if schedule_matches else None
         
-        if matches:
-            return jsonify({"match": matches[0]})
+        # Deneme: scheduled durumundaki ilk maç (zaten tarih/saat sıralı)
+        practice_matches = datastore.get_practice_matches(
+            event_id=event_id,
+            status="scheduled"
+        )
+        next_practice = practice_matches[0] if practice_matches else None
         
-        return jsonify({"match": None})
+        # Hangisi daha erken? (tarih + saat karşılaştırması)
+        def datetime_key(m):
+            return (m.get("match_date") or "", m.get("match_time") or "")
+        
+        if not next_schedule and not next_practice:
+            return jsonify({"match": None})
+        if not next_schedule:
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        if not next_practice:
+            next_schedule["match_source"] = "schedule"
+            return jsonify({"match": next_schedule})
+        if datetime_key(next_practice) < datetime_key(next_schedule):
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        next_schedule["match_source"] = "schedule"
+        return jsonify({"match": next_schedule})
 
     @bp.route("/api/public/next-match")
     def get_next_match_public():
         """
         Seyirci ekranı için sıradaki maçı döner (giriş gerektirmez).
+        Takvim + deneme maçları birlikte; tarih/saat sırasına göre en erken döner.
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
-        matches = datastore.get_match_schedule(
+        schedule_matches = datastore.get_match_schedule(
             event_id=event_id,
             status="scheduled"
         )
-        if matches:
-            return jsonify({"match": matches[0]})
-        return jsonify({"match": None})
+        next_schedule = schedule_matches[0] if schedule_matches else None
+        practice_matches = datastore.get_practice_matches(
+            event_id=event_id,
+            status="scheduled"
+        )
+        next_practice = practice_matches[0] if practice_matches else None
+
+        def _dt_key(m):
+            return (m.get("match_date") or "", m.get("match_time") or "")
+
+        if not next_schedule and not next_practice:
+            return jsonify({"match": None})
+        if not next_schedule:
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        if not next_practice:
+            next_schedule["match_source"] = "schedule"
+            return jsonify({"match": next_schedule})
+        if _dt_key(next_practice) < _dt_key(next_schedule):
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        next_schedule["match_source"] = "schedule"
+        return jsonify({"match": next_schedule})

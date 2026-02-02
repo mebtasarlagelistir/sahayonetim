@@ -18,6 +18,13 @@ async function loadMatchControlScreenSettings() {
     if (overlayEnabledEl) overlayEnabledEl.checked = !!data.overlay_enabled;
     const overlayTextEl = qs("mc_screen_overlay_text");
     if (overlayTextEl) overlayTextEl.value = data.overlay_text || "";
+    const chromaEnabledEl = qs("mc_screen_overlay_chroma_enabled");
+    if (chromaEnabledEl) chromaEnabledEl.checked = !!data.overlay_chroma_enabled;
+    const chromaColor = (data.overlay_chroma_color || "#00ff00").trim() || "#00ff00";
+    const chromaColorEl = qs("mc_screen_overlay_chroma_color");
+    if (chromaColorEl) chromaColorEl.value = chromaColor;
+    const chromaHexEl = qs("mc_screen_overlay_chroma_color_hex");
+    if (chromaHexEl) chromaHexEl.value = chromaColor;
   } catch (err) {
     console.error("Load screen settings error:", err);
   }
@@ -27,15 +34,17 @@ async function loadMatchControlScreenSettings() {
  * Seyirci ekranı ayarlarını kaydeder
  */
 async function saveMatchControlScreenSettings() {
+  const chromaHex = (qs("mc_screen_overlay_chroma_color_hex")?.value || "").trim() || "#00ff00";
   const payload = {
     active_view: qs("mc_screen_active_view")?.value || "match",
     overlay_enabled: !!qs("mc_screen_overlay_enabled")?.checked,
-    overlay_text: qs("mc_screen_overlay_text")?.value || ""
+    overlay_text: qs("mc_screen_overlay_text")?.value || "",
+    overlay_chroma_enabled: !!qs("mc_screen_overlay_chroma_enabled")?.checked,
+    overlay_chroma_color: chromaHex
   };
   try {
     await apiPost("/api/screens/settings", payload);
     showToast("Seyirci ekranı ayarları güncellendi", "success");
-    // Ayarlar kaydedildikten sonra ekran listesini yenile
     await loadMatchControlScreens();
   } catch (err) {
     console.error("Save screen settings error:", err);
@@ -49,10 +58,13 @@ async function saveMatchControlScreenSettings() {
 async function loadMatchControlScreens() {
   const list = qs("mc_connected_screens_list");
   if (!list) return;
+  list.innerHTML = "<div class='loading'>Yükleniyor...</div>";
   try {
     const screens = await apiGet("/api/screens");
-    if (!screens.length) {
-      list.innerHTML = "<div class='empty'>Bağlı ekran yok</div>";
+    if (!Array.isArray(screens) || !screens.length) {
+      list.innerHTML = "<div class='empty'><p>Bağlı ekran yok.</p><p class='hint'>Seyirci ekranını <strong>/audience</strong> adresinden açın; açılan ekran birkaç saniye içinde burada listelenir.</p><button type='button' class='btn-small btn-secondary' id='mc_refresh_screens_btn'>Yenile</button></div>";
+      const refreshBtn = list.querySelector("#mc_refresh_screens_btn");
+      if (refreshBtn) refreshBtn.addEventListener("click", () => loadMatchControlScreens());
       return;
     }
     const now = Date.now() / 1000;
@@ -136,7 +148,10 @@ async function loadMatchControlScreens() {
     });
   } catch (err) {
     console.error("Load connected screens error:", err);
-    list.innerHTML = "<div class='error'>Ekranlar yüklenemedi</div>";
+    const msg = (err && err.message) ? err.message : "Ekranlar yüklenemedi";
+    list.innerHTML = "<div class='error'><p>" + (msg.indexOf("yetkiniz") !== -1 ? "Bu liste için yetkiniz olmayabilir." : "Ekranlar yüklenemedi.") + "</p><p class='hint'>Seyirci ekranını <strong>/audience</strong> adresinden açıp tekrar deneyin.</p><button type='button' class='btn-small btn-secondary' id='mc_refresh_screens_btn'>Yenile</button></div>";
+    const refreshBtn = list.querySelector("#mc_refresh_screens_btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", () => loadMatchControlScreens());
   }
 }
 

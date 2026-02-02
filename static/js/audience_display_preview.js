@@ -160,95 +160,51 @@ function applyVSPreviewPayload(payload) {
     "practice": "Deneme Maçı"
   };
   
-  // Güvenli DOM güncellemeleri (element kontrolü ile)
-  const matchNameEl = qs("vs_match_name");
-  const matchTypeEl = qs("vs_match_type");
-  const matchNumberEl = qs("vs_match_number");
-  const fieldSeparatorEl = qs("vs_field_separator");
-  const fieldEl = qs("vs_match_field");
+  // Üst bar: etkinlik başlığı (örnek tasarım: "Türkiye Şampiyonası")
+  const eventNameEl = qs("vs_event_name");
+  if (eventNameEl) {
+    eventNameEl.textContent = payload.event_name || "Maç Önizlemesi";
+  }
   
-  if (matchNameEl) {
+  // Üst bar: maç bilgisi (Sıralama #10 • Saha 1)
+  const matchInfoEl = qs("vs_match_info");
+  if (matchInfoEl) {
     const matchTypeLabel = matchTypeLabels[match.match_type] || match.match_type || "Maç";
-    const matchNumber = match.match_number || "0";
-    matchNameEl.textContent = `${matchTypeLabel} ${matchNumber}`;
+    const num = match.match_number || "0";
+    const field = match.field_number ? ` • Saha ${match.field_number}` : "";
+    matchInfoEl.textContent = `${matchTypeLabel} #${num}${field}`;
   }
   
-  if (matchTypeEl) {
-    matchTypeEl.textContent = matchTypeLabels[match.match_type] || match.match_type || "Maç";
-  }
-  
-  if (matchNumberEl) {
-    matchNumberEl.textContent = `#${match.match_number || "0"}`;
-  }
-  
-  // Saha bilgisi
-  if (match.field_number) {
-    if (fieldSeparatorEl) fieldSeparatorEl.style.display = "inline";
-    if (fieldEl) {
-      fieldEl.style.display = "inline";
-      fieldEl.textContent = `Saha ${match.field_number}`;
+  // Bar içi takım satırları: numara | isim | skor (önizlemede "-")
+  function renderBarTeams(alliance, teamsMap) {
+    if (!alliance || !Array.isArray(alliance) || alliance.length === 0) {
+      return "<div class='vs-bar-team-row'><span class='vs-bar-team-num'>-</span><span class='vs-bar-team-name'>Takım yok</span><span class='vs-bar-team-score'>-</span></div>";
     }
-  } else {
-    if (fieldSeparatorEl) fieldSeparatorEl.style.display = "none";
-    if (fieldEl) fieldEl.style.display = "none";
+    return alliance.map(teamNum => {
+      const team = teamsMap[String(teamNum)] || {};
+      const name = (team.name || "Takım").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<div class="vs-bar-team-row"><span class="vs-bar-team-num">${teamNum}</span><span class="vs-bar-team-name">${name}</span><span class="vs-bar-team-score">-</span></div>`;
+    }).join("");
   }
   
-  // Kırmızı ittifak takımlarını göster
   const redTeamsEl = qs("vs_red_teams");
   if (redTeamsEl) {
-    if (match.red_alliance && Array.isArray(match.red_alliance) && match.red_alliance.length > 0) {
-      try {
-        redTeamsEl.innerHTML = match.red_alliance.map(teamNum => {
-          const team = teams[String(teamNum)] || {};
-          const teamName = (team.name || "Takım").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          const teamSchool = (team.school || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          return `
-            <div class="vs-team-card">
-              <div class="vs-team-number">${teamNum}</div>
-              <div class="vs-team-name">${teamName}</div>
-              <div class="vs-team-school">${teamSchool}</div>
-            </div>
-          `;
-        }).join("");
-      } catch (err) {
-        console.error("VS Preview: Kırmızı takımlar render hatası:", err);
-        redTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-name'>Hata</div></div>";
-      }
-    } else {
-      redTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-number'>-</div><div class='vs-team-name'>Takım yok</div></div>";
-      console.warn("VS Preview: Kırmızı ittifak takımları bulunamadı veya boş");
+    try {
+      redTeamsEl.innerHTML = renderBarTeams(match.red_alliance, teams);
+    } catch (err) {
+      console.error("VS Preview: Kırmızı takımlar render hatası:", err);
+      redTeamsEl.innerHTML = "<div class='vs-bar-team-row'><span class='vs-bar-team-name'>Hata</span></div>";
     }
-  } else {
-    console.error("VS Preview: vs_red_teams elementi bulunamadı");
   }
   
-  // Mavi ittifak takımlarını göster
   const blueTeamsEl = qs("vs_blue_teams");
   if (blueTeamsEl) {
-    if (match.blue_alliance && Array.isArray(match.blue_alliance) && match.blue_alliance.length > 0) {
-      try {
-        blueTeamsEl.innerHTML = match.blue_alliance.map(teamNum => {
-          const team = teams[String(teamNum)] || {};
-          const teamName = (team.name || "Takım").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          const teamSchool = (team.school || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          return `
-            <div class="vs-team-card">
-              <div class="vs-team-number">${teamNum}</div>
-              <div class="vs-team-name">${teamName}</div>
-              <div class="vs-team-school">${teamSchool}</div>
-            </div>
-          `;
-        }).join("");
-      } catch (err) {
-        console.error("VS Preview: Mavi takımlar render hatası:", err);
-        blueTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-name'>Hata</div></div>";
-      }
-    } else {
-      blueTeamsEl.innerHTML = "<div class='vs-team-card'><div class='vs-team-number'>-</div><div class='vs-team-name'>Takım yok</div></div>";
-      console.warn("VS Preview: Mavi ittifak takımları bulunamadı veya boş");
+    try {
+      blueTeamsEl.innerHTML = renderBarTeams(match.blue_alliance, teams);
+    } catch (err) {
+      console.error("VS Preview: Mavi takımlar render hatası:", err);
+      blueTeamsEl.innerHTML = "<div class='vs-bar-team-row'><span class='vs-bar-team-name'>Hata</span></div>";
     }
-  } else {
-    console.error("VS Preview: vs_blue_teams elementi bulunamadı");
   }
   
   console.log("VS Preview başarıyla uygulandı", {

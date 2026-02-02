@@ -35,6 +35,9 @@ def _get_global_screen_settings(datastore) -> Dict[str, Any]:
         "active_view": screens.get("active_view", "match"),
         "overlay_enabled": bool(screens.get("overlay_enabled", False)),
         "overlay_text": screens.get("overlay_text", "") or "",
+        # Chroma key (yeşil ekran): yayında skor board'u tek renk arka plan üzerinde gösterir, OBS vb. ile key'lenebilir
+        "overlay_chroma_enabled": bool(screens.get("overlay_chroma_enabled", False)),
+        "overlay_chroma_color": (screens.get("overlay_chroma_color") or "").strip() or "#00ff00",
     }
 
 
@@ -102,6 +105,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         event_data["screens"]["active_view"] = (data.get("active_view") or "match").strip()
         event_data["screens"]["overlay_enabled"] = bool(data.get("overlay_enabled", False))
         event_data["screens"]["overlay_text"] = (data.get("overlay_text") or "").strip()
+        event_data["screens"]["overlay_chroma_enabled"] = bool(data.get("overlay_chroma_enabled", False))
+        event_data["screens"]["overlay_chroma_color"] = (data.get("overlay_chroma_color") or "").strip() or "#00ff00"
         datastore.save_event(event_data)
         return jsonify({"ok": True})
 
@@ -133,7 +138,6 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
 
     @bp.get("/api/screens")
     @require_login
-    @require_event_manager
     def list_screens():
         _cleanup_screens()
         screens = sorted(_screen_registry.values(), key=lambda item: item.get("last_seen", 0), reverse=True)
@@ -197,6 +201,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 "active_view": active_view,
                 "overlay_enabled": global_settings.get("overlay_enabled", False),
                 "overlay_text": global_settings.get("overlay_text", ""),
+                "overlay_chroma_enabled": global_settings.get("overlay_chroma_enabled", False),
+                "overlay_chroma_color": global_settings.get("overlay_chroma_color", "#00ff00"),
                 "preview_payload": override_payload if screen_override_active else None,
             }
         )
@@ -350,6 +356,20 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                             time.sleep(1)
                             continue
                         
+                        # Aktif maçı kontrol et (maç başladıysa önizlemeyi kaldırmak için önce alıyoruz)
+                        active_match = match_state_manager.get_active_match(event_id)
+                        current_state = active_match.get("current_state") if active_match else None
+                        # Maç başladığında (otonom/teleop/end_game) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
+                        if current_state in ("autonomous", "driver_controlled", "end_game"):
+                            _global_preview["override_view"] = None
+                            _global_preview["override_until"] = None
+                            _global_preview["override_payload"] = None
+                            screen = _screen_registry.get(screen_id, {})
+                            screen["override_view"] = None
+                            screen["override_until"] = None
+                            screen["override_payload"] = None
+                            _screen_registry[screen_id] = screen
+                        
                         # Preview kontrolü
                         screen = _screen_registry.get(screen_id, {})
                         override_payload = screen.get("override_payload") or _global_preview.get("override_payload")
@@ -358,9 +378,6 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                         if override_payload:
                             time.sleep(0.5)
                             continue
-                        
-                        # Aktif maçı kontrol et
-                        active_match = match_state_manager.get_active_match(event_id)
                         
                         if active_match:
                             match_id = active_match.get("id")

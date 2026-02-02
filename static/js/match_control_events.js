@@ -241,7 +241,8 @@ function setupEventListeners() {
           ...currentMatch,
           source: matchSource,
           match_source: matchSource,
-          status: "preview" // Preview olarak işaretle
+          status: "preview", // Preview olarak işaretle
+          match_type: currentMatch.match_type || (matchSource === "practice" ? "practice" : "qualification")
         };
         
         console.log(`Ön izleme göster: Normalize edilmiş maç - ID: ${normalizedMatch.id}, Number: ${normalizedMatch.match_number}, Source: ${matchSource}`);
@@ -263,9 +264,26 @@ function setupEventListeners() {
         // currentMatch'i güncelle (preview olarak işaretle)
         currentMatch = normalizedMatch;
         
+        // MatchCore'u önizleme maçı ile güncelle (ekranda maç bilgisinin görünmesi için)
+        const matchCoreInstance = typeof getMatchCoreInstance === "function" ? getMatchCoreInstance() : null;
+        if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+          matchCoreInstance.setManualSelection(normalizedMatch.id, matchSource);
+        }
+        if (matchCoreInstance && typeof matchCoreInstance.setMatch === "function") {
+          matchCoreInstance.setMatch(
+            { ...normalizedMatch, match_source: matchSource, source: matchSource },
+            true
+          );
+        }
+        
         // UI'ı güncelle
         if (typeof renderMatchDisplay === "function") {
           renderMatchDisplay();
+        }
+        
+        // Önizleme maç bilgisini ekranda göstermek için "Aktif Maç" sekmesine geç
+        if (typeof switchTab === "function") {
+          switchTab("active-match");
         }
         
         // Skorlama verilerini uygula
@@ -301,17 +319,17 @@ function setupEventListeners() {
           });
         }
         
-        // Seyirci ekranlarına preview gönder (VS sayfası için)
-        // ÖNEMLİ: duration_seconds: 0 veya çok büyük değer = süresiz (sadece "Maçı Göster" ile temizlenir)
+        // Seyirci ekranlarına preview gönder (VS sayfası için; üst bar + bar altı yeşil ekran)
         await apiPost("/api/screens/preview", {
           view: "match",
           mode: "preview",
-          duration_seconds: 0, // 0 = süresiz, sadece "Maçı Göster" butonu ile temizlenir
+          duration_seconds: 0,
           payload: { 
-            match: normalizedMatch, // currentMatch'i kullan, next.match'i değil!
+            match: normalizedMatch,
             rankings,
             teams: teamsMap,
-            type: "vs_preview"
+            type: "vs_preview",
+            event_name: eventData?.name || eventData?.event_name || "Maç Önizlemesi"
           }
         });
         
@@ -333,30 +351,26 @@ function setupEventListeners() {
   const btnShowLive = qs("btn_show_live");
   if (btnShowLive) {
     btnShowLive.addEventListener("click", async () => {
-      // Çift tıklamayı önle
-      if (btnShowLive.disabled) {
-        return; // Zaten işlem yapılıyor
-      }
-      
-      // Buton loading state
+      if (btnShowLive.disabled) return;
       if (typeof setButtonLoading === "function") {
         setButtonLoading(btnShowLive, true);
       }
-      
       try {
-        // Preview'i temizle ve canlı moda geç
-        await apiPost("/api/screens/preview", {
-          view: "match",
-          mode: "live"
-        });
-        // Frontend'de de preview payload'ı temizle (audience ekranları için)
-        // Bu, audience ekranlarının preview'i temizlemesini sağlar
-        showToast("Maç ekranı canlı moda alındı", "success");
+        // Maç sonrası görüntü: Sonuçları göster ile aynı yeri çağır (seyirci ekranında bar + sonuçlar)
+        if (typeof sendMatchResultsToScreens === "function" && currentMatch) {
+          await sendMatchResultsToScreens();
+        } else {
+          // Seçili maç yoksa preview'i temizle, canlı maç görünümü gelsin
+          await apiPost("/api/screens/preview", {
+            view: "match",
+            mode: "live"
+          });
+          showToast("Maç ekranı canlı moda alındı", "success");
+        }
       } catch (err) {
-        console.error("Show live error:", err);
-        showToast("Maç ekranı canlı moda alınamadı", "error");
+        console.error("Maçı göster error:", err);
+        showToast("Maç ekranı güncellenemedi", "error");
       } finally {
-        // Buton loading state'i kaldır
         if (typeof setButtonLoading === "function") {
           setButtonLoading(btnShowLive, false);
         }
@@ -545,7 +559,19 @@ function setupEventListeners() {
       }
     });
   }
-  
+  // Chroma key: renk seçici ile hex alanını senkron tut
+  const chromaColorPicker = qs("mc_screen_overlay_chroma_color");
+  const chromaHexInput = qs("mc_screen_overlay_chroma_color_hex");
+  if (chromaColorPicker && chromaHexInput) {
+    chromaColorPicker.addEventListener("input", () => {
+      chromaHexInput.value = chromaColorPicker.value;
+    });
+    chromaHexInput.addEventListener("input", () => {
+      const hex = chromaHexInput.value.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(hex)) chromaColorPicker.value = hex;
+    });
+  }
+
   // Kompakt skor butonları için event listener'lar
   document.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-score-plus") || e.target.classList.contains("btn-score-minus")) {

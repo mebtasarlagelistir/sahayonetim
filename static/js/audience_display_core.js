@@ -24,6 +24,9 @@ let lastMatchId = null;
 let audienceSocket = null; // WebSocket bağlantısı (SSE yerine WebSocket kullanılıyor)
 let retryCount = 0;
 
+/** Takım numarası -> { name, school } (seyirci ekranında takım isimleri için) */
+let audienceTeamsMap = {};
+
 // Constants
 const MAX_RETRY_COUNT = 10;
 const RETRY_DELAY_BASE = 1000; // 1 saniye
@@ -79,6 +82,24 @@ async function sendHeartbeat() {
     await apiPost("/api/screens/heartbeat", payload);
   } catch (err) {
     console.warn("Heartbeat error:", err);
+  }
+}
+
+/**
+ * Takım listesini yükler (seyirci ekranında takım isimleri göstermek için)
+ */
+async function loadAudienceTeams() {
+  try {
+    const data = await apiGet("/api/teams");
+    if (!Array.isArray(data)) return;
+    audienceTeamsMap = {};
+    data.forEach((t) => {
+      if (t && t.number != null) {
+        audienceTeamsMap[String(t.number)] = { name: t.name || "", school: t.school || "" };
+      }
+    });
+  } catch (err) {
+    console.warn("loadAudienceTeams:", err);
   }
 }
 

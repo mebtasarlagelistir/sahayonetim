@@ -87,14 +87,12 @@ function updateScoreDisplay(alliance, newScore) {
   const scoreEl = qs(`audience_${alliance}_score`);
   if (!scoreEl) return;
   
-  const oldScore = parseInt(scoreEl.textContent) || 0;
-  const score = parseInt(newScore) || 0;
+  const oldScore = parseInt(scoreEl.textContent, 10) || 0;
+  const score = parseInt(newScore, 10) || 0;
   
-  // Skor değiştiyse güncelle ve animasyon ekle
+  // Her zaman güncelle (ilk yüklemede veya 0 geldiğinde de görünsün)
+  scoreEl.textContent = String(score);
   if (score !== oldScore) {
-    scoreEl.textContent = score;
-    
-    // Animasyon ekle
     scoreEl.classList.add("updating");
     setTimeout(() => {
       scoreEl.classList.remove("updating");
@@ -103,7 +101,7 @@ function updateScoreDisplay(alliance, newScore) {
 }
 
 /**
- * Overlay'i uygular
+ * Overlay'i uygular (üst metin)
  */
 function applyOverlay() {
   const overlay = qs("audience_overlay");
@@ -111,6 +109,63 @@ function applyOverlay() {
   if (!overlay || !text) return;
   text.textContent = overlayText;
   overlay.style.display = overlayEnabled && overlayText ? "block" : "none";
+}
+
+/**
+ * Chroma key arka planı uygular (yeşil ekran / yayın için).
+ * - Ön izleme veya canlı maç ekranında: sadece bar altındaki alan chroma olur; bar yayında kalır.
+ * - Diğer ekranlarda: tüm sayfa chroma renge boyanır.
+ * @param {boolean} enabled - Chroma key açık mı
+ * @param {string} color - Hex renk (örn. #00ff00)
+ * @param {string} [layoutMode] - "vs_preview" | "match" | null - bar+chroma layout kullanılıyorsa hangi alan
+ */
+function applyChromaBackground(enabled, color, layoutMode) {
+  const container = document.querySelector(".audience-container");
+  const body = document.body;
+  const vsChroma = document.getElementById("vs_chroma_area");
+  const matchChroma = document.getElementById("match_chroma_area");
+  const hex = (color && /^#[0-9A-Fa-f]{6}$/.test(color)) ? color : "#00ff00";
+  const darkBg = "#0f172a";
+  
+  if (layoutMode === "vs_preview" && vsChroma) {
+    if (enabled) {
+      vsChroma.style.backgroundColor = hex;
+      if (matchChroma) matchChroma.style.backgroundColor = "";
+    } else {
+      vsChroma.style.backgroundColor = "#00ff00";
+    }
+    if (body) body.style.backgroundColor = darkBg;
+    if (container) container.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = darkBg;
+    return;
+  }
+  
+  if (layoutMode === "match" && matchChroma) {
+    if (enabled) {
+      matchChroma.style.backgroundColor = hex;
+      if (vsChroma) vsChroma.style.backgroundColor = "";
+    } else {
+      matchChroma.style.backgroundColor = "#00ff00";
+    }
+    if (body) body.style.backgroundColor = darkBg;
+    if (container) container.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = darkBg;
+    return;
+  }
+  
+  if (enabled) {
+    if (container) container.style.backgroundColor = hex;
+    if (body) body.style.backgroundColor = hex;
+    if (document.documentElement) document.documentElement.style.backgroundColor = hex;
+    if (vsChroma) vsChroma.style.backgroundColor = "";
+    if (matchChroma) matchChroma.style.backgroundColor = "";
+  } else {
+    if (container) container.style.backgroundColor = "";
+    if (body) body.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = "";
+    if (vsChroma) vsChroma.style.backgroundColor = "#00ff00";
+    if (matchChroma) matchChroma.style.backgroundColor = "#00ff00";
+  }
 }
 
 /**
@@ -126,6 +181,23 @@ function formatTeamsWithRank(teams, rankings) {
   return teams.map((team) => {
     const rank = rankings[team];
     return rank ? `${team} (#${rank})` : team;
+  }).join(", ");
+}
+
+/**
+ * Takım numaralarını isimlerle formatlar (seyirci ekranı maç görünümü için)
+ * 
+ * @param {Array} teamNumbers - Takım numaraları dizisi
+ * @param {Object} teamsMap - Takım numarası -> { name, school } (audienceTeamsMap)
+ * @returns {string} - "202520 - Takım Adı, 202523 - Diğer" veya sadece numaralar
+ */
+function formatTeamsWithNames(teamNumbers, teamsMap) {
+  if (!teamNumbers || !teamNumbers.length) return "-";
+  const map = teamsMap || (typeof audienceTeamsMap !== "undefined" ? audienceTeamsMap : {});
+  return teamNumbers.map((num) => {
+    const t = map[String(num)] || {};
+    const name = (t.name || "").trim();
+    return name ? `${num} – ${name}` : String(num);
   }).join(", ");
 }
 

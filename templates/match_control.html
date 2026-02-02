@@ -922,13 +922,28 @@
                   <option value="awards">Ödüller</option>
                 </select>
               </label>
+            </div>
+            <div class="card-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color, #ddd);">
+              <h4 style="margin-top: 0;">Chroma key (yeşil ekran / yayın)</h4>
+              <p class="hint">Skor ekranını tek renk arka plan üzerinde gösterir. OBS vb. yazılımlarda “Chroma Key” ile bu rengi şeffaflaştırarak görüntüyü bindirebilirsiniz.</p>
               <label class="checkbox">
-                <input type="checkbox" id="mc_screen_overlay_enabled" />
-                Overlay Açık
+                <input type="checkbox" id="mc_screen_overlay_chroma_enabled" />
+                Chroma key arka plan kullan
+              </label>
+              <label style="display: block; margin-top: 8px;">
+                Arka plan rengi
+                <input type="color" id="mc_screen_overlay_chroma_color" value="#00ff00" style="width: 60px; height: 32px; padding: 2px; cursor: pointer;" />
+                <input type="text" id="mc_screen_overlay_chroma_color_hex" value="#00ff00" placeholder="#00ff00" style="width: 80px; margin-left: 8px;" maxlength="7" />
               </label>
             </div>
-            <label style="display: block; margin-top: 12px;">
-              Overlay Metni
+            <div class="grid" style="margin-top: 12px;">
+              <label class="checkbox">
+                <input type="checkbox" id="mc_screen_overlay_enabled" />
+                Üst metin (opsiyonel)
+              </label>
+            </div>
+            <label style="display: block; margin-top: 8px;">
+              Üst metin
               <input type="text" id="mc_screen_overlay_text" placeholder="Örn: Hoş geldiniz" />
             </label>
             <div style="margin-top: 12px;">

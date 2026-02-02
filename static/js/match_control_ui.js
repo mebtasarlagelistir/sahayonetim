@@ -126,7 +126,9 @@ function renderMatchDisplay() {
   // Merkezi match status
   const centralMatchStatus = qs("central_match_status");
   if (centralMatchStatus) {
-    if (currentMatch.status === "in_progress") {
+    if (currentMatch.status === "preview") {
+      centralMatchStatus.textContent = "Önizleme";
+    } else if (currentMatch.status === "in_progress") {
       centralMatchStatus.textContent = `${MATCH_STATES[currentState]?.label || "Aktif"} - ${formatTime(timeRemaining)}`;
     } else if (currentMatch.status === "scheduled") {
       centralMatchStatus.textContent = "Durduruldu";

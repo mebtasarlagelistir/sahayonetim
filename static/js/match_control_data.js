@@ -58,7 +58,13 @@ async function loadNextMatchAndSelect() {
       return;
     }
     
-    await selectMatch(data.match.id);
+    // Sıradaki maç takvim veya deneme olabilir (API tarih/saat sırasına göre döndürür)
+    const matchSource = data.match.match_source || data.match.source || "schedule";
+    if (matchSource === "practice" && typeof selectPracticeMatch === "function") {
+      await selectPracticeMatch(data.match);
+    } else {
+      await selectMatch(data.match.id);
+    }
     if (typeof switchTab === "function") {
       switchTab("active-match");
     }
