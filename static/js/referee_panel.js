@@ -187,12 +187,14 @@ async function initializeRefereePanel() {
             updateSubmitStatus();
           }
           
-          // Preview durumundaki maçlar için mesaj göster
+          // Preview durumundaki maçlar için mesaj göster (metin yapıyı bozmadan sadece mesaj alanını güncelle)
           if (state.isPreview) {
             const noMatchMsg = qs("no_match_message");
             if (noMatchMsg) {
               noMatchMsg.style.display = "block";
-              noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+              const textEl = noMatchMsg.querySelector("#no_match_message_text");
+              if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+              else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
             }
           } else {
             const noMatchMsg = qs("no_match_message");
@@ -294,7 +296,9 @@ async function checkActiveMatch() {
         const noMatchMsg = qs("no_match_message");
         if (noMatchMsg) {
           noMatchMsg.style.display = "block";
-          noMatchMsg.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
+          const textEl = noMatchMsg.querySelector("#no_match_message_text");
+          if (textEl) textEl.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
+          else noMatchMsg.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
         }
         return;
       }
@@ -332,7 +336,9 @@ async function checkActiveMatch() {
           const noMatchMsg = qs("no_match_message");
           if (noMatchMsg) {
             noMatchMsg.style.display = "block";
-            noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            const textEl = noMatchMsg.querySelector("#no_match_message_text");
+            if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
           }
         }
       } else {
@@ -359,7 +365,9 @@ async function checkActiveMatch() {
           const noMatchMsg = qs("no_match_message");
           if (noMatchMsg) {
             noMatchMsg.style.display = "block";
-            noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            const textEl = noMatchMsg.querySelector("#no_match_message_text");
+            if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
           }
         } else {
           // Preview değilse mesajı gizle
@@ -383,7 +391,9 @@ async function checkActiveMatch() {
       const noMatchMsg = qs("no_match_message");
       if (noMatchMsg) {
         noMatchMsg.style.display = "block";
-        noMatchMsg.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
+        const textEl = noMatchMsg.querySelector("#no_match_message_text");
+        if (textEl) textEl.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
+        else noMatchMsg.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
       }
       
       // Gerçek zamanlı güncellemeleri durdur
@@ -396,7 +406,9 @@ async function checkActiveMatch() {
     const noMatchMsg = qs("no_match_message");
     if (noMatchMsg) {
       noMatchMsg.style.display = "block";
-      noMatchMsg.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
+      const textEl = noMatchMsg.querySelector("#no_match_message_text");
+      if (textEl) textEl.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
+      else noMatchMsg.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
     }
   }
 }

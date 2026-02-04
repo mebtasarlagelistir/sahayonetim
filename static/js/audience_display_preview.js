@@ -160,19 +160,26 @@ function applyVSPreviewPayload(payload) {
     "practice": "Deneme Maçı"
   };
   
-  // Üst bar: etkinlik başlığı (örnek tasarım: "Türkiye Şampiyonası")
+  // Üst bar: Sıradaki | Maç no / Sıralama #no | Etkinlik adı (görsel 1)
+  const labelUpNext = document.getElementById("vs_label_up_next");
+  if (labelUpNext) labelUpNext.textContent = "Sıradaki";
+
+  const matchInfoEl = qs("vs_match_info");
+  if (matchInfoEl) {
+    const matchType = (match.match_type || "qualification").toLowerCase();
+    const num = match.match_number || "0";
+    if (matchType === "qualification") {
+      matchInfoEl.textContent = `Sıralama #${num}`;
+    } else if (matchType === "elimination" || matchType === "final") {
+      matchInfoEl.textContent = `Maç ${num}`;
+    } else {
+      matchInfoEl.textContent = `Maç ${num}`;
+    }
+  }
+
   const eventNameEl = qs("vs_event_name");
   if (eventNameEl) {
     eventNameEl.textContent = payload.event_name || "Maç Önizlemesi";
-  }
-  
-  // Üst bar: maç bilgisi (Sıralama #10 • Saha 1)
-  const matchInfoEl = qs("vs_match_info");
-  if (matchInfoEl) {
-    const matchTypeLabel = matchTypeLabels[match.match_type] || match.match_type || "Maç";
-    const num = match.match_number || "0";
-    const field = match.field_number ? ` • Saha ${match.field_number}` : "";
-    matchInfoEl.textContent = `${matchTypeLabel} #${num}${field}`;
   }
   
   // Bar içi takım satırları: numara | isim | skor (önizlemede "-")
@@ -259,9 +266,23 @@ function hideResultsPanel() {
 }
 
 /**
- * Results payload'ı uygular
- * 
- * @param {Object} payload - Results payload objesi
+ * Maç türüne göre ekran başlık metnini döner (etkinlik aşamasına göre otomasyon).
+ * @param {Object} match - match objesi (match_type, match_number)
+ * @returns {string} Örn. "Sıralama #29" veya "Maç 7"
+ */
+function getResultsSubtitleForMatch(match) {
+  if (!match) return "";
+  const type = (match.match_type || "qualification").toLowerCase();
+  const num = match.match_number ?? 0;
+  if (type === "qualification") return `Sıralama #${num}`;
+  if (type === "elimination" || type === "final") return `Maç ${num}`;
+  return `Maç ${num}`;
+}
+
+/**
+ * Results payload'ı uygular. Etkinlik aşamasına göre (sıralama / eleme-final) layout otomatik ayarlanır.
+ *
+ * @param {Object} payload - Results payload objesi (match, results; results içinde winner, skorlar, breakdown, advancement_red/blue)
  * @returns {boolean} - Başarılı olursa true
  */
 function applyResultsPayload(payload) {
@@ -271,8 +292,7 @@ function applyResultsPayload(payload) {
     console.warn("applyResultsPayload: match veya results yok");
     return false;
   }
-  
-  // Güvenli DOM güncellemeleri (element kontrolü ile)
+
   const stateLabel = qs("audience_state_label");
   const timerValue = qs("audience_timer_value");
   const redScore = qs("audience_red_score");
@@ -281,7 +301,7 @@ function applyResultsPayload(payload) {
   const blueTeams = qs("audience_blue_teams");
   const matchMeta = qs("audience_match_meta");
   const nextMatch = qs("audience_next_match");
-  
+
   if (stateLabel) stateLabel.textContent = "Maç Sonucu";
   if (timerValue) timerValue.textContent = "BİTTİ";
   if (redScore) redScore.textContent = results.red_score ?? 0;
@@ -292,42 +312,80 @@ function applyResultsPayload(payload) {
   if (nextMatch) nextMatch.textContent = "";
 
   const panel = qs("audience_results");
-  if (panel) {
-    panel.style.display = "block";
-    
-    // Results panel elementleri (güvenli güncelleme)
-    const winner = qs("audience_results_winner");
-    const blueTotal = qs("audience_results_blue_total");
-    const blueAuto = qs("audience_results_blue_auto");
-    const blueTeleop = qs("audience_results_blue_teleop");
-    const bluePenalty = qs("audience_results_blue_penalty");
-    const blueSp = qs("audience_results_blue_sp");
-    const blueYellow = qs("audience_results_blue_yellow");
-    const blueRed = qs("audience_results_blue_red");
-    const redTotal = qs("audience_results_red_total");
-    const redAuto = qs("audience_results_red_auto");
-    const redTeleop = qs("audience_results_red_teleop");
-    const redPenalty = qs("audience_results_red_penalty");
-    const redSp = qs("audience_results_red_sp");
-    const redYellow = qs("audience_results_red_yellow");
-    const redRed = qs("audience_results_red_red");
-    
-    if (winner) winner.textContent = results.winner || "-";
-    if (blueTotal) blueTotal.textContent = results.blue_score ?? 0;
-    if (blueAuto) blueAuto.textContent = results.blue_auto_total ?? 0;
-    if (blueTeleop) blueTeleop.textContent = results.blue_teleop_total ?? 0;
-    if (bluePenalty) bluePenalty.textContent = results.blue_penalty_total ?? 0;
-    if (blueSp) blueSp.textContent = results.blue_sp_total ?? 0;
-    if (blueYellow) blueYellow.textContent = results.blue_yellow_cards ?? 0;
-    if (blueRed) blueRed.textContent = results.blue_red_cards ?? 0;
-    if (redTotal) redTotal.textContent = results.red_score ?? 0;
-    if (redAuto) redAuto.textContent = results.red_auto_total ?? 0;
-    if (redTeleop) redTeleop.textContent = results.red_teleop_total ?? 0;
-    if (redPenalty) redPenalty.textContent = results.red_penalty_total ?? 0;
-    if (redSp) redSp.textContent = results.red_sp_total ?? 0;
-    if (redYellow) redYellow.textContent = results.red_yellow_cards ?? 0;
-    if (redRed) redRed.textContent = results.red_red_cards ?? 0;
+  if (!panel) {
+    if (typeof announceResults === "function") announceResults(results);
+    return true;
   }
+
+  panel.style.display = "block";
+
+  // Etkinlik aşaması: qualification -> sıralama ekranı, elimination/final -> eleme ekranı
+  const matchType = (match.match_type || "qualification").toLowerCase();
+  const stage = matchType === "elimination" || matchType === "final" ? "playoff" : "qualification";
+  panel.setAttribute("data-stage", stage);
+
+  const titleEl = qs("audience_results_title");
+  const subtitleEl = qs("audience_results_subtitle");
+  if (titleEl) titleEl.textContent = "Maç Sonucu";
+  if (subtitleEl) subtitleEl.textContent = getResultsSubtitleForMatch(match);
+
+  // Büyük skorlar
+  const redTotalEl = qs("audience_results_red_total");
+  const blueTotalEl = qs("audience_results_blue_total");
+  if (redTotalEl) redTotalEl.textContent = results.red_score ?? 0;
+  if (blueTotalEl) blueTotalEl.textContent = results.blue_score ?? 0;
+
+  // KAZANAN rozeti: sadece kazanan ittifak tarafında göster (otomatik)
+  const winnerRedBadge = qs("audience_results_winner_red");
+  const winnerBlueBadge = qs("audience_results_winner_blue");
+  const winner = (results.winner || "").toLowerCase();
+  if (winnerRedBadge) winnerRedBadge.style.display = winner.indexOf("kırmızı") !== -1 ? "block" : "none";
+  if (winnerBlueBadge) winnerBlueBadge.style.display = winner.indexOf("mavi") !== -1 ? "block" : "none";
+
+  // Kategori breakdown (otomatik payload'dan)
+  const setEl = (id, value) => { const el = qs(id); if (el) el.textContent = value; };
+  setEl("audience_results_red_auto", results.red_auto_total ?? 0);
+  setEl("audience_results_red_teleop", results.red_teleop_total ?? 0);
+  setEl("audience_results_red_penalty", results.red_penalty_total ?? 0);
+  setEl("audience_results_red_sp", results.red_sp_total ?? 0);
+  setEl("audience_results_red_cards", `${results.red_yellow_cards ?? 0} / ${results.red_red_cards ?? 0}`);
+  setEl("audience_results_blue_auto", results.blue_auto_total ?? 0);
+  setEl("audience_results_blue_teleop", results.blue_teleop_total ?? 0);
+  setEl("audience_results_blue_penalty", results.blue_penalty_total ?? 0);
+  setEl("audience_results_blue_sp", results.blue_sp_total ?? 0);
+  setEl("audience_results_blue_cards", `${results.blue_yellow_cards ?? 0} / ${results.blue_red_cards ?? 0}`);
+
+  // Takım rozetleri (match.red_alliance / blue_alliance)
+  const redTeamsContainer = qs("audience_results_red_teams");
+  const blueTeamsContainer = qs("audience_results_blue_teams");
+  if (redTeamsContainer) {
+    const teams = match.red_alliance || [];
+    redTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${t}</span>`).join("") || "-";
+  }
+  if (blueTeamsContainer) {
+    const teams = match.blue_alliance || [];
+    blueTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${t}</span>`).join("") || "-";
+  }
+
+  // Eleme/Final: "Bir sonraki maç" metinleri (payload'da varsa otomatik)
+  const advRed = qs("audience_advancement_red");
+  const advBlue = qs("audience_advancement_blue");
+  if (advRed) {
+    const text = results.advancement_red || payload.advancement_red || "";
+    advRed.style.display = text ? "block" : "none";
+    advRed.textContent = text ? `Bir sonraki: ${text}` : "";
+  }
+  if (advBlue) {
+    const text = results.advancement_blue || payload.advancement_blue || "";
+    advBlue.style.display = text ? "block" : "none";
+    advBlue.textContent = text ? `Bir sonraki: ${text}` : "";
+  }
+
+  // QR / detaylı sonuç alanı (metin otomatik)
+  const qrArea = qs("audience_qr_area");
+  const qrLabel = qs("audience_qr_label");
+  if (qrArea) qrArea.style.display = "block";
+  if (qrLabel) qrLabel.textContent = `${getResultsSubtitleForMatch(match)} detaylı sonuçlar için tara`;
 
   if (typeof announceResults === "function") {
     announceResults(results);

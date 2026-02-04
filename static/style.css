@@ -103,12 +103,55 @@ body {
   box-sizing: border-box;
 }
 
+/* Seyirci ekranı üst bar: etkinlik | maç bilgisi | marka (otomatik doldurulur) */
+.audience-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: clamp(0.8rem, 1.5vw, 1rem);
+  font-weight: 700;
+}
+.audience-header[aria-hidden="true"] { display: none; }
+.audience-header-left { color: #94a3b8; }
+.audience-header-center { color: #fbbf24; text-align: center; }
+.audience-header-right { color: #64748b; }
+
+/* Seyirci ekranı alt bar */
+.audience-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: #94a3b8;
+}
+.audience-footer[aria-hidden="true"] { display: none; }
+.audience-footer-event { font-weight: 600; }
+.audience-footer-title { color: #fbbf24; font-weight: 700; }
+.audience-footer-brand { color: #64748b; }
+
+/* Header/footer fixed olduğu için ana içerik padding ile ayrılır */
 .audience-container {
   display: grid;
   grid-template-rows: 1fr;
   align-items: stretch;
   gap: 0;
-  padding: 24px;
+  padding: 52px 24px 48px 24px;
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
@@ -627,14 +670,30 @@ body.vs-preview-mode .audience-container {
 }
 
 .vs-top-bar-title-row {
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
   text-align: center;
 }
 
-.vs-top-bar-event {
-  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+.vs-label-up-next {
+  font-size: clamp(1rem, 2vw, 1.4rem);
   font-weight: 800;
+  color: #fbbf24;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.vs-match-number {
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  font-weight: 900;
   color: #ffffff;
+  letter-spacing: 0.03em;
+}
+
+.vs-top-bar-event {
+  font-size: clamp(0.85rem, 1.6vw, 1.1rem);
+  font-weight: 700;
+  color: #94a3b8;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -646,12 +705,26 @@ body.vs-preview-mode .audience-container {
   letter-spacing: 0.03em;
 }
 
+/* Sıradaki maç: Kırmızı | VS | Mavi (görsel 1) */
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  font-weight: 900;
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
 .vs-bar-alliances {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr auto 1fr;
   gap: 12px;
   flex: 1;
   min-height: 0;
+  align-items: stretch;
 }
 
 .vs-bar-alliance {
@@ -761,18 +834,21 @@ body.vs-preview-mode .audience-container {
   }
 }
 
-/* VS Preview: dar ekranda bar tek sütun */
+/* VS Preview: dar ekranda bar tek sütun (Kırmızı, VS, Mavi alt alta) */
 @media (max-width: 600px) {
   .vs-bar-alliances {
     grid-template-columns: 1fr;
   }
+  .vs-divider {
+    padding: 8px 0;
+  }
 }
 
 .audience-results {
-  margin-top: 32px;
+  margin-top: 24px;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   border-radius: 20px;
-  padding: 32px;
+  padding: 24px 32px 32px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
   animation: slide-up 0.5s ease;
@@ -789,40 +865,181 @@ body.vs-preview-mode .audience-container {
   }
 }
 
-.audience-results-title {
-  font-size: 28px;
-  font-weight: 800;
-  margin-bottom: 20px;
+.audience-results-head {
   text-align: center;
+  margin-bottom: 20px;
+}
+
+.audience-results-title {
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 800;
+  margin: 0 0 4px 0;
   text-transform: uppercase;
   letter-spacing: 2px;
   color: #fbbf24;
   text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
 }
 
+.audience-results-subtitle {
+  font-size: clamp(0.9rem, 1.6vw, 1.1rem);
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+/* Maç sonucu ana alan: Kırmızı | Mavi (büyük skor + KAZANAN rozeti) */
+.audience-results-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+.audience-results-alliance {
+  border-radius: 16px;
+  padding: 20px 24px;
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.audience-results-alliance.red {
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.4) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.audience-results-alliance.blue {
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.4) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.audience-results-score-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.audience-results-score {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.audience-results-winner-badge {
+  background: #fbbf24;
+  color: #0f172a;
+  font-size: clamp(0.75rem, 1.4vw, 1rem);
+  font-weight: 900;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.5);
+  animation: winner-glow 2s ease-in-out infinite;
+}
+
+@keyframes winner-glow {
+  0%, 100% { box-shadow: 0 4px 12px rgba(251, 191, 36, 0.5); }
+  50% { box-shadow: 0 4px 20px rgba(251, 191, 36, 0.8); }
+}
+
+.audience-results-breakdown {
+  margin-bottom: 12px;
+}
+
+.audience-results-breakdown .results-line {
+  margin: 6px 0;
+  padding: 6px 10px;
+  font-size: clamp(0.8rem, 1.3vw, 0.95rem);
+}
+
+.audience-results-breakdown .results-line span {
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.audience-results-teams {
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.audience-results-teams .team-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.audience-results-alliance.red .team-badge {
+  background: rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+}
+
+.audience-results-alliance.blue .team-badge {
+  background: rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.6);
+}
+
+/* Eleme/Final: "Bir sonraki maç" kutusu */
+.audience-advancement {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  font-weight: 600;
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.audience-advancement-red { border-left: 4px solid #ef4444; }
+.audience-advancement-blue { border-left: 4px solid #3b82f6; }
+
+/* QR / detaylı sonuç alanı */
+.audience-qr-area {
+  text-align: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.audience-qr-placeholder {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.audience-qr-label {
+  margin: 0;
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: #94a3b8;
+}
+
+/* Eski kart yapısı (geriye uyumluluk için sınıflar tutuldu) */
 .audience-results-winner {
   font-size: 32px;
   font-weight: 900;
   margin-bottom: 24px;
   text-align: center;
   color: #fbbf24;
-  text-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba(251, 191, 36, 0.4);
-  animation: winner-glow 2s ease-in-out infinite;
-}
-
-@keyframes winner-glow {
-  0%, 100% {
-    text-shadow: 
-      0 4px 12px rgba(0, 0, 0, 0.5),
-      0 0 20px rgba(251, 191, 36, 0.4);
-  }
-  50% {
-    text-shadow: 
-      0 4px 12px rgba(0, 0, 0, 0.5),
-      0 0 30px rgba(251, 191, 36, 0.6);
-  }
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .audience-results-grid {
@@ -837,25 +1054,8 @@ body.vs-preview-mode .audience-container {
   padding: 24px;
   backdrop-filter: blur(10px);
   border: 2px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
-}
-
-.audience-results-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, transparent, currentColor, transparent);
-  opacity: 0.5;
-}
-
-.audience-results-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .audience-results-card.blue {
@@ -863,17 +1063,9 @@ body.vs-preview-mode .audience-container {
   color: #93c5fd;
 }
 
-.audience-results-card.blue::before {
-  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-}
-
 .audience-results-card.red {
   border-color: rgba(239, 68, 68, 0.5);
   color: #fca5a5;
-}
-
-.audience-results-card.red::before {
-  background: linear-gradient(90deg, transparent, #ef4444, transparent);
 }
 
 .results-label {

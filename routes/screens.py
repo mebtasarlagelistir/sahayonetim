@@ -14,6 +14,8 @@ from typing import Dict, Any
 from flask import jsonify, render_template, request
 from flask_socketio import emit, join_room, leave_room
 
+from src.core.scoring import ScoreCalculator
+
 logger = logging.getLogger(__name__)
 
 

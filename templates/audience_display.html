@@ -13,28 +13,35 @@
     <!-- İlk açılışta önizleme/ayar gelene kadar kırpılmış maç ekranı yerine bu gösterilir -->
     <div class="audience-initial-loading" id="audience_initial_loading">Yükleniyor...</div>
 
+    <!-- Genel üst bar: etkinlik adı | maç bilgisi | marka (otomatik doldurulur) -->
+    <header class="audience-header" id="audience_header">
+      <div class="audience-header-left" id="audience_header_event">MEMSKOR</div>
+      <div class="audience-header-center" id="audience_header_match"></div>
+      <div class="audience-header-right" id="audience_header_brand">Seyirci Ekranı</div>
+    </header>
+
     <main class="audience-container">
-      <!-- VS Preview: Üst bar (başlık + ittifaklar) + altında yeşil ekran (chroma key / overlay) -->
-      <section class="audience-panel" id="audience_vs_preview" style="display: none;">
+      <!-- Sıradaki maç (Up Next): Tam sayfa – Kırmızı ittifak | VS | Mavi ittifak (görsel 1) -->
+      <section class="audience-panel audience-up-next-panel" id="audience_vs_preview" style="display: none;">
         <div class="vs-container">
-          <!-- Üst bar: yayında görünsün; altındaki alan chroma ile video bindirilir -->
           <div class="vs-top-bar">
             <div class="vs-top-bar-row vs-top-bar-title-row">
+              <span class="vs-label-up-next" id="vs_label_up_next">Sıradaki</span>
+              <span class="vs-match-number" id="vs_match_info">Maç 0</span>
               <div class="vs-top-bar-event" id="vs_event_name">Maç Önizlemesi</div>
-              <div class="vs-top-bar-match" id="vs_match_info">Sıralama #0</div>
             </div>
             <div class="vs-top-bar-row vs-bar-alliances">
               <div class="vs-bar-alliance vs-red">
-                <div class="vs-bar-alliance-title">Kırmızı İttifak</div>
+                <span class="vs-bar-alliance-title" id="vs_red_alliance_label">Kırmızı İttifak</span>
                 <div class="vs-bar-teams" id="vs_red_teams"></div>
               </div>
+              <div class="vs-divider" aria-hidden="true">VS</div>
               <div class="vs-bar-alliance vs-blue">
-                <div class="vs-bar-alliance-title">Mavi İttifak</div>
+                <span class="vs-bar-alliance-title" id="vs_blue_alliance_label">Mavi İttifak</span>
                 <div class="vs-bar-teams" id="vs_blue_teams"></div>
               </div>
             </div>
           </div>
-          <!-- Chroma key alanı: OBS vb. ile bu renk key'lenip video bindirilir -->
           <div class="vs-chroma-area" id="vs_chroma_area"></div>
         </div>
       </section>
@@ -63,30 +70,47 @@
           </div>
           <div class="match-chroma-area" id="match_chroma_area"></div>
         </div>
-        <div class="audience-results" id="audience_results" style="display: none;">
-          <div class="audience-results-title">Maç Sonucu</div>
-          <div class="audience-results-winner" id="audience_results_winner">-</div>
-          <div class="audience-results-grid">
-            <div class="audience-results-card blue">
-              <div class="results-label">Mavi Özet</div>
-              <div class="results-line">Toplam: <span id="audience_results_blue_total">0</span></div>
-              <div class="results-line">Otonom: <span id="audience_results_blue_auto">0</span></div>
-              <div class="results-line">Teleop: <span id="audience_results_blue_teleop">0</span></div>
-              <div class="results-line">Ceza: <span id="audience_results_blue_penalty">0</span></div>
-              <div class="results-line">SP: <span id="audience_results_blue_sp">0</span></div>
-              <div class="results-line">Sarı Kart: <span id="audience_results_blue_yellow">0</span></div>
-              <div class="results-line">Kırmızı Kart: <span id="audience_results_blue_red">0</span></div>
+        <!-- Maç sonucu: etkinlik aşamasına göre (sıralama / eleme-final) otomatik düzenlenir -->
+        <div class="audience-results" id="audience_results" style="display: none;" data-stage="qualification">
+          <div class="audience-results-head">
+            <h2 class="audience-results-title" id="audience_results_title">Maç Sonucu</h2>
+            <span class="audience-results-subtitle" id="audience_results_subtitle"></span>
+          </div>
+          <div class="audience-results-main">
+            <div class="audience-results-alliance red">
+              <div class="audience-results-score-wrap">
+                <span class="audience-results-score" id="audience_results_red_total">0</span>
+                <div class="audience-results-winner-badge" id="audience_results_winner_red" style="display: none;" aria-hidden="true">KAZANAN</div>
+              </div>
+              <div class="audience-results-breakdown">
+                <div class="results-line">Otonom: <span id="audience_results_red_auto">0</span></div>
+                <div class="results-line">Teleop: <span id="audience_results_red_teleop">0</span></div>
+                <div class="results-line">Ceza: <span id="audience_results_red_penalty">0</span></div>
+                <div class="results-line">SP: <span id="audience_results_red_sp">0</span></div>
+                <div class="results-line">Sarı / Kırmızı: <span id="audience_results_red_cards">0 / 0</span></div>
+              </div>
+              <div class="audience-results-teams" id="audience_results_red_teams"></div>
+              <div class="audience-advancement audience-advancement-red" id="audience_advancement_red" style="display: none;"></div>
             </div>
-            <div class="audience-results-card red">
-              <div class="results-label">Kırmızı Özet</div>
-              <div class="results-line">Toplam: <span id="audience_results_red_total">0</span></div>
-              <div class="results-line">Otonom: <span id="audience_results_red_auto">0</span></div>
-              <div class="results-line">Teleop: <span id="audience_results_red_teleop">0</span></div>
-              <div class="results-line">Ceza: <span id="audience_results_red_penalty">0</span></div>
-              <div class="results-line">SP: <span id="audience_results_red_sp">0</span></div>
-              <div class="results-line">Sarı Kart: <span id="audience_results_red_yellow">0</span></div>
-              <div class="results-line">Kırmızı Kart: <span id="audience_results_red_red">0</span></div>
+            <div class="audience-results-alliance blue">
+              <div class="audience-results-score-wrap">
+                <span class="audience-results-score" id="audience_results_blue_total">0</span>
+                <div class="audience-results-winner-badge" id="audience_results_winner_blue" style="display: none;" aria-hidden="true">KAZANAN</div>
+              </div>
+              <div class="audience-results-breakdown">
+                <div class="results-line">Otonom: <span id="audience_results_blue_auto">0</span></div>
+                <div class="results-line">Teleop: <span id="audience_results_blue_teleop">0</span></div>
+                <div class="results-line">Ceza: <span id="audience_results_blue_penalty">0</span></div>
+                <div class="results-line">SP: <span id="audience_results_blue_sp">0</span></div>
+                <div class="results-line">Sarı / Kırmızı: <span id="audience_results_blue_cards">0 / 0</span></div>
+              </div>
+              <div class="audience-results-teams" id="audience_results_blue_teams"></div>
+              <div class="audience-advancement audience-advancement-blue" id="audience_advancement_blue" style="display: none;"></div>
             </div>
+          </div>
+          <div class="audience-qr-area" id="audience_qr_area" style="display: none;">
+            <div class="audience-qr-placeholder" id="audience_qr_placeholder"></div>
+            <p class="audience-qr-label" id="audience_qr_label">Detaylı sonuçlar için taranacak alan</p>
           </div>
         </div>
         <div class="audience-up-next" id="audience_next_match">Maç seçilmedi</div>
@@ -108,6 +132,13 @@
         <div id="audience_awards_list" class="audience-table"></div>
       </section>
     </main>
+
+    <!-- Alt bar: etkinlik adı, marka (otomatik doldurulur) -->
+    <footer class="audience-footer" id="audience_footer">
+      <span class="audience-footer-event" id="audience_footer_event">MEMSKOR</span>
+      <span class="audience-footer-title" id="audience_footer_title">Türkiye Şampiyonası</span>
+      <span class="audience-footer-brand" id="audience_footer_brand"></span>
+    </footer>
 
     <!-- Socket.IO Client Library (WebSocket için) -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>

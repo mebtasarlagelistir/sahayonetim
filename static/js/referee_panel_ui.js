@@ -142,7 +142,9 @@ function clearRefereeUI(message = "Aktif maç yok. Maç kontrol sayfasından ba�
   const noMatchMsg = qs("no_match_message");
   if (noMatchMsg) {
     noMatchMsg.style.display = "block";
-    noMatchMsg.textContent = message;
+    const textEl = noMatchMsg.querySelector("#no_match_message_text");
+    if (textEl) textEl.textContent = message;
+    else noMatchMsg.textContent = message;
   }
 }
 

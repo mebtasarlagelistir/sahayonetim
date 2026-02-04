@@ -1,8 +1,15 @@
 /**
  * Maç Kontrol - Ekran Yönetimi Modülü
- * 
- * Seyirci ekranları yönetimi ve sonuç gönderme işlemleri.
- * 
+ *
+ * Seyirci ekranları yönetimi, sonuç gönderme ve sonuç görünürlüğü (skor ekranını kaldırma).
+ *
+ * Modül sorumlulukları:
+ * - loadMatchControlScreenSettings / saveMatchControlScreenSettings: Ayarlar
+ * - loadMatchControlScreens: Bağlı ekran listesi
+ * - sendMatchResultsToScreens: Sonuçları seyirci ekranına gönderir
+ * - clearAudienceResultsView: Seyirci ekranındaki skor/sonuç görünümünü kaldırır
+ *   (maç tamamlandığında çağrılır; hakemler düzenleme yaparken skor ekranda görünmez)
+ *
  * Bağımlılıklar: match_control_core.js, match_control_scoring.js
  */
 
@@ -152,6 +159,26 @@ async function loadMatchControlScreens() {
     list.innerHTML = "<div class='error'><p>" + (msg.indexOf("yetkiniz") !== -1 ? "Bu liste için yetkiniz olmayabilir." : "Ekranlar yüklenemedi.") + "</p><p class='hint'>Seyirci ekranını <strong>/audience</strong> adresinden açıp tekrar deneyin.</p><button type='button' class='btn-small btn-secondary' id='mc_refresh_screens_btn'>Yenile</button></div>";
     const refreshBtn = list.querySelector("#mc_refresh_screens_btn");
     if (refreshBtn) refreshBtn.addEventListener("click", () => loadMatchControlScreens());
+  }
+}
+
+/**
+ * Seyirci ekranındaki skor/sonuç görünümünü kaldırır.
+ * Maç tamamlandığında çağrılır; böylece hakemler düzenleme yaparken
+ * seyirci ekranında sonuçlar görünmez (ayrı modül olarak ekran yaşam döngüsü).
+ *
+ * @returns {Promise<boolean>} Başarılı ise true
+ */
+async function clearAudienceResultsView() {
+  try {
+    await apiPost("/api/screens/preview", {
+      view: "match",
+      mode: "live"
+    });
+    return true;
+  } catch (err) {
+    console.warn("clearAudienceResultsView:", err);
+    return false;
   }
 }
 

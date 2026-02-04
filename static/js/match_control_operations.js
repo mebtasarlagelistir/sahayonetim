@@ -463,7 +463,12 @@ async function completeMatch() {
     }
     
     showToast("Maç tamamlandı ve veritabanına kaydedildi", "success");
-    
+
+    // Seyirci ekranındaki skor/sonuç görünümünü kaldır (hakemler düzenleme yaparken görünmesin)
+    if (typeof clearAudienceResultsView === "function") {
+      await clearAudienceResultsView();
+    }
+
     // Maç listesini güncelle
     if (typeof loadMatchList === "function") {
       await loadMatchList();
@@ -471,7 +476,7 @@ async function completeMatch() {
     if (typeof loadNextMatch === "function") {
       await loadNextMatch();
     }
-    
+
   } catch (err) {
     console.error("Complete match error:", err);
     showToast("Maç tamamlanırken hata oluştu", "error");

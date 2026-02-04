@@ -96,22 +96,20 @@ Takımları listeler.
 **Yetki:** `@require_login`
 
 ### `POST /api/teams`
-Takımları kaydeder (toplu).
+Takımları kaydeder (toplu). Body doğrudan takım listesidir (obje değil).
 
 **Yetki:** `@require_event_manager`
 
-**Request:**
+**Request:** JSON array
 ```json
-{
-  "teams": [
-    {
-      "number": "202501",
-      "name": "Takım Adı",
-      "school": "Okul Adı",
-      ...
-    }
-  ]
-}
+[
+  {
+    "number": "202501",
+    "name": "Takım Adı",
+    "school": "Okul Adı",
+    ...
+  }
+]
 ```
 
 ---
@@ -176,9 +174,15 @@ Maçı başlatır.
 **Request:**
 ```json
 {
-  "match_id": 1
+  "match_id": 1,
+  "match_source": "schedule",
+  "team_statuses": {
+    "red": { "r1": "ready", "r2": "ready" },
+    "blue": { "r1": "ready", "r2": "ready" }
+  }
 }
 ```
+- `team_statuses`: Zorunlu. Her robot için hazırlık durumu: `ready`, `dq`, `ry`, `bypass`.
 
 **Not:** Aynı anda sadece bir maç aktif olabilir.
 

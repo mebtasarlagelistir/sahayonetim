@@ -4,37 +4,32 @@ Final Maçları Bracket Generator Modülü
 Bu modül SP puanlarına göre final maçları için bracket (turnuva ağacı) oluşturur.
 
 Modüler yapı:
-- Bracket oluşturma mantığı bu modülde
-- Farklı bracket formatları (single elimination, double elimination vb.) 
-  için kolayca genişletilebilir
+- Bracket formatı bracket_config.py içinde tanımlı; değişiklik için orayı güncelleyin
+- Yeni format eklemek: config'e ekleyip _generate_* metodu yazılır
 - Storage katmanından bağımsızdır (sadece sıralama verilerini alır)
 
 Kullanım:
     from src.core.tournament.bracket_generator import BracketGenerator
-    
+
     generator = BracketGenerator()
     matches = generator.generate_final_matches(rankings, teams_per_alliance=2)
-    # Returns: [{"red_alliance": [...], "blue_alliance": [...]}, ...]
 """
 
 from typing import List, Dict, Any
+
+from .bracket_config import get_bracket_format, SINGLE_ELIMINATION
 
 
 class BracketGenerator:
     """
     Final maçları için bracket oluşturucu sınıfı.
-    
-    Bu sınıf SP puanlarına göre sıralanmış takımlardan final maçları 
-    için bracket oluşturur.
-    
-    Modüler yapı:
-    - Bracket formatı bu sınıfta tanımlı
-    - Farklı bracket türleri için kolayca genişletilebilir
-    - Storage katmanından bağımsız
+
+    Format bracket_config'den alınır; yeni format eklemek için config ve
+    ilgili _generate_* metodu eklenir.
     """
-    
-    # Bracket formatı: "single_elimination" (tek eleme)
-    BRACKET_FORMAT = "single_elimination"
+
+    def __init__(self, bracket_format: str = None):
+        self.bracket_format = bracket_format or get_bracket_format()
     
     def generate_final_matches(
         self,
@@ -95,14 +90,12 @@ class BracketGenerator:
             # Yeterli takım yoksa boş liste döndür
             return []
         
-        # Bracket formatına göre maçları oluştur
-        if self.BRACKET_FORMAT == "single_elimination":
+        # Bracket formatına göre maçları oluştur (config: bracket_config.py)
+        if self.bracket_format == SINGLE_ELIMINATION:
             return self._generate_single_elimination_bracket(
                 rankings, teams_per_alliance
             )
-        else:
-            # Gelecekte farklı bracket formatları eklenebilir
-            raise ValueError(f"Desteklenmeyen bracket formatı: {self.BRACKET_FORMAT}")
+        raise ValueError(f"Desteklenmeyen bracket formatı: {self.bracket_format}")
     
     def _generate_single_elimination_bracket(
         self,
@@ -190,5 +183,5 @@ class BracketGenerator:
             "teams_per_alliance": teams_per_alliance,
             "teams_per_match": teams_per_match,
             "num_matches": num_matches,
-            "format": self.BRACKET_FORMAT
+            "format": self.bracket_format
         }
