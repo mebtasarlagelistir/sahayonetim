@@ -502,69 +502,99 @@ async function loadEventStatistics() {
 
 /**
  * Kullanıcı rolüne göre dashboard bölümlerini göster/gizle
- * 
- * Baş hakem rolü için sadece şu bölümler görünür:
- * - İnceleme
- * - Hakem Skorlama
- * - FTA/CSA Araçları
- * 
- * Diğer tüm bölümler gizlenir.
- * Ayrıca header'daki event switcher ve yönetim butonları da gizlenir.
+ *
+ * - Hakem (hakem_1, hakem_2, vb.): Sadece "Hakem Skorlama" bölümü görünür.
+ * - Baş hakem: İnceleme, Hakem Skorlama, FTA/CSA Araçları görünür.
+ * - Admin / etkinlik yöneticisi: Tüm bölümler görünür.
+ *
+ * Hakem ve baş hakem için event switcher ile Kurulum linki gizlenir.
  */
 function updateDashboardSectionsForRole() {
-  // currentUserRole global değişkeninden al (users.js'den)
   if (typeof currentUserRole === "undefined" || !currentUserRole) return;
-  
-  const roleLower = currentUserRole.toLowerCase();
-  const isHeadReferee = roleLower.includes("baş_hakem") || 
-                        roleLower.includes("bas_hakem") || 
-                        roleLower.includes("head_referee") ||
-                        roleLower === "baş hakem" ||
-                        roleLower === "bas hakem";
-  
-  if (!isHeadReferee) {
-    // Baş hakem değilse, tüm bölümleri göster
-    document.querySelectorAll(".dashboard-section").forEach(section => {
+
+  const roleLower = String(currentUserRole).toLowerCase();
+  const isHeadReferee =
+    roleLower.includes("baş_hakem") ||
+    roleLower.includes("bas_hakem") ||
+    roleLower.includes("head_referee") ||
+    roleLower === "baş hakem" ||
+    roleLower === "bas hakem";
+
+  // Normal hakem: sadece hakem_1, hakem_2 gibi (baş hakem değil)
+  const isReferee =
+    (roleLower.includes("hakem") && !isHeadReferee) ||
+    roleLower.startsWith("hakem_");
+
+  const isAdminOrManager =
+    roleLower === "admin" ||
+    roleLower.includes("etkinlik_yoneticisi") ||
+    roleLower.includes("yonetici");
+
+  if (isAdminOrManager) {
+    // Admin / etkinlik yöneticisi: tüm bölümler
+    document.querySelectorAll(".dashboard-section").forEach((section) => {
       section.style.display = "";
     });
-    // Header butonlarını göster
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "";
     const eventSwitcher = document.querySelector(".event-switcher");
-    if (eventSwitcher) {
-      eventSwitcher.style.display = "";
-    }
+    if (eventSwitcher) eventSwitcher.style.display = "";
+    const setupLink = document.querySelector('a[href="/setup"]');
+    if (setupLink) setupLink.style.display = "";
     return;
   }
-  
-  // Baş hakem için sadece belirli bölümleri göster
-  const sections = document.querySelectorAll(".dashboard-section");
-  sections.forEach(section => {
-    const heading = section.querySelector("h2");
-    if (!heading) {
-      section.style.display = "none";
-      return;
-    }
-    
-    const headingText = heading.textContent.trim();
+
+  if (isReferee) {
+    // Hakem: sadece "Hakem Skorlama" bölümü
+    const sections = document.querySelectorAll(".dashboard-section");
+    sections.forEach((section) => {
+      const heading = section.querySelector("h2");
+      if (!heading) {
+        section.style.display = "none";
+        return;
+      }
+      const headingText = heading.textContent.trim();
+      section.style.display = headingText === "Hakem Skorlama" ? "" : "none";
+    });
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "none";
+    const eventSwitcher = document.querySelector(".event-switcher");
+    if (eventSwitcher) eventSwitcher.style.display = "none";
+    const setupLink = document.querySelector('a[href="/setup"]');
+    if (setupLink) setupLink.style.display = "none";
+    return;
+  }
+
+  if (isHeadReferee) {
+    // Baş hakem: İnceleme, Hakem Skorlama, FTA/CSA Araçları
     const allowedSections = ["İnceleme", "Hakem Skorlama", "FTA/CSA Araçları"];
-    
-    if (allowedSections.includes(headingText)) {
-      section.style.display = "";
-    } else {
-      section.style.display = "none";
-    }
+    const sections = document.querySelectorAll(".dashboard-section");
+    sections.forEach((section) => {
+      const heading = section.querySelector("h2");
+      if (!heading) {
+        section.style.display = "none";
+        return;
+      }
+      const headingText = heading.textContent.trim();
+      section.style.display = allowedSections.includes(headingText) ? "" : "none";
+    });
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "";
+    const eventSwitcher = document.querySelector(".event-switcher");
+    if (eventSwitcher) eventSwitcher.style.display = "none";
+    const setupLink = document.querySelector('a[href="/setup"]');
+    if (setupLink) setupLink.style.display = "none";
+    return;
+  }
+
+  // Diğer roller (müfettiş, seremoni vb.): şimdilik tüm bölümler
+  document.querySelectorAll(".dashboard-section").forEach((section) => {
+    section.style.display = "";
   });
-  
-  // Baş hakem için event switcher'ı gizle (yönetim yetkisi yok)
+  const summary = document.querySelector(".dashboard-summary");
+  if (summary) summary.style.display = "";
   const eventSwitcher = document.querySelector(".event-switcher");
-  if (eventSwitcher) {
-    eventSwitcher.style.display = "none";
-  }
-  
-  // Baş hakem için "Kurulum" butonunu gizle
-  const setupLink = document.querySelector('a[href="/setup"]');
-  if (setupLink) {
-    setupLink.style.display = "none";
-  }
+  if (eventSwitcher) eventSwitcher.style.display = "";
 }
 
 /**

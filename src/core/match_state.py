@@ -387,6 +387,11 @@ class MatchStateManager:
         """
         match_data = match_state.get("match_data", {})
         
+        try:
+            from src.core.constants import MatchConstants
+            state_label = MatchConstants.MATCH_STATES.get(match_state.get("state", "idle"), "Beklemede")
+        except ImportError:
+            state_label = "Beklemede"
         response = {
             "id": match_state.get("match_id"),
             "match_number": match_data.get("match_number"),
@@ -399,6 +404,7 @@ class MatchStateManager:
             "status": match_state.get("status"),
             "match_source": match_state.get("match_source"),
             "current_state": match_state.get("state", "idle"),
+            "state_label": state_label,
             "time_remaining": match_state.get("time_remaining", 0),
             "started_at": match_state.get("started_at"),
             "is_preview": match_state.get("status") == "preview",
@@ -467,7 +473,7 @@ class MatchStateManager:
                     "post_match": MatchConstants.POST_MATCH_DURATION,
                 }
             except ImportError:
-                # Fallback değerler
+                # Fallback değerler (constants.py ile aynı: OKS 30, SKS 120)
                 MATCH_TIMINGS = {
                     "autonomous": 30,
                     "prepare_teleop": 5,
@@ -487,8 +493,9 @@ class MatchStateManager:
                 
                 # State geçişleri
                 needs_update = False
+                # SKS (driver_controlled) bitince doğrudan Maç Sonrası'na geç; Oyun Sonu aşaması yok
                 if time_remaining == 0 and current_state not in ["post_match", "completed"]:
-                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"]
+                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"]
                     if current_state in state_order:
                         current_index = state_order.index(current_state)
                         if current_index < len(state_order) - 1:

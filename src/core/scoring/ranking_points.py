@@ -4,36 +4,24 @@ Sıralama Puanları (SP) Hesaplama Modülü
 Bu modül sıralama maçları için Sıralama Puanlarını (SP) hesaplar.
 Deneme maçları SP'ye etki etmez.
 
-SP Kuralları:
-- Galibiyet: +2 SP (her ittifak takımına)
-- Beraberlik: +1 SP (her ittifak takımına)
-- Kemere Yükselme (2 robot): +2 SP (ittifak başına)
-- Otonom 4 Küre: +2 SP (ittifak başına)
-
-Modüler yapı: 
-- SP kuralları bu modülde tanımlıdır ve kolayca güncellenebilir
-- Farklı oyunlar için bu modül genişletilebilir veya yeniden yapılandırılabilir
-- Backend'de hesaplanır ve frontend'e gönderilir
+Modüler yapı:
+- SP kuralları ranking_config.py içinde tanımlıdır; değişiklik için orayı güncelleyin
+- Hesaplama mantığı bu modülde; config'den değerler alınır
+- Farklı oyunlar için ranking_config veya alternatif config kullanılabilir
 """
 
 from typing import Dict, Optional
+
+from .ranking_config import RankingPointsConfig
 
 
 class RankingPointsCalculator:
     """
     Sıralama Puanları (SP) hesaplayıcı sınıfı.
-    
-    Modüler yapı: SP kuralları bu sınıfta tanımlıdır,
-    farklı oyunlar için kolayca güncellenebilir.
+
+    SP değerleri ve eşikler RankingPointsConfig'den alınır;
+    kuralları değiştirmek için sadece ranking_config.py güncellenir.
     """
-    
-    # SP Kuralları
-    SP_RULES = {
-        "win": 2,  # Galibiyet
-        "tie": 1,  # Beraberlik
-        "climb_both": 2,  # Kemere Yükselme (2 robot)
-        "auto_4_balls": 2,  # Otonom 4 Küre
-    }
     
     @classmethod
     def calculate_ranking_points(
@@ -86,41 +74,40 @@ class RankingPointsCalculator:
             "blue": {"result": 0, "climb": 0, "auto": 0, "total": 0}
         }
         
+        # Config'den kurallar ve eşikler (modülerlik: değişiklik ranking_config.py'de)
+        sp_rules = RankingPointsConfig.SP_RULES
+        climb_min = RankingPointsConfig.get_threshold("climb_robots_min") or 2
+        auto_balls_min = RankingPointsConfig.get_threshold("auto_balls_min") or 4
+
         # 1. Maç Sonucu SP'si (Galibiyet/Beraberlik)
         if red_score > blue_score:
-            result["red"]["result"] = cls.SP_RULES["win"]
+            result["red"]["result"] = sp_rules.get("win", 2)
         elif blue_score > red_score:
-            result["blue"]["result"] = cls.SP_RULES["win"]
+            result["blue"]["result"] = sp_rules.get("win", 2)
         else:
-            # Beraberlik
-            result["red"]["result"] = cls.SP_RULES["tie"]
-            result["blue"]["result"] = cls.SP_RULES["tie"]
-        
-        # 2. Kemere Yükselme SP'si (2 robot kemere yükselirse +2 SP)
-        # scoring_data'dan teleop_climb bilgisini al
+            result["red"]["result"] = sp_rules.get("tie", 1)
+            result["blue"]["result"] = sp_rules.get("tie", 1)
+
+        # 2. Kemere Yükselme SP'si (eşik: climb_robots_min robot kemere yükselirse)
         red_data = scoring_data.get("red", {})
         blue_data = scoring_data.get("blue", {})
-        
-        # Kırmızı ittifak için kemere yükselme kontrolü
+
         red_climb_count = red_data.get("teleop_climb", 0)
-        if red_climb_count >= 2:
-            result["red"]["climb"] = cls.SP_RULES["climb_both"]
-        
-        # Mavi ittifak için kemere yükselme kontrolü
+        if red_climb_count >= climb_min:
+            result["red"]["climb"] = sp_rules.get("climb_both", 2)
+
         blue_climb_count = blue_data.get("teleop_climb", 0)
-        if blue_climb_count >= 2:
-            result["blue"]["climb"] = cls.SP_RULES["climb_both"]
-        
-        # 3. Otonom 4 Küre SP'si
-        # Otonom dönemde ittifakın kendi renklerine 4 küre bırakması gerekiyor
-        # Bent seviye 1, 2, 3 ve sarnıçlara bırakılan toplam küre sayısı
+        if blue_climb_count >= climb_min:
+            result["blue"]["climb"] = sp_rules.get("climb_both", 2)
+
+        # 3. Otonom küre SP'si (eşik: auto_balls_min küre – kendi rengine)
         red_auto_total = cls._calculate_auto_balls(red_data)
-        if red_auto_total >= 4:
-            result["red"]["auto"] = cls.SP_RULES["auto_4_balls"]
-        
+        if red_auto_total >= auto_balls_min:
+            result["red"]["auto"] = sp_rules.get("auto_4_balls", 2)
+
         blue_auto_total = cls._calculate_auto_balls(blue_data)
-        if blue_auto_total >= 4:
-            result["blue"]["auto"] = cls.SP_RULES["auto_4_balls"]
+        if blue_auto_total >= auto_balls_min:
+            result["blue"]["auto"] = sp_rules.get("auto_4_balls", 2)
         
         # Toplam SP hesapla
         result["red"]["total"] = (

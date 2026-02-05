@@ -23,9 +23,9 @@
          // (match_control sayfasında bazı elementler opsiyonel)
          // (referee_panel sayfasında event_selector ve new_event yok)
          // (users_table sadece setup sayfasında var)
-         if (!element && !id.match(/^(match_list|next_match_info|field_selector|match_type_selector|event_selector|new_event|delete_event|users_table)$/)) {
-           console.warn(`Element bulunamadı: #${id}`);
-         }
+        if (!element && !id.match(/^(match_list|next_match_info|field_selector|match_type_selector|event_selector|new_event|delete_event|users_table|save-teams|clear_all_events)$/)) {
+          console.warn(`Element bulunamadı: #${id}`);
+        }
          return element;
        };
   }

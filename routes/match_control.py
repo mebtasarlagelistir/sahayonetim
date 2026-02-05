@@ -187,6 +187,25 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             if "source" not in match:
                 match["source"] = match_source
             
+            # Baş hakem / maç kontrol ile senkron: realtime skorları aktif maça ekle
+            # Böylece sayfa ilk yüklendiğinde mavi ve kırmızı skorlar görünür
+            match_key = _build_match_key(event_id, match_id, match_source)
+            try:
+                realtime_manager = get_realtime_manager()
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    if "scoring_data" not in match or not isinstance(match.get("scoring_data"), dict):
+                        match["scoring_data"] = {}
+                    match["scoring_data"]["red"] = current_scores.get("red") or match["scoring_data"].get("red") or {}
+                    match["scoring_data"]["blue"] = current_scores.get("blue") or match["scoring_data"].get("blue") or {}
+                    match["scoring_data"]["referee_meta"] = current_scores.get("referee_meta") or match["scoring_data"].get("referee_meta") or {}
+                    if current_scores.get("team_statuses"):
+                        match["scoring_data"]["team_statuses"] = current_scores["team_statuses"]
+                    if current_scores.get("calculated_scores"):
+                        match["scoring_data"]["calculated_scores"] = current_scores["calculated_scores"]
+            except Exception as e:
+                logger.debug("Aktif maça realtime skor eklenirken hata (görmezden gelindi): %s", str(e))
+            
             return jsonify({"match": match})
         
         return jsonify({"match": None})
@@ -255,9 +274,27 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 logger.warning(f"Maç başlatma hatası: Maç bulunamadı (match_id: {match_id}, kullanıcı: {session.get('username', 'unknown')})")
                 return jsonify({"error": "Maç bulunamadı"}), 404
             
+            # Tüm robotlar için hazırlık durumu zorunlu: Hazır, DQ, RY veya Bypass
+            ALLOWED_START_STATUSES = {"ready", "dq", "ry", "bypass"}
+            team_statuses = data.get("team_statuses")
+            if not isinstance(team_statuses, dict):
+                return jsonify({
+                    "error": "Tüm robotlar için hazırlık durumu işaretleyin (Hazır, DQ, RY veya Bypass)"
+                }), 400
+            red_teams = match.get("red_alliance") or []
+            blue_teams = match.get("blue_alliance") or []
+            for alliance_name, teams_list in [("red", red_teams), ("blue", blue_teams)]:
+                alliance_statuses = team_statuses.get(alliance_name) or {}
+                for i in range(1, len(teams_list) + 1):
+                    robot_key = f"r{i}"
+                    status = alliance_statuses.get(robot_key)
+                    if not status or status not in ALLOWED_START_STATUSES:
+                        return jsonify({
+                            "error": "Tüm robotlar için hazırlık durumu işaretleyin (Hazır, DQ, RY veya Bypass)"
+                        }), 400
+            
             # Robot durumlarını kaydet (eğer gönderildiyse)
             # ÖNEMLİ: Robot durumları maç başlatıldığında kaydedilmeli
-            team_statuses = data.get("team_statuses")
             if isinstance(team_statuses, dict):
                 # Robot durumlarını scoring_data'ya ekle
                 scoring_data = match.get("scoring_data") if isinstance(match.get("scoring_data"), dict) else {}
@@ -310,12 +347,31 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 initial_state="autonomous"
             )
             
+            # Yeni maç başladığında önceki maçın skorları kalmasın: realtime skorları sıfırla
+            # Böylece maç kontrol ve hakem tabletleri boş puanlarla başlar
+            match_key = _build_match_key(event_id, match_id, match_source)
+            realtime_manager = get_realtime_manager()
+            realtime_manager.cleanup_match(match_key)
+            realtime_manager.register_match(match_key)
+            
             logger.info(f"Maç başlatıldı: Maç {match.get('match_number', '?')} (match_id: {match_id}, kullanıcı: {session.get('username', 'unknown')})")
             
-            # Güncel maç bilgisini al ve döndür
+            # Güncel maç bilgisini al; skorları realtime'dan (artık boş) al ki yanıt önceki maçın puanlarını taşımasın
             active_match = match_state_manager.get_active_match(event_id)
+            if active_match:
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    if "scoring_data" not in active_match or not isinstance(active_match.get("scoring_data"), dict):
+                        active_match["scoring_data"] = {}
+                    active_match["scoring_data"]["red"] = current_scores.get("red") or {}
+                    active_match["scoring_data"]["blue"] = current_scores.get("blue") or {}
+                    active_match["scoring_data"]["referee_meta"] = current_scores.get("referee_meta") or {}
+                    if current_scores.get("team_statuses"):
+                        active_match["scoring_data"]["team_statuses"] = current_scores["team_statuses"]
+                    if current_scores.get("calculated_scores"):
+                        active_match["scoring_data"]["calculated_scores"] = current_scores["calculated_scores"]
             
-            # WebSocket ile tüm abone olan client'lara hemen match_state gönder (timer başlatma için)
+            # WebSocket ile tüm abone olan client'lara hemen match_state ve sıfırlanmış skorları gönder
             if socketio and active_match:
                 room = _get_match_room(event_id, match_id, match_source)
                 match_data = dict(active_match)
@@ -324,7 +380,41 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "type": "match_state",
                     "match": match_data
                 }, room=room, namespace="/match")
-                logger.info(f"WebSocket match_state gönderildi (maç başlatıldı): room={room}")
+                # Hakem tabletleri ve maç kontrol ekranı skorları hemen sıfırlansın diye "scores" da gönder
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    response_data = dict(current_scores)
+                    if "team_statuses" in current_scores:
+                        response_data["team_statuses"] = current_scores["team_statuses"]
+                    socketio.emit("scores", {"type": "scores", "scores": response_data}, room=room, namespace="/match")
+                logger.info(f"WebSocket match_state ve scores gönderildi (maç başlatıldı): room={room}")
+                # Seyirci ekranları maç başlangıcı ile senkron: anında match_update + scores_update
+                match_data["state_label"] = MATCH_STATES.get(match_data.get("current_state"), "Beklemede")
+                socketio.emit("match_update", {
+                    "type": "match_update",
+                    "match": match_data,
+                    "server_timestamp": match_data["server_timestamp"]
+                }, namespace="/audience", broadcast=True)
+                red_score = 0
+                blue_score = 0
+                if current_scores:
+                    try:
+                        from src.core.scoring import ScoreCalculator
+                        calc = ScoreCalculator()
+                        red_data = current_scores.get("red") or {}
+                        blue_data = current_scores.get("blue") or {}
+                        if red_data or blue_data:
+                            if red_data:
+                                red_score = calc.calculate_alliance_score("red", red_data, blue_data).get("total_score", 0)
+                            if blue_data:
+                                blue_score = calc.calculate_alliance_score("blue", blue_data, red_data).get("total_score", 0)
+                    except Exception as calc_err:
+                        logger.warning(f"Audience skor hesaplama (start_match): {calc_err}")
+                socketio.emit("scores_update", {
+                    "type": "scores_update",
+                    "scores": {"red_score": red_score, "blue_score": blue_score},
+                    "server_timestamp": time.time()
+                }, namespace="/audience", broadcast=True)
             
             if active_match:
                 return jsonify({
@@ -347,6 +437,42 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         except Exception as e:
             logger.error(f"Maç başlatma hatası: {str(e)} (match_id: {data.get('match_id')}, kullanıcı: {session.get('username', 'unknown')})", exc_info=True)
             return jsonify({"error": "Maç başlatılırken bir hata oluştu"}), 500
+    
+    @bp.route("/api/match-control/team-status", methods=["POST"])
+    @require_login
+    @require_event_manager
+    def update_team_status():
+        """
+        Maç kontrol ekranından robot hazırlık durumlarını kaydeder.
+        Hakem panelleri ile senkron kalır; backend birleştirir ve WebSocket ile yayınlar.
+        """
+        try:
+            data = request.get_json() or {}
+            match_id = data.get("match_id")
+            match_source = _normalize_match_source(data.get("match_source"))
+            team_statuses = data.get("team_statuses")
+            if not match_id:
+                return jsonify({"error": "match_id gerekli"}), 400
+            if not isinstance(team_statuses, dict):
+                return jsonify({"error": "team_statuses gerekli"}), 400
+            event_id = datastore.get_active_event_id()
+            if not event_id:
+                return jsonify({"error": "Aktif etkinlik yok"}), 400
+            match_key = _build_match_key(event_id, match_id, match_source)
+            realtime_manager = get_realtime_manager()
+            realtime_manager.update_team_statuses_only(match_key, team_statuses)
+            if socketio:
+                room = _get_match_room(event_id, match_id, match_source)
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    response_data = dict(current_scores)
+                    if "team_statuses" in current_scores:
+                        response_data["team_statuses"] = current_scores["team_statuses"]
+                    socketio.emit("scores", {"type": "scores", "scores": response_data}, room=room, namespace="/match")
+            return jsonify({"ok": True})
+        except Exception as e:
+            logger.error(f"Team status güncelleme hatası: {str(e)}", exc_info=True)
+            return jsonify({"error": "Robot durumları güncellenirken hata oluştu"}), 500
     
     @bp.route("/api/match-control/stop", methods=["POST"])
     @require_login
@@ -406,6 +532,35 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             logger.error(f"Maç durdurma hatası: {str(e)} (match_id: {data.get('match_id')}, kullanıcı: {session.get('username', 'unknown')})", exc_info=True)
             return jsonify({"error": "Maç durdurulurken bir hata oluştu"}), 500
     
+    @bp.route("/api/match-control/reset-active", methods=["POST"])
+    @require_login
+    @require_event_manager
+    def reset_active_match():
+        """
+        Veritabanında in_progress kalan (takılı kalan) aktif maçı sıfırlar.
+        Yeni maç başlatmak için kullanılır; Maç 2 (Saha 2) gibi eski aktif maç temizlenir.
+        """
+        try:
+            event_id = datastore.get_active_event_id()
+            if not event_id:
+                return jsonify({"error": "Aktif etkinlik yok"}), 400
+            
+            reset_list = []
+            active_schedule = datastore.get_match_schedule(event_id=event_id, status="in_progress")
+            for m in active_schedule or []:
+                match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="schedule")
+                reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "schedule"})
+            active_practice = datastore.get_practice_matches(event_id=event_id, status="in_progress")
+            for m in active_practice or []:
+                match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="practice")
+                reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "practice"})
+            
+            logger.info("Aktif maç sıfırlandı: %s (kullanıcı: %s)", reset_list, session.get("user", "?"))
+            return jsonify({"ok": True, "reset": reset_list})
+        except Exception as e:
+            logger.error("Aktif maç sıfırlama hatası: %s", e, exc_info=True)
+            return jsonify({"error": "Aktif maç sıfırlanırken bir hata oluştu"}), 500
+    
     @bp.route("/api/match-control/state", methods=["POST"])
     @require_login
     @require_event_manager
@@ -463,6 +618,13 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "match": match_data
                 }, room=room, namespace="/match")
                 logger.info(f"WebSocket match_state gönderildi (durum güncellendi): room={room}, state={new_state}")
+                # Seyirci ekranları maç kontrol ile senkron: aynı anda match_update gönder (ses + timer)
+                match_data["state_label"] = MATCH_STATES.get(match_data.get("current_state"), "Beklemede")
+                socketio.emit("match_update", {
+                    "type": "match_update",
+                    "match": match_data,
+                    "server_timestamp": match_data["server_timestamp"]
+                }, namespace="/audience", broadcast=True)
             
             return jsonify({
                 "ok": True,
@@ -842,7 +1004,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 
                 while not stop_event.is_set():
                     try:
-                        # Maç durumu güncellemesi
+                        # Timer senkronizasyonu: sunucu time_remaining'i günceller, tüm UI'lar aynı değeri alır
+                        match_state_manager.refresh_match_state(event_id, match_key)
                         active_match = match_state_manager.get_active_match(event_id)
                         if active_match and active_match.get("id") == match_id:
                             match_update_key = f"{active_match.get('current_state')}_{active_match.get('time_remaining')}_{active_match.get('status')}"
@@ -1038,22 +1201,29 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         """
         Audience display için canlı maç bilgisini döner.
         Bu endpoint kimlik doğrulama gerektirmez (herkese açık).
-        
-        Returns:
-            JSON: Canlı maç bilgisi (skorlar, durum, takımlar)
+        REST fallback ile seyirci ekranı güncel timer/skor alır; önce refresh_match_state ile güncellenir.
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
         
-        # Merkezi MatchStateManager'dan aktif maçı al
         match = match_state_manager.get_active_match(event_id)
-        
         if not match:
             return jsonify({"match": None})
         
-        # Audience display için formatla
+        # Canlı timer için cache güncelle (REST ile açan seyirci de güncel görsün)
+        match_id = match.get("id")
+        match_source = match.get("match_source", "schedule")
+        match_key = _build_match_key(event_id, match_id, match_source)
+        match_state_manager.refresh_match_state(event_id, match_key)
+        match = match_state_manager.get_active_match(event_id)
+        if not match:
+            return jsonify({"match": None})
+        
+        # Baş hakem / MatchCore ile aynı mantık: timer senkronu için server_timestamp
+        server_ts = time.time()
         return jsonify({
+            "server_timestamp": server_ts,
             "match": {
                 "id": match.get("id"),
                 "match_number": match.get("match_number"),
@@ -1066,7 +1236,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 "blue_score": match.get("blue_score", 0),
                 "current_state": match.get("current_state", "idle"),
                 "time_remaining": match.get("time_remaining", 0),
-                "state_label": MATCH_STATES.get(match.get("current_state", "idle"), "Beklemede"),
+                "state_label": match.get("state_label") or MATCH_STATES.get(match.get("current_state", "idle"), "Beklemede"),
+                "server_timestamp": server_ts,
             }
         })
     
@@ -1076,38 +1247,80 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     @require_login
     def get_next_match():
         """
-        Sıradaki maçı döner.
+        Sıradaki maçı döner (takvim + deneme maçları birlikte; tarih/saat sırasına göre en erken).
         
         Returns:
-            JSON: Sıradaki maç bilgisi
+            JSON: { "match": {...}, "match_source": "schedule" | "practice" } veya {"match": None}
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
         
-        # Scheduled durumundaki ilk maçı al
-        matches = datastore.get_match_schedule(
+        # Takvim: scheduled durumundaki ilk maç (zaten tarih/saat sıralı)
+        schedule_matches = datastore.get_match_schedule(
             event_id=event_id,
             status="scheduled"
         )
+        next_schedule = schedule_matches[0] if schedule_matches else None
         
-        if matches:
-            return jsonify({"match": matches[0]})
+        # Deneme: scheduled durumundaki ilk maç (zaten tarih/saat sıralı)
+        practice_matches = datastore.get_practice_matches(
+            event_id=event_id,
+            status="scheduled"
+        )
+        next_practice = practice_matches[0] if practice_matches else None
         
-        return jsonify({"match": None})
+        # Hangisi daha erken? (tarih + saat karşılaştırması)
+        def datetime_key(m):
+            return (m.get("match_date") or "", m.get("match_time") or "")
+        
+        if not next_schedule and not next_practice:
+            return jsonify({"match": None})
+        if not next_schedule:
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        if not next_practice:
+            next_schedule["match_source"] = "schedule"
+            return jsonify({"match": next_schedule})
+        if datetime_key(next_practice) < datetime_key(next_schedule):
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        next_schedule["match_source"] = "schedule"
+        return jsonify({"match": next_schedule})
 
     @bp.route("/api/public/next-match")
     def get_next_match_public():
         """
         Seyirci ekranı için sıradaki maçı döner (giriş gerektirmez).
+        Takvim + deneme maçları birlikte; tarih/saat sırasına göre en erken döner.
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
-        matches = datastore.get_match_schedule(
+        schedule_matches = datastore.get_match_schedule(
             event_id=event_id,
             status="scheduled"
         )
-        if matches:
-            return jsonify({"match": matches[0]})
-        return jsonify({"match": None})
+        next_schedule = schedule_matches[0] if schedule_matches else None
+        practice_matches = datastore.get_practice_matches(
+            event_id=event_id,
+            status="scheduled"
+        )
+        next_practice = practice_matches[0] if practice_matches else None
+
+        def _dt_key(m):
+            return (m.get("match_date") or "", m.get("match_time") or "")
+
+        if not next_schedule and not next_practice:
+            return jsonify({"match": None})
+        if not next_schedule:
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        if not next_practice:
+            next_schedule["match_source"] = "schedule"
+            return jsonify({"match": next_schedule})
+        if _dt_key(next_practice) < _dt_key(next_schedule):
+            next_practice["match_source"] = "practice"
+            return jsonify({"match": next_practice})
+        next_schedule["match_source"] = "schedule"
+        return jsonify({"match": next_schedule})

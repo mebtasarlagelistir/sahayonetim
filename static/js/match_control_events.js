@@ -32,9 +32,40 @@ function switchTab(tabName) {
   
   // Tab'a özel veri yükleme
   if (tabName === "schedule") {
-    if (typeof loadScheduleMatches === "function") {
-      loadScheduleMatches();
+    const listContainer = qs("schedule_match_list");
+    if (listContainer) {
+      listContainer.innerHTML = "<div class='loading'>Yükleniyor...</div>";
     }
+    // Event ile tetikle (match_control_data.js dinliyor); birkaç kez dene (script sırası gecikmeli olabilir)
+    var scheduleRetries = [0, 80, 200];
+    scheduleRetries.forEach(function (delay) {
+      setTimeout(function () {
+        var listEl = qs("schedule_match_list");
+        if (listEl && (listEl.querySelector(".match-item") || listEl.querySelector(".empty") || listEl.querySelector(".error"))) {
+          return;
+        }
+        if (typeof window !== "undefined" && window.scheduleLoadInProgress) return;
+        document.dispatchEvent(new CustomEvent("match-control-schedule-tab-open"));
+        if (delay === 200) {
+          // Son denemeden 100ms sonra hâlâ dolmadıysa global fonksiyonu dene veya hata göster
+          setTimeout(function () {
+            var el = qs("schedule_match_list");
+            if (!el || el.querySelector(".match-item") || el.querySelector(".empty") || el.querySelector(".error")) return;
+            if (window.scheduleLoadInProgress) return;
+            var fn = (typeof window !== "undefined" && window.loadScheduleMatches) || (typeof loadScheduleMatches === "function" ? loadScheduleMatches : null);
+            if (typeof fn === "function") {
+              fn().catch(function (err) {
+                console.error("switchTab: loadScheduleMatches fallback hatası:", err);
+                if (el) el.innerHTML = "<div class='error'>Maç listesi yüklenirken hata: " + (err && err.message ? err.message : "Bilinmeyen hata") + "</div>";
+              });
+            } else if (el && !el.querySelector(".error")) {
+              console.warn("switchTab: loadScheduleMatches fonksiyonu bulunamadı (match_control_data.js yüklü mü?)");
+              el.innerHTML = "<div class='error'>Maç listesi yüklenemedi. Sayfayı yenileyin (Ctrl+F5).</div>";
+            }
+          }, 100);
+        }
+      }, delay);
+    });
   } else if (tabName === "incomplete") {
     if (typeof loadIncompleteMatches === "function") {
       loadIncompleteMatches();
@@ -175,6 +206,16 @@ function setupEventListeners() {
   const btnPreview = qs("btn_show_preview");
   if (btnPreview) {
     btnPreview.addEventListener("click", async () => {
+      // Çift tıklamayı önle
+      if (btnPreview.disabled) {
+        return; // Zaten işlem yapılıyor
+      }
+      
+      // Buton loading state
+      if (typeof setButtonLoading === "function") {
+        setButtonLoading(btnPreview, true);
+      }
+      
       try {
         console.log("Ön izleme göster butonuna tıklandı");
         console.log("Ön izleme göster: Mevcut durum - currentMatch:", currentMatch);
@@ -205,7 +246,8 @@ function setupEventListeners() {
           ...currentMatch,
           source: matchSource,
           match_source: matchSource,
-          status: "preview" // Preview olarak işaretle
+          status: "preview", // Preview olarak işaretle
+          match_type: currentMatch.match_type || (matchSource === "practice" ? "practice" : "qualification")
         };
         
         console.log(`Ön izleme göster: Normalize edilmiş maç - ID: ${normalizedMatch.id}, Number: ${normalizedMatch.match_number}, Source: ${matchSource}`);
@@ -227,9 +269,26 @@ function setupEventListeners() {
         // currentMatch'i güncelle (preview olarak işaretle)
         currentMatch = normalizedMatch;
         
+        // MatchCore'u önizleme maçı ile güncelle (ekranda maç bilgisinin görünmesi için)
+        const matchCoreInstance = typeof getMatchCoreInstance === "function" ? getMatchCoreInstance() : null;
+        if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+          matchCoreInstance.setManualSelection(normalizedMatch.id, matchSource);
+        }
+        if (matchCoreInstance && typeof matchCoreInstance.setMatch === "function") {
+          matchCoreInstance.setMatch(
+            { ...normalizedMatch, match_source: matchSource, source: matchSource },
+            true
+          );
+        }
+        
         // UI'ı güncelle
         if (typeof renderMatchDisplay === "function") {
           renderMatchDisplay();
+        }
+        
+        // Önizleme maç bilgisini ekranda göstermek için "Aktif Maç" sekmesine geç
+        if (typeof switchTab === "function") {
+          switchTab("active-match");
         }
         
         // Skorlama verilerini uygula
@@ -265,17 +324,17 @@ function setupEventListeners() {
           });
         }
         
-        // Seyirci ekranlarına preview gönder (VS sayfası için)
-        // ÖNEMLİ: duration_seconds: 0 veya çok büyük değer = süresiz (sadece "Maçı Göster" ile temizlenir)
+        // Seyirci ekranlarına preview gönder (VS sayfası için; üst bar + bar altı yeşil ekran)
         await apiPost("/api/screens/preview", {
           view: "match",
           mode: "preview",
-          duration_seconds: 0, // 0 = süresiz, sadece "Maçı Göster" butonu ile temizlenir
+          duration_seconds: 0,
           payload: { 
-            match: normalizedMatch, // currentMatch'i kullan, next.match'i değil!
+            match: normalizedMatch,
             rankings,
             teams: teamsMap,
-            type: "vs_preview"
+            type: "vs_preview",
+            event_name: eventData?.name || eventData?.event_name || "Maç Önizlemesi"
           }
         });
         
@@ -285,6 +344,11 @@ function setupEventListeners() {
       } catch (err) {
         console.error("Ön izleme göster: Hata:", err);
         showToast("Önizleme gönderilemedi", "error");
+      } finally {
+        // Buton loading state'i kaldır
+        if (typeof setButtonLoading === "function") {
+          setButtonLoading(btnPreview, false);
+        }
       }
     });
   }
@@ -292,18 +356,29 @@ function setupEventListeners() {
   const btnShowLive = qs("btn_show_live");
   if (btnShowLive) {
     btnShowLive.addEventListener("click", async () => {
+      if (btnShowLive.disabled) return;
+      if (typeof setButtonLoading === "function") {
+        setButtonLoading(btnShowLive, true);
+      }
       try {
-        // Preview'i temizle ve canlı moda geç
-        await apiPost("/api/screens/preview", {
-          view: "match",
-          mode: "live"
-        });
-        // Frontend'de de preview payload'ı temizle (audience ekranları için)
-        // Bu, audience ekranlarının preview'i temizlemesini sağlar
-        showToast("Maç ekranı canlı moda alındı", "success");
+        // Maç sonrası görüntü: Sonuçları göster ile aynı yeri çağır (seyirci ekranında bar + sonuçlar)
+        if (typeof sendMatchResultsToScreens === "function" && currentMatch) {
+          await sendMatchResultsToScreens();
+        } else {
+          // Seçili maç yoksa preview'i temizle, canlı maç görünümü gelsin
+          await apiPost("/api/screens/preview", {
+            view: "match",
+            mode: "live"
+          });
+          showToast("Maç ekranı canlı moda alındı", "success");
+        }
       } catch (err) {
-        console.error("Show live error:", err);
-        showToast("Maç ekranı canlı moda alınamadı", "error");
+        console.error("Maçı göster error:", err);
+        showToast("Maç ekranı güncellenemedi", "error");
+      } finally {
+        if (typeof setButtonLoading === "function") {
+          setButtonLoading(btnShowLive, false);
+        }
       }
     });
   }
@@ -334,6 +409,16 @@ function setupEventListeners() {
     btnStop.addEventListener("click", () => {
       if (typeof stopMatch === "function") {
         stopMatch();
+      }
+    });
+  }
+
+  // Aktif maçı sıfırla (takılı kalan maç için)
+  const btnResetActive = qs("btn_reset_active");
+  if (btnResetActive) {
+    btnResetActive.addEventListener("click", () => {
+      if (typeof resetActiveMatch === "function") {
+        resetActiveMatch();
       }
     });
   }
@@ -489,7 +574,19 @@ function setupEventListeners() {
       }
     });
   }
-  
+  // Chroma key: renk seçici ile hex alanını senkron tut
+  const chromaColorPicker = qs("mc_screen_overlay_chroma_color");
+  const chromaHexInput = qs("mc_screen_overlay_chroma_color_hex");
+  if (chromaColorPicker && chromaHexInput) {
+    chromaColorPicker.addEventListener("input", () => {
+      chromaHexInput.value = chromaColorPicker.value;
+    });
+    chromaHexInput.addEventListener("input", () => {
+      const hex = chromaHexInput.value.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(hex)) chromaColorPicker.value = hex;
+    });
+  }
+
   // Kompakt skor butonları için event listener'lar
   document.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-score-plus") || e.target.classList.contains("btn-score-minus")) {
@@ -515,11 +612,33 @@ function setupEventListeners() {
     }
   });
   
-  // Skor alanları değiştiğinde de hesapla
+  // Skor alanları değiştiğinde hesapla ve otomatik kaydet
   document.addEventListener("input", (e) => {
-    if (e.target.classList.contains("score-field-compact") || e.target.classList.contains("score-field")) {
+    // Skor alanları için
+    if (e.target.classList.contains("score-field-compact") || 
+        e.target.classList.contains("score-field") ||
+        e.target.matches("#detailed_scoring input, #detailed_scoring select")) {
+      // Skor dökümünü hesapla
       if (typeof calculateScoreBreakdown === "function") {
         calculateScoreBreakdown();
+      }
+      // Otomatik kaydetmeyi planla (debounce)
+      if (typeof scheduleAutoSaveScore === "function") {
+        scheduleAutoSaveScore();
+      }
+    }
+  });
+  
+  // Checkbox değişiklikleri için de otomatik kaydet
+  document.addEventListener("change", (e) => {
+    if (e.target.matches("#detailed_scoring input[type='checkbox'], #detailed_scoring input[type='number']")) {
+      // Skor dökümünü hesapla
+      if (typeof calculateScoreBreakdown === "function") {
+        calculateScoreBreakdown();
+      }
+      // Otomatik kaydetmeyi planla (debounce)
+      if (typeof scheduleAutoSaveScore === "function") {
+        scheduleAutoSaveScore();
       }
     }
   });

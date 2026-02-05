@@ -650,3 +650,227 @@ function normalizeGridDate(value) {
   }
   return trimmed;
 }
+
+/**
+ * Final maçlarını otomatik oluşturur (SP puanlarına göre).
+ */
+async function generateFinalMatches() {
+  const btn = qs("generate_final_matches");
+  try {
+    setButtonLoading(btn, true);
+    
+    const startDate = qs("final_start_date")?.value || "";
+    const startTime = qs("final_start_time")?.value || "";
+    const fieldNumber = Number(qs("final_field_number")?.value || 1);
+    const teamsPerAlliance = Number(qs("final_teams_per_alliance")?.value || 2);
+    const maxTeams = qs("final_max_teams")?.value ? Number(qs("final_max_teams").value) : null;
+    const cycleMinutes = Number(qs("final_cycle_minutes")?.value || 5);
+    const clearExisting = qs("final_clear_existing")?.checked || false;
+    
+    if (!startDate || !startTime) {
+      showToast("Lütfen başlangıç tarihi ve saati girin", "warning");
+      return;
+    }
+    
+    const payload = {
+      start_date: startDate,
+      start_time: startTime,
+      field_number: fieldNumber,
+      teams_per_alliance: teamsPerAlliance,
+      match_cycle_minutes: cycleMinutes,
+      clear_existing: clearExisting
+    };
+    
+    if (maxTeams) {
+      payload.max_teams = maxTeams;
+    }
+    
+    const data = await apiPost("/api/match-schedule/generate-finals", payload);
+    
+    if (data.ok) {
+      showToast(
+        `${data.created_count} final maçı oluşturuldu. Bracket bilgileri: ${data.bracket_info.num_matches} maç, ${data.bracket_info.total_teams} takım`,
+        "success"
+      );
+      
+      // Maç listesini yenile
+      await loadMatchSchedule();
+      
+      // Adım durumunu güncelle
+      if (typeof checkAllStepStatuses === "function") {
+        await checkAllStepStatuses();
+      }
+    } else {
+      showToast(data.error || "Final maçları oluşturulamadı", "error");
+    }
+  } catch (err) {
+    console.error("Generate final matches error:", err);
+    const errorMsg = err.response?.data?.error || err.message || "Final maçları oluşturulamadı";
+    showToast(errorMsg, "error");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+/**
+ * SP sıralamasını görüntüler (final maçları oluşturmadan önce kontrol için).
+ */
+async function viewFinalRankings() {
+  const display = qs("final_rankings_display");
+  const content = qs("final_rankings_content");
+  const btn = qs("view_final_rankings");
+  
+  try {
+    setButtonLoading(btn, true);
+    
+    // Tamamlanmış sıralama maçlarını al
+    const matches = await apiGet("/api/match-schedule?type=qualification&status=completed");
+    
+    if (!matches || matches.length === 0) {
+      content.innerHTML = `
+        <div style="padding: 16px; text-align: center; color: #666;">
+          <p>Henüz tamamlanmış sıralama maçı bulunamadı.</p>
+          <p style="font-size: 12px; margin-top: 8px;">SP sıralaması için en az bir tamamlanmış sıralama maçı gerekli.</p>
+        </div>
+      `;
+      display.style.display = "block";
+      return;
+    }
+    
+    // SP puanlarını hesapla (geçici olarak frontend'de)
+    // Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için
+    const rankings = calculateRankingsPreview(matches);
+    
+    if (!rankings || rankings.length === 0) {
+      content.innerHTML = `
+        <div style="padding: 16px; text-align: center; color: #666;">
+          <p>SP puanları hesaplanamadı.</p>
+          <p style="font-size: 12px; margin-top: 8px;">Maçların tamamlanmış ve SP puanlarının hesaplanmış olması gerekir.</p>
+        </div>
+      `;
+      display.style.display = "block";
+      return;
+    }
+    
+    // Sıralamayı göster
+    let html = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="background: #e1e4ee; font-weight: 600;">
+            <th style="padding: 8px; text-align: left; border: 1px solid #d0d5e0;">Sıra</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid #d0d5e0;">Takım</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Toplam SP</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">G</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">B</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">M</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Maç</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    
+    rankings.forEach((team, index) => {
+      const isTop = index < 4; // İlk 4 takım vurgulanır
+      html += `
+        <tr style="${isTop ? 'background: #fff8e1;' : ''}">
+          <td style="padding: 8px; border: 1px solid #e1e4ee; font-weight: ${isTop ? '600' : '400'};">
+            ${team.rank}
+          </td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; font-weight: ${isTop ? '600' : '400'};">
+            ${escapeHtml(team.team)}
+          </td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center; font-weight: 600; color: #4a90e2;">
+            ${team.total_sp}
+          </td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.wins}</td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.ties}</td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.losses}</td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.matches_played}</td>
+        </tr>
+      `;
+    });
+    
+    html += `
+        </tbody>
+      </table>
+      <div style="margin-top: 12px; padding: 8px; background: #e8f4f8; border-radius: 4px; font-size: 12px; color: #2c5f7c;">
+        <strong>Not:</strong> Bu önizleme, tamamlanmış sıralama maçlarından hesaplanmıştır. 
+        Final maçları oluşturulurken backend'de tekrar hesaplanır.
+      </div>
+    `;
+    
+    content.innerHTML = html;
+    display.style.display = "block";
+  } catch (err) {
+    console.error("View final rankings error:", err);
+    showToast("SP sıralaması yüklenemedi", "error");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+/**
+ * SP sıralaması önizlemesi (frontend'de basit hesaplama).
+ * Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için.
+ */
+function calculateRankingsPreview(matches) {
+  const teamStats = {};
+  
+  matches.forEach(match => {
+    if (match.status !== "completed" || !match.scoring_data?.ranking_points) {
+      return;
+    }
+    
+    const rp = match.scoring_data.ranking_points;
+    const redAlliance = match.red_alliance || [];
+    const blueAlliance = match.blue_alliance || [];
+    const redScore = match.red_score || 0;
+    const blueScore = match.blue_score || 0;
+    
+    // Kırmızı ittifak
+    const redSP = rp.red?.total || 0;
+    redAlliance.forEach(team => {
+      if (!teamStats[team]) {
+        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
+      }
+      teamStats[team].total_sp += redSP;
+      teamStats[team].matches_played += 1;
+      if (redScore > blueScore) teamStats[team].wins += 1;
+      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
+      else if (blueScore > redScore) teamStats[team].losses += 1;
+    });
+    
+    // Mavi ittifak
+    const blueSP = rp.blue?.total || 0;
+    blueAlliance.forEach(team => {
+      if (!teamStats[team]) {
+        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
+      }
+      teamStats[team].total_sp += blueSP;
+      teamStats[team].matches_played += 1;
+      if (blueScore > redScore) teamStats[team].wins += 1;
+      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
+      else if (redScore > blueScore) teamStats[team].losses += 1;
+    });
+  });
+  
+  // Sırala
+  const rankings = Object.entries(teamStats).map(([team, stats]) => ({
+    team,
+    ...stats
+  }));
+  
+  rankings.sort((a, b) => {
+    if (b.total_sp !== a.total_sp) return b.total_sp - a.total_sp;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b.ties !== a.ties) return b.ties - a.ties;
+    return b.matches_played - a.matches_played;
+  });
+  
+  // Rank ekle
+  rankings.forEach((team, index) => {
+    team.rank = index + 1;
+  });
+  
+  return rankings;
+}

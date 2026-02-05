@@ -1,8 +1,15 @@
 /**
  * Maç Kontrol - Ekran Yönetimi Modülü
- * 
- * Seyirci ekranları yönetimi ve sonuç gönderme işlemleri.
- * 
+ *
+ * Seyirci ekranları yönetimi, sonuç gönderme ve sonuç görünürlüğü (skor ekranını kaldırma).
+ *
+ * Modül sorumlulukları:
+ * - loadMatchControlScreenSettings / saveMatchControlScreenSettings: Ayarlar
+ * - loadMatchControlScreens: Bağlı ekran listesi
+ * - sendMatchResultsToScreens: Sonuçları seyirci ekranına gönderir
+ * - clearAudienceResultsView: Seyirci ekranındaki skor/sonuç görünümünü kaldırır
+ *   (maç tamamlandığında çağrılır; hakemler düzenleme yaparken skor ekranda görünmez)
+ *
  * Bağımlılıklar: match_control_core.js, match_control_scoring.js
  */
 
@@ -18,6 +25,13 @@ async function loadMatchControlScreenSettings() {
     if (overlayEnabledEl) overlayEnabledEl.checked = !!data.overlay_enabled;
     const overlayTextEl = qs("mc_screen_overlay_text");
     if (overlayTextEl) overlayTextEl.value = data.overlay_text || "";
+    const chromaEnabledEl = qs("mc_screen_overlay_chroma_enabled");
+    if (chromaEnabledEl) chromaEnabledEl.checked = !!data.overlay_chroma_enabled;
+    const chromaColor = (data.overlay_chroma_color || "#00ff00").trim() || "#00ff00";
+    const chromaColorEl = qs("mc_screen_overlay_chroma_color");
+    if (chromaColorEl) chromaColorEl.value = chromaColor;
+    const chromaHexEl = qs("mc_screen_overlay_chroma_color_hex");
+    if (chromaHexEl) chromaHexEl.value = chromaColor;
   } catch (err) {
     console.error("Load screen settings error:", err);
   }
@@ -27,15 +41,17 @@ async function loadMatchControlScreenSettings() {
  * Seyirci ekranı ayarlarını kaydeder
  */
 async function saveMatchControlScreenSettings() {
+  const chromaHex = (qs("mc_screen_overlay_chroma_color_hex")?.value || "").trim() || "#00ff00";
   const payload = {
     active_view: qs("mc_screen_active_view")?.value || "match",
     overlay_enabled: !!qs("mc_screen_overlay_enabled")?.checked,
-    overlay_text: qs("mc_screen_overlay_text")?.value || ""
+    overlay_text: qs("mc_screen_overlay_text")?.value || "",
+    overlay_chroma_enabled: !!qs("mc_screen_overlay_chroma_enabled")?.checked,
+    overlay_chroma_color: chromaHex
   };
   try {
     await apiPost("/api/screens/settings", payload);
     showToast("Seyirci ekranı ayarları güncellendi", "success");
-    // Ayarlar kaydedildikten sonra ekran listesini yenile
     await loadMatchControlScreens();
   } catch (err) {
     console.error("Save screen settings error:", err);
@@ -49,10 +65,13 @@ async function saveMatchControlScreenSettings() {
 async function loadMatchControlScreens() {
   const list = qs("mc_connected_screens_list");
   if (!list) return;
+  list.innerHTML = "<div class='loading'>Yükleniyor...</div>";
   try {
     const screens = await apiGet("/api/screens");
-    if (!screens.length) {
-      list.innerHTML = "<div class='empty'>Bağlı ekran yok</div>";
+    if (!Array.isArray(screens) || !screens.length) {
+      list.innerHTML = "<div class='empty'><p>Bağlı ekran yok.</p><p class='hint'>Seyirci ekranını <strong>/audience</strong> adresinden açın; açılan ekran birkaç saniye içinde burada listelenir.</p><button type='button' class='btn-small btn-secondary' id='mc_refresh_screens_btn'>Yenile</button></div>";
+      const refreshBtn = list.querySelector("#mc_refresh_screens_btn");
+      if (refreshBtn) refreshBtn.addEventListener("click", () => loadMatchControlScreens());
       return;
     }
     const now = Date.now() / 1000;
@@ -136,7 +155,30 @@ async function loadMatchControlScreens() {
     });
   } catch (err) {
     console.error("Load connected screens error:", err);
-    list.innerHTML = "<div class='error'>Ekranlar yüklenemedi</div>";
+    const msg = (err && err.message) ? err.message : "Ekranlar yüklenemedi";
+    list.innerHTML = "<div class='error'><p>" + (msg.indexOf("yetkiniz") !== -1 ? "Bu liste için yetkiniz olmayabilir." : "Ekranlar yüklenemedi.") + "</p><p class='hint'>Seyirci ekranını <strong>/audience</strong> adresinden açıp tekrar deneyin.</p><button type='button' class='btn-small btn-secondary' id='mc_refresh_screens_btn'>Yenile</button></div>";
+    const refreshBtn = list.querySelector("#mc_refresh_screens_btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", () => loadMatchControlScreens());
+  }
+}
+
+/**
+ * Seyirci ekranındaki skor/sonuç görünümünü kaldırır.
+ * Maç tamamlandığında çağrılır; böylece hakemler düzenleme yaparken
+ * seyirci ekranında sonuçlar görünmez (ayrı modül olarak ekran yaşam döngüsü).
+ *
+ * @returns {Promise<boolean>} Başarılı ise true
+ */
+async function clearAudienceResultsView() {
+  try {
+    await apiPost("/api/screens/preview", {
+      view: "match",
+      mode: "live"
+    });
+    return true;
+  } catch (err) {
+    console.warn("clearAudienceResultsView:", err);
+    return false;
   }
 }
 
@@ -144,7 +186,22 @@ async function loadMatchControlScreens() {
  * Sonuçları seyirci ekranına gönderir
  */
 async function sendMatchResultsToScreens() {
-  if (!currentMatch) return;
+  if (!currentMatch) {
+    showToast("Önce bir maç seçin", "warning");
+    return;
+  }
+  
+  // Çift tıklamayı önle
+  const btnShowResults = qs("btn_show_results");
+  if (btnShowResults && btnShowResults.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
+  
+  // Buton loading state
+  if (btnShowResults && typeof setButtonLoading === "function") {
+    setButtonLoading(btnShowResults, true);
+  }
+  
   try {
     if (typeof buildMatchResultsPayloadForMatch === "function") {
       const payload = buildMatchResultsPayloadForMatch(currentMatch);
@@ -159,6 +216,11 @@ async function sendMatchResultsToScreens() {
   } catch (err) {
     console.error("Show results error:", err);
     showToast("Sonuçlar gönderilemedi", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnShowResults && typeof setButtonLoading === "function") {
+      setButtonLoading(btnShowResults, false);
+    }
   }
 }
 

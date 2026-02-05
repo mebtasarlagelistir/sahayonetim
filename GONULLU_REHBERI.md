@@ -1,236 +1,149 @@
 # Gönüllü Geliştirici Rehberi
 
-Bu rehber, MEMSKOR projesine katkıda bulunmak isteyen gönüllü geliştiriciler için hazırlanmıştır.
-
-## 🎯 Proje Hakkında
-
-MEMSKOR, MEM Tasarla Geliştir Yarışması için geliştirilmiş bir yarışma yönetim sistemidir. FTC benzeri bir yapıda, web tabanlı ve modüler olarak tasarlanmıştır.
-
-## 📋 Bugünkü Durum (2026-01-18)
-
-### ✅ Tamamlanan Özellikler
-
-1. **FTC Benzeri Hakem Paneli Sistemi**
-   - 3 ayrı ekran: Kırmızı İttifak, Mavi İttifak, Baş Hakem
-   - Her hakem kendi ittifakını puanlar
-   - Baş hakem tüm girişleri görüp onaylar
-
-2. **Hakem Giriş Akışı**
-   - Hakemler "Maç Girişini Bitir" ile tamamlar
-   - Baş hakem her iki hakem tamamladıktan sonra onaylar
-   - Yeni değişiklik yapılırsa submit durumu sıfırlanır
-
-3. **Gerçek Zamanlı Senkronizasyon**
-   - Tüm ekranlar **WebSocket** ile anlık güncellenir (SSE yerine WebSocket kullanılıyor)
-   - Hakem girişleri match control ekranında anında görünür
-   - Canlı skor ekranı otomatik güncellenir
-   - Timer senkronizasyonu için server_timestamp kullanılır (tüm cihazlarda aynı zaman)
-
-4. **Modüler Puanlama Sistemi**
-   - Puanlama kuralları `src/core/scoring/config.py` dosyasında
-   - Kolayca güncellenebilir yapı
-   - Oyun değiştiğinde sadece config güncellenir
-
-### 🔍 Test Edilmesi Gerekenler
-
-Aşağıdaki özellikler bugün eklenmiş ancak henüz test edilmemiştir:
-
-1. **Hakem Paneli Akışı**
-   - [ ] Kırmızı hakem ekranı açılıyor mu?
-   - [ ] Mavi hakem ekranı açılıyor mu?
-   - [ ] Baş hakem ekranı açılıyor mu?
-   - [ ] Aktif maç görünüyor mu?
-   - [ ] Skor girişi çalışıyor mu?
-   - [ ] "Maç Girişini Bitir" butonu çalışıyor mu?
-   - [ ] Baş hakem onayı çalışıyor mu?
-
-2. **Gerçek Zamanlı Güncellemeler**
-   - [ ] SSE bağlantısı kuruluyor mu?
-   - [ ] Skor güncellemeleri anında yansıyor mu?
-   - [ ] Bağlantı koptuğunda otomatik yeniden bağlanıyor mu?
-
-3. **Önizleme Modu**
-   - [ ] Önizleme butonu çalışıyor mu?
-   - [ ] Hakem tabletleri önizleme maçını görüyor mu?
-
-4. **Maç Tamamlama**
-   - [ ] Maç tamamlama çalışıyor mu?
-   - [ ] Match source doğru işleniyor mu?
-
-## 🛠️ Nasıl Katkıda Bulunabilirsiniz?
-
-### 1. Test Etme
-
-En önemli katkı şu anda **test etmek**:
-
-1. Projeyi çalıştırın:
-   ```bash
-   python app_web.py
-   ```
-
-2. Tarayıcıda açın: `http://127.0.0.1:5000`
-
-3. Test senaryolarını çalıştırın:
-   - Maç oluşturun
-   - Maçı başlatın
-   - Hakem ekranlarını açın
-   - Skor girişi yapın
-   - Submit/Approve akışını test edin
-
-4. Bulduğunuz hataları kaydedin:
-   - Hata mesajı
-   - Adımlar (ne yaptınız?)
-   - Beklenen davranış
-   - Gerçek davranış
-
-### 2. Kod İyileştirmeleri
-
-#### Modüler Yapıyı Koruyun
-
-Her modül bağımsız çalışabilmeli:
-
-```python
-# ✅ İYİ: Modüler yapı
-def register_referee_panel_routes(bp, datastore, require_login):
-    """Hakem paneli route'larını kaydeder."""
-    # Modül kendi içinde tamamlanmış
-```
-
-```python
-# ❌ KÖTÜ: Bağımlı yapı
-def register_referee_panel_routes(bp):
-    # Diğer modüllere bağımlı
-    from routes.match_control import something
-```
-
-#### Dokümantasyon Ekleyin
-
-Her fonksiyona açıklama ekleyin:
-
-```python
-def referee_submit_match():
-    """
-    Hakemin maç girişini tamamladığını işaretler.
-    
-    Bu fonksiyon:
-    1. Hakem meta bilgisini günceller
-    2. Gerçek zamanlı yöneticiye bildirir
-    3. Veritabanına kaydeder
-    
-    Returns:
-        JSON: {"ok": true, "referee_meta": {...}}
-    """
-```
-
-### 3. Hata Düzeltme
-
-#### Yaygın Hatalar
-
-1. **"Aktif maç yok" hatası**
-   - Çözüm: `GET /api/match-control/active` endpoint'ini kontrol edin
-   - Maç `in_progress` durumunda mı?
-
-2. **WebSocket bağlantı hatası**
-   - Çözüm: Tarayıcı konsolunu kontrol edin
-   - Network sekmesinde WebSocket bağlantısı var mı? (WS veya WSS protokolü)
-   - Socket.IO client library yüklendi mi? (CDN'den)
-   - Console'da "WebSocket bağlantısı kuruldu" mesajı görünüyor mu?
-
-3. **Submit/Approve çalışmıyor**
-   - Çözüm: Backend loglarını kontrol edin (`logs/app.log`)
-   - Session bilgisi doğru mu?
-
-### 4. Özellik Geliştirme
-
-#### Yeni Özellik Ekleme Adımları
-
-1. **Planlama**
-   - Özellik hangi modüle ait?
-   - Veritabanı değişikliği gerekiyor mu?
-   - API endpoint'leri neler olmalı?
-
-2. **Backend (Python)**
-   - `routes/` klasöründe yeni Blueprint modülü
-   - `src/core/storage/` içinde veritabanı metodları
-   - `app_web.py` içinde Blueprint kaydı
-
-3. **Frontend (JavaScript)**
-   - `static/js/` içinde yeni modül
-   - `templates/` içinde HTML şablonu
-   - `static/style.css` içinde stiller
-
-4. **Test**
-   - Manuel test
-   - Farklı senaryolar
-   - Hata durumları
-
-## 📚 Önemli Dosyalar
-
-### Dokümantasyon
-- `README.md` - Genel proje bilgisi
-- `DEVELOPMENT.md` - Geliştirici rehberi
-- `API_DOKUMANTASYONU.md` - API endpoint'leri
-- `SCORING_SYSTEM_README.md` - Puanlama sistemi
-- `STORAGE_MODULES_README.md` - Veritabanı modülleri
-- `AGENT_LOG.md` - Yapılan değişiklikler
-
-### Kod Modülleri
-- `routes/referee_panel.py` - Hakem paneli API'leri
-- `routes/match_control.py` - Maç kontrol API'leri (WebSocket handler'ları içerir)
-- `routes/screens.py` - Seyirci ekranları API'leri (WebSocket handler'ları içerir)
-- `src/core/scoring/realtime.py` - Gerçek zamanlı senkronizasyon
-- `static/js/referee_panel_sse.js` - Hakem paneli WebSocket modülü (SSE yerine WebSocket)
-- `static/js/audience_display_sse.js` - Seyirci ekranı WebSocket modülü (SSE yerine WebSocket)
-- `static/js/match_control_realtime.js` - Maç kontrol WebSocket modülü (SSE yerine WebSocket)
-- `static/js/head_referee.js` - Baş hakem frontend (WebSocket kullanıyor)
-- `static/js/referee_panel.js` - Hakem paneli frontend
-- `static/js/match_control.js` - Maç kontrol frontend
-
-## 🔧 Geliştirme Ortamı Kurulumu
-
-1. Python 3.8+ yüklü olmalı
-2. Bağımlılıkları yükleyin:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Uygulamayı çalıştırın:
-   ```bash
-   python app_web.py
-   ```
-4. Tarayıcıda açın: `http://127.0.0.1:5000`
-
-## 🐛 Hata Bildirme
-
-Hata bulduğunuzda:
-
-1. **Hata mesajını** kaydedin
-2. **Adımları** yazın (ne yaptınız?)
-3. **Beklenen davranışı** açıklayın
-4. **Gerçek davranışı** açıklayın
-5. **Log dosyasını** kontrol edin (`logs/app.log`)
-
-## 💡 İpuçları
-
-1. **Modüler yapıyı koruyun** - Her modül bağımsız çalışabilmeli
-2. **Dokümantasyon ekleyin** - Her fonksiyona açıklama
-3. **Hata yönetimi** - Try-catch blokları ekleyin
-4. **Test edin** - Değişiklik yaptıktan sonra mutlaka test edin
-5. **Kod standartlarına uyun** - PEP 8 (Python), ES6+ (JavaScript)
-
-## 📞 İletişim
-
-Sorularınız için:
-1. Kod içindeki yorumları okuyun
-2. Dokümantasyon dosyalarını kontrol edin
-3. Mevcut kod örneklerini inceleyin
-
-## 🎯 Öncelikli Görevler
-
-1. **Test Etme** - Bugün eklenen özellikleri test edin
-2. **Hata Bildirme** - Bulduğunuz hataları kaydedin
-3. **Dokümantasyon** - Eksik açıklamaları tamamlayın
-4. **Kod İyileştirme** - Magic number'ları constants'a taşıyın
+Bu rehber, MEMSKOR projesine katkıda bulunacak gönüllüler için hazırlanmıştır. Projenin geldiği nokta, mimari ve geliştirme kuralları burada özetlenir.
 
 ---
 
-**Not:** Bu rehber sürekli güncellenmelidir. Yeni özellikler eklendikçe bu dosya da güncellenmelidir.
+## 🎯 Proje Hakkında
+
+**MEMSKOR**, MEM Tasarla Geliştir Yarışması için geliştirilmiş bir yarışma yönetim sistemidir. FTC benzeri yapıda, **web tabanlı** ve **modüler** tasarlanmıştır. Gönüllüler ile geliştirilmeye devam ettiği için her modül kendi başına çalışabilmeli ve kodlarda açıklamalara önem verilmelidir.
+
+---
+
+## 📍 Geldiğimiz Nokta (Güncel Durum)
+
+Bu bölüm, projenin şu anki işlevsel durumunu ve son düzeltmeleri özetler. Üzerinde çalışacak gönüllüler buradan başlayabilir.
+
+### Maç Kontrol Sayfası (`/match-control`)
+
+- **Takvim (Schedule) sekmesi:** Maç listesi yükleniyor; event tabanlı tetikleme ile `loadScheduleMatches` her sekme açılışında çalışıyor. Boş liste durumunda bilgilendirici mesaj gösteriliyor.
+- **Maçı Başlat:** Match Core **instance** üzerinden `startMatch` çağrılıyor (sınıf değil instance kullanılır; `window.MatchCore` = instance).
+- **Timer:** OKS (Otonom) **30 saniye**, SKS (Sürücü kontrollü) **120 saniye**. Süreler `src/core/constants.py` ve `static/js/constants.js` ile senkron tutulur.
+- **Timer senkronizasyonu:** Sunucu her ~300 ms `refresh_match_state` ile `time_remaining` hesaplıyor ve WebSocket ile tüm abonelere gönderiyor. Match control, hakem panelleri ve seyirci ekranında yerel geri sayım (100 ms tick) bu veriyle senkron.
+- **Puan girişi:** Match Core her notify’da `applyScoringData` çağrılmıyor; sadece **maç değiştiğinde** (yeni maç seçildiğinde) form dolduruluyor. Böylece kullanıcı yazarken puanlar silinmiyor.
+- **Butonlar:** Başlat, Durdur, Sonraki Aşama, Tamamla için loading state ve çift tıklama önlemi var.
+
+### Teknik Düzeltmeler (Dikkat Edilmesi Gerekenler)
+
+- **Global değişken çakışmaları:** Aynı sayfada yüklenen script’lerde aynı isimle `let`/`const` tanımlanmamalı. Örnek: `match_control_core.js` ve `match_control_realtime.js` aynı anda yüklendiği için `retryCount`, `MAX_RETRY_COUNT`, `RETRY_DELAY_BASE` realtime tarafında `realtimeRetryCount`, `REALTIME_MAX_RETRY_COUNT`, `REALTIME_RETRY_DELAY_BASE` olarak ayrıldı.
+- **MatchCore:** `window.MatchCore` bir **instance**’tır (sınıf değil). `startMatch`, `nextState` vb. metodlar instance üzerinde tanımlıdır.
+- **Aynı fonksiyon içinde aynı isimle iki kez `const` tanımlanmamalı** (örn. `matchCoreInstance` aynı blokta iki kez tanımlanırsa SyntaxError oluşur).
+
+### Kullanıcı Arayüzleri ve Timer
+
+- **Match Control:** Timer Match Core ve `match_control_timer.js` (fallback) ile yönetilir; tam saniye ile kararlı sayım yapılır.
+- **Hakem paneli:** `referee_panel_ui.js` – `updateRefereeTimer` yerel 100 ms geri sayım, WebSocket’ten gelen `time_remaining` ve `server_timestamp` ile senkron.
+- **Baş hakem:** `head_referee.js` – `updateHeadRefereeTimer` benzer şekilde yerel geri sayım; maç yokken interval temizlenir.
+- **Seyirci ekranı:** `audience_display_ui.js` – `updateTimerDisplay` yerel geri sayım; sunucu güncellemeleriyle senkron.
+
+### Backend Timer Altyapısı
+
+- `routes/match_control.py` içindeki WebSocket güncelleme döngüsünde her iterasyonda `match_state_manager.refresh_match_state(event_id, match_key)` çağrılır; böylece `time_remaining` sunucu saatine göre güncellenir ve tüm client’lara aynı değer gider.
+
+---
+
+## 📁 Önemli Dosya Rehberi
+
+### Backend (Python)
+
+| Dosya | Açıklama |
+|-------|----------|
+| `app_web.py` | Flask uygulaması, Blueprint kayıtları |
+| `routes/match_control.py` | Maç kontrol API’leri, WebSocket handler’ları, timer güncelleme döngüsü |
+| `routes/referee_panel.py` | Hakem paneli API’leri |
+| `routes/screens.py` | Seyirci ekranları, WebSocket |
+| `src/core/constants.py` | Maç süreleri (OKS 30, SKS 120), `MatchConstants` |
+| `src/core/match_state.py` | Maç durumu cache’i, `refresh_match_state`, timer hesaplaması |
+| `src/core/scoring/` | Puanlama kuralları, hesaplama, gerçek zamanlı |
+
+### Frontend – Match Control (Sıralama Önemli)
+
+| Dosya | Açıklama |
+|-------|----------|
+| `constants.js` | `MATCH_CONSTANTS` (süreler), `NETWORK_CONSTANTS` |
+| `match_core.js` | Merkezi maç state’i, timer, WebSocket, subscribe/notify |
+| `match_control_core.js` | `MATCH_STATES`, global değişkenler, sayfa başlatma |
+| `match_control_realtime.js` | WebSocket fallback (Match Core yoksa) |
+| `match_control_timer.js` | Yerel timer (fallback), `updateStateDisplay` |
+| `match_control_data.js` | Maç listesi, Takvim, `loadScheduleMatches`, maç seçimi |
+| `match_control_operations.js` | Başlat, Durdur, Sonraki Aşama, Tamamla |
+| `match_control_scoring.js` | Puanlama formu, `applyScoringData`, `resetScoringInputs` |
+| `match_control_ui.js` | `renderMatchDisplay`, ittifak/takım görünümleri |
+| `match_control_events.js` | Tab değiştirme, buton event’leri, Takvim event tetiklemesi |
+| `match_control_screens.js` | Ekran ayarları |
+| `match_control.js` | Ana koordinasyon, Match Core subscribe, **puan formu sadece maç değişince güncellenir** |
+
+### Frontend – Diğer Arayüzler
+
+| Dosya | Açıklama |
+|-------|----------|
+| `referee_panel.js` | Hakem paneli ana giriş |
+| `referee_panel_ui.js` | Hakem timer, `updateRefereeTimer` |
+| `referee_panel_sse.js` | Hakem WebSocket (match_state, scores) |
+| `head_referee.js` | Baş hakem, timer, onay |
+| `audience_display_ui.js` | Seyirci timer, `updateTimerDisplay` |
+| `audience_display_views.js` | Seyirci maç görünümü |
+| `utils.js` | `qs()`, opsiyonel element listesi (uyarı verilmeyen id’ler) |
+
+### Sabitler – Tek Kaynak
+
+- **Maç süreleri:** `src/core/constants.py` (backend) ve `static/js/constants.js` (frontend) aynı değerleri kullanmalı (OKS 30, SKS 120).
+- **Match Control HTML’de script sırası:** `templates/match_control.html` içinde `constants.js` → `match_core.js` → `match_control_core.js` → … → `match_control_data.js` → `match_control_events.js` → `match_control.js`.
+
+---
+
+## 🛠️ Nasıl Katkıda Bulunabilirsiniz?
+
+### 1. Çalıştırma ve Test
+
+```bash
+pip install -r requirements.txt
+python app_web.py
+```
+
+Tarayıcıda: `http://127.0.0.1:5000`  
+Maç kontrol: `http://127.0.0.1:5000/match-control`
+
+- Etkinlik oluşturup maç ekleyin, Takvim’den maç seçin, Maçı Başlat’a tıklayın; timer’ın 30 sn (OKS) ve 120 sn (SKS) saydığını kontrol edin.
+- Puan girin; başka bir işlem yapmadan değerlerin silinmediğini doğrulayın.
+- Hakem / baş hakem / seyirci ekranlarında timer’ın akıcı ve senkron ilerlediğini kontrol edin.
+
+### 2. Modüler Yapıyı Koruyun
+
+- Her modül kendi başına anlaşılır olmalı; gereksiz çapraz bağımlılık eklemeyin.
+- Yeni global değişken/const eklerken aynı sayfada yüklenecek diğer script’lerde aynı ismin kullanılmadığından emin olun.
+
+### 3. Dokümantasyon ve Açıklamalar
+
+- Yeni fonksiyonlara ne yaptığını, hangi bağlamda çağrıldığını anlatan kısa açıklama ekleyin.
+- Maç süreleri, timer mantığı gibi kritik noktaları kod içi yorumla belirtin.
+
+### 4. Hata Bildirme
+
+- Hata mesajı, hangi sayfada/ne yaparken oluştuğu, beklenen ve gerçek davranışı yazın.
+- Mümkünse tarayıcı konsolu (F12) veya sunucu log çıktısı ekleyin.
+
+---
+
+## 📚 Diğer Dokümanlar
+
+- `README.md` – Proje özeti ve yapı
+- **`GERCEK_KULLANIM_REHBERI.md`** – Saha / etkinlikte gerçek kullanım, production çalıştırma, kontrol listesi
+- `CALISTIRMA_REHBERI.md` – Kurulum ve çalıştırma
+- `API_DOKUMANTASYONU.md` – API endpoint’leri
+- `SCORING_SYSTEM_README.md` – Puanlama sistemi
+- `DEVELOPMENT.md` – Geliştirici notları
+
+---
+
+## 🔧 Özet Kontrol Listesi (Yeni Özellik / Değişiklik Sonrası)
+
+- [ ] Backend ve frontend süre sabitleri uyumlu mu? (`constants.py` ↔ `constants.js`)
+- [ ] Aynı HTML sayfasında yüklenen script’lerde aynı isimle global `let`/`const` var mı?
+- [ ] Match Core kullanıyorsanız `window.MatchCore` (instance) üzerinden mi erişiyorsunuz?
+- [ ] Puan formunu sadece maç değişince mi güncelliyorsunuz? (Her notify’da `applyScoringData` çağrılmamalı.)
+- [ ] Yeni fonksiyonlara kısa açıklama eklendi mi?
+
+---
+
+*Bu rehber projenin güncel durumuna göre güncellenmelidir. Son önemli güncelleme: maç kontrol timer, puan girişi koruma ve timer senkronizasyonu.*

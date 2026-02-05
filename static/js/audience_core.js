@@ -62,6 +62,9 @@ class AudienceCoreManager {
     // Overlay
     this.overlayEnabled = false;
     this.overlayText = "";
+    // Chroma key (yeşil ekran): tek renk arka plan, OBS vb. ile key'lenebilir
+    this.overlayChromaEnabled = false;
+    this.overlayChromaColor = "#00ff00";
     
     // Ceremony state (tören durumu)
     this.ceremonyState = null;
@@ -76,16 +79,20 @@ class AudienceCoreManager {
     // Observer pattern
     this.subscribers = new Set();
     
-    // Periyodik kontrol
+    // Periyodik kontrol (preview'ın hızlı gelmesi için 1 saniye)
     this.settingsCheckInterval = null;
     this.heartbeatInterval = null;
-    this.SETTINGS_CHECK_INTERVAL = 2000; // 2 saniye
+    this.matchViewInterval = null; // Canlı maç verisi yedek (WebSocket yoksa)
+    this.SETTINGS_CHECK_INTERVAL = 500; // 0.5 saniye - "Ön izleme göster" sonrası ilk görüntü hızlı gelsin
     this.HEARTBEAT_INTERVAL = 5000; // 5 saniye
+    this.MATCH_VIEW_INTERVAL = 1000; // 1 saniye (baş hakem ekranı gibi periyodik REST ile timer/skor)
     
     // Error recovery
     this.lastError = null;
     this.errorCount = 0;
     this.MAX_ERROR_COUNT = 5;
+    // Timer senkronizasyonu: sunucudan gelen son server_timestamp (saniye)
+    this.lastServerTimestamp = null;
   }
   
   /**
@@ -104,7 +111,7 @@ class AudienceCoreManager {
     // İlk heartbeat gönder
     await this.sendHeartbeat();
     
-    // Screen settings'i yükle
+    // Screen settings'i yükle (preview varsa hemen al)
     await this.loadScreenSettings();
     
     // WebSocket bağlantısını başlat (view_change için her zaman açık)
@@ -112,6 +119,24 @@ class AudienceCoreManager {
     
     // Periyodik kontrolleri başlat
     this.startPeriodicChecks();
+    
+    // Önizleme az önce gönderilmiş olabilir: kısa süre sonra bir kez daha kontrol et
+    setTimeout(() => this.loadScreenSettings().catch(() => {}), 500);
+    
+    // Sekme görünür olduğunda hemen ayar/preview çek (Önizleme Göster sonrası sekmeye geçince)
+    if (typeof document !== "undefined" && document.addEventListener) {
+      this._visibilityHandler = () => {
+        if (document.visibilityState === "visible") {
+          this.loadScreenSettings().catch(() => {});
+        }
+      };
+      document.addEventListener("visibilitychange", this._visibilityHandler);
+    }
+    
+    // Maç görünümünde ve önizleme yoksa WebSocket başlat (canlı skor/timer için)
+    if (this.currentView === "match" && this.previewState === "none") {
+      this.startWebSocketConnection();
+    }
     
     console.log("AudienceCore: Başlatıldı", { screenId });
     return true;
@@ -163,9 +188,12 @@ class AudienceCoreManager {
       previewState: this.previewState,
       overlayEnabled: this.overlayEnabled,
       overlayText: this.overlayText,
+      overlayChromaEnabled: this.overlayChromaEnabled,
+      overlayChromaColor: this.overlayChromaColor,
       isWebSocketActive: this.isWebSocketActive,
       hasPreview: this.previewState !== "none",
-      ceremonyState: this.ceremonyState
+      ceremonyState: this.ceremonyState,
+      serverTimestamp: this.lastServerTimestamp
     };
   }
   
@@ -174,17 +202,23 @@ class AudienceCoreManager {
    */
   async loadScreenSettings() {
     try {
-      const data = await apiGet(`/api/screens/view?screen_id=${encodeURIComponent(this.screenId)}`);
+      // Cache-busting: önizleme güncel gelsin (tarayıcı eski yanıt döndürmesin)
+      const data = await apiGet(`/api/screens/view?screen_id=${encodeURIComponent(this.screenId)}&_t=${Date.now()}`);
       
       const newView = data.active_view || "match";
       const newOverlayEnabled = !!data.overlay_enabled;
       const newOverlayText = data.overlay_text || "";
+      const newChromaEnabled = !!data.overlay_chroma_enabled;
+      const newChromaColor = (data.overlay_chroma_color || "").trim() || "#00ff00";
       const newPreviewPayload = data.preview_payload || null;
       
-      // Overlay güncelle
-      if (this.overlayEnabled !== newOverlayEnabled || this.overlayText !== newOverlayText) {
+      // Overlay ve chroma key güncelle
+      if (this.overlayEnabled !== newOverlayEnabled || this.overlayText !== newOverlayText ||
+          this.overlayChromaEnabled !== newChromaEnabled || this.overlayChromaColor !== newChromaColor) {
         this.overlayEnabled = newOverlayEnabled;
         this.overlayText = newOverlayText;
+        this.overlayChromaEnabled = newChromaEnabled;
+        this.overlayChromaColor = newChromaColor;
       }
       
       // Preview yönetimi (state machine pattern)
@@ -300,12 +334,17 @@ class AudienceCoreManager {
       if (data.match) {
         this.match = data.match;
         this.currentState = data.match.current_state || "idle";
-        this.timeRemaining = data.match.time_remaining || 0;
+        this.timeRemaining = data.match.time_remaining ?? 0;
         this.scores = {
-          red: data.match.red_score || 0,
-          blue: data.match.blue_score || 0
+          red: data.match.red_score ?? 0,
+          blue: data.match.blue_score ?? 0
         };
-        
+        if (data.server_timestamp != null) {
+          this.lastServerTimestamp = data.server_timestamp;
+        }
+        if (this.match && data.server_timestamp != null) {
+          this.match.server_timestamp = data.server_timestamp;
+        }
         this.notify();
       } else {
         // Maç yok
@@ -356,12 +395,14 @@ class AudienceCoreManager {
         this.retryCount = 0;
         this.isWebSocketActive = true;
         
-        // Audience güncellemelerine abone ol
+        // Abone ol; sunucu anında match_update + scores_update gönderir
         this.audienceSocket.emit("subscribe_audience", {
           screen_id: this.screenId
         });
         
         this.notify();
+        // Canlı skor/timer için REST yedek (sunucu yanıtı gecikirse)
+        this.loadMatchView().catch(() => {});
       });
       
       // ===== VIEW CHANGE EVENT (ANLIK GÜNCELLEME) =====
@@ -379,10 +420,14 @@ class AudienceCoreManager {
           const newView = data.active_view || "match";
           const newOverlayEnabled = !!data.overlay_enabled;
           const newOverlayText = data.overlay_text || "";
+          const newChromaEnabled = !!data.overlay_chroma_enabled;
+          const newChromaColor = data.overlay_chroma_color || "#00ff00";
           
-          // Overlay güncelle
+          // Overlay ve chroma key güncelle
           this.overlayEnabled = newOverlayEnabled;
           this.overlayText = newOverlayText;
+          this.overlayChromaEnabled = newChromaEnabled;
+          this.overlayChromaColor = newChromaColor;
           
           // View değişikliği (preview yoksa)
           if (this.previewState === "none" && this.currentView !== newView) {
@@ -418,41 +463,42 @@ class AudienceCoreManager {
         }
       });
       
-      // Maç güncellemesi (sadece match view'da ve preview yokken)
+      // Maç güncellemesi (maç kontrol ile senkron: state değişince broadcast gelir; timer/ses aynı anda)
       this.audienceSocket.on("match_update", (data) => {
         try {
-          // Preview aktifken veya match view değilken yoksay
-          if (this.previewState !== "none" || this.currentView !== "match") {
+          const match = data.match;
+          const isActiveMatch = match && ["autonomous", "prepare_teleop", "driver_controlled", "end_game"].includes(match.current_state);
+          if (this.previewState !== "none" && isActiveMatch) {
+            this.previewPayload = null;
+            this.previewState = "none";
+            this.previewClearAttempts = 0;
+          }
+          if (this.previewState !== "none") {
             return;
           }
-          
-          const match = data.match;
+          if (match && match.server_timestamp != null) {
+            this.lastServerTimestamp = match.server_timestamp;
+          } else if (data.server_timestamp != null) {
+            this.lastServerTimestamp = data.server_timestamp;
+          }
           if (match) {
-            // Maç değiştiyse state takibini sıfırla
             if (match.id !== this.lastMatchId) {
               this.lastMatchId = match.id;
               this.lastMatchState = "";
             }
-            
-            // State değişikliği kontrolü (ses efekti için - güncellemeden ÖNCE)
             const newState = match.current_state || this.currentState;
             const stateChanged = newState && newState !== this.lastMatchState;
-            
-            // Match bilgilerini güncelle
             this.match = match;
             this.currentState = newState;
-            this.timeRemaining = match.time_remaining || this.timeRemaining;
-            
-            // State değiştiyse ses efekti için flag set et (UI'da handle edilecek)
+            this.timeRemaining = match.time_remaining ?? this.timeRemaining;
+            if (this.scores.red !== undefined) this.match.red_score = this.scores.red;
+            if (this.scores.blue !== undefined) this.match.blue_score = this.scores.blue;
             if (stateChanged && newState) {
               this.lastMatchState = newState;
-              // State değişikliği için özel flag (UI'da kontrol edilecek)
               this.match._stateChanged = true;
             }
-            
             this.notify();
           } else {
-            // Maç yok
             this.match = null;
             this.currentState = "idle";
             this.timeRemaining = 0;
@@ -463,11 +509,10 @@ class AudienceCoreManager {
         }
       });
       
-      // Skor güncellemesi (sadece match view'da ve preview yokken)
+      // Skor güncellemesi (match objesine de yazıyoruz ki UI state.match ile senkron kalsın)
       this.audienceSocket.on("scores_update", (data) => {
         try {
-          // Preview aktifken veya match view değilken yoksay
-          if (this.previewState !== "none" || this.currentView !== "match") {
+          if (this.previewState !== "none") {
             return;
           }
           
@@ -476,9 +521,11 @@ class AudienceCoreManager {
           
           if (redScore !== null) {
             this.scores.red = redScore;
+            if (this.match) this.match.red_score = redScore;
           }
           if (blueScore !== null) {
             this.scores.blue = blueScore;
+            if (this.match) this.match.blue_score = blueScore;
           }
           
           this.notify();
@@ -579,6 +626,13 @@ class AudienceCoreManager {
         console.warn("AudienceCore: sendHeartbeat error:", err);
       });
     }, this.HEARTBEAT_INTERVAL);
+    
+    // Maç verisi yedek (önizleme yoksa; canlı skor/timer için WebSocket yanı sıra)
+    this.matchViewInterval = setInterval(() => {
+      if (this.previewState === "none" && this.currentView === "match") {
+        this.loadMatchView().catch(() => {});
+      }
+    }, this.MATCH_VIEW_INTERVAL);
   }
   
   /**
@@ -592,6 +646,10 @@ class AudienceCoreManager {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+    }
+    if (this.matchViewInterval) {
+      clearInterval(this.matchViewInterval);
+      this.matchViewInterval = null;
     }
   }
   
@@ -686,6 +744,10 @@ class AudienceCoreManager {
     this.stopWebSocketConnection();
     this.stopPeriodicChecks();
     this.subscribers.clear();
+    if (typeof document !== "undefined" && this._visibilityHandler) {
+      document.removeEventListener("visibilitychange", this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
   }
 }
 

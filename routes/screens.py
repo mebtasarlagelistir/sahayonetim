@@ -14,6 +14,8 @@ from typing import Dict, Any
 from flask import jsonify, render_template, request
 from flask_socketio import emit, join_room, leave_room
 
+from src.core.scoring import ScoreCalculator
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,9 @@ def _get_global_screen_settings(datastore) -> Dict[str, Any]:
         "active_view": screens.get("active_view", "match"),
         "overlay_enabled": bool(screens.get("overlay_enabled", False)),
         "overlay_text": screens.get("overlay_text", "") or "",
+        # Chroma key (yeşil ekran): yayında skor board'u tek renk arka plan üzerinde gösterir, OBS vb. ile key'lenebilir
+        "overlay_chroma_enabled": bool(screens.get("overlay_chroma_enabled", False)),
+        "overlay_chroma_color": (screens.get("overlay_chroma_color") or "").strip() or "#00ff00",
     }
 
 
@@ -103,23 +108,31 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         new_active_view = (data.get("active_view") or "match").strip()
         new_overlay_enabled = bool(data.get("overlay_enabled", False))
         new_overlay_text = (data.get("overlay_text") or "").strip()
+        new_chroma_enabled = bool(data.get("overlay_chroma_enabled", False))
+        new_chroma_color = (data.get("overlay_chroma_color") or "").strip() or "#00ff00"
         
         # Mevcut ayarları al (değişiklik kontrolü için)
         old_active_view = event_data["screens"].get("active_view", "match")
         old_overlay_enabled = event_data["screens"].get("overlay_enabled", False)
         old_overlay_text = event_data["screens"].get("overlay_text", "")
+        old_chroma_enabled = event_data["screens"].get("overlay_chroma_enabled", False)
+        old_chroma_color = event_data["screens"].get("overlay_chroma_color", "#00ff00")
         
         # Yeni ayarları kaydet
         event_data["screens"]["active_view"] = new_active_view
         event_data["screens"]["overlay_enabled"] = new_overlay_enabled
         event_data["screens"]["overlay_text"] = new_overlay_text
+        event_data["screens"]["overlay_chroma_enabled"] = new_chroma_enabled
+        event_data["screens"]["overlay_chroma_color"] = new_chroma_color
         datastore.save_event(event_data)
         
         # Değişiklik varsa tüm seyirci ekranlarına WebSocket ile bildir
         settings_changed = (
             old_active_view != new_active_view or
             old_overlay_enabled != new_overlay_enabled or
-            old_overlay_text != new_overlay_text
+            old_overlay_text != new_overlay_text or
+            old_chroma_enabled != new_chroma_enabled or
+            old_chroma_color != new_chroma_color
         )
         
         if settings_changed and socketio:
@@ -127,7 +140,9 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
             socketio.emit("view_change", {
                 "active_view": new_active_view,
                 "overlay_enabled": new_overlay_enabled,
-                "overlay_text": new_overlay_text
+                "overlay_text": new_overlay_text,
+                "overlay_chroma_enabled": new_chroma_enabled,
+                "overlay_chroma_color": new_chroma_color
             }, namespace="/audience")
             logger.info(f"View change broadcast: {new_active_view}")
         
@@ -162,7 +177,6 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
 
     @bp.get("/api/screens")
     @require_login
-    @require_event_manager
     def list_screens():
         _cleanup_screens()
         screens = sorted(_screen_registry.values(), key=lambda item: item.get("last_seen", 0), reverse=True)
@@ -227,6 +241,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 "active_view": active_view,
                 "overlay_enabled": global_settings.get("overlay_enabled", False),
                 "overlay_text": global_settings.get("overlay_text", ""),
+                "overlay_chroma_enabled": global_settings.get("overlay_chroma_enabled", False),
+                "overlay_chroma_color": global_settings.get("overlay_chroma_color", "#00ff00"),
                 "preview_payload": override_payload if screen_override_active else None,
             }
         )
@@ -392,6 +408,20 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                             time.sleep(1)
                             continue
                         
+                        # Aktif maçı kontrol et (maç başladıysa önizlemeyi kaldırmak için önce alıyoruz)
+                        active_match = match_state_manager.get_active_match(event_id)
+                        current_state = active_match.get("current_state") if active_match else None
+                        # Maç başladığında (otonom/teleop/end_game) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
+                        if current_state in ("autonomous", "driver_controlled", "end_game"):
+                            _global_preview["override_view"] = None
+                            _global_preview["override_until"] = None
+                            _global_preview["override_payload"] = None
+                            screen = _screen_registry.get(screen_id, {})
+                            screen["override_view"] = None
+                            screen["override_until"] = None
+                            screen["override_payload"] = None
+                            _screen_registry[screen_id] = screen
+                        
                         # Preview kontrolü
                         screen = _screen_registry.get(screen_id, {})
                         override_payload = screen.get("override_payload") or _global_preview.get("override_payload")
@@ -401,15 +431,17 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                             time.sleep(0.5)
                             continue
                         
-                        # Aktif maçı kontrol et
-                        active_match = match_state_manager.get_active_match(event_id)
-                        
                         if active_match:
                             match_id = active_match.get("id")
                             match_source = active_match.get("match_source", "schedule")
                             match_key = f"{event_id}_{match_source}_{match_id}"
-                            
-                            # Maç durumu güncellemesi
+                            # Timer maç kontrol ile senkron: cache'deki time_remaining güncellenir
+                            match_state_manager.refresh_match_state(event_id, match_key)
+                            active_match = match_state_manager.get_active_match(event_id)
+                            if not active_match:
+                                time.sleep(0.1)
+                                continue
+                            # Maç durumu güncellemesi (güncel time_remaining ile)
                             current_state = active_match.get("current_state")
                             time_remaining = active_match.get("time_remaining")
                             
@@ -478,7 +510,7 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                                     "server_timestamp": time.time()
                                 }, room=screen_id, namespace="/audience")
                         
-                        time.sleep(0.3)  # 300ms'de bir güncelle
+                        time.sleep(0.1)  # 100ms: maç kontrol ile senkron timer/skor/ses için hızlı güncelleme
                         
                     except Exception as e:
                         logger.error(f"Audience update thread hatası (screen_id={screen_id}): {str(e)}", exc_info=True)
@@ -514,6 +546,43 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 # Güncelleme thread'ini başlat (eğer yoksa)
                 if screen_id not in _audience_update_threads:
                     _start_audience_update_thread(screen_id)
+                
+                # Yeni bağlanan seyirciye anında canlı skor ve timer gönder (beklemeden)
+                event_id = datastore.get_active_event_id()
+                if event_id:
+                    from src.core.match_state import get_match_state_manager
+                    from src.core.scoring.realtime import get_realtime_manager
+                    _mm = get_match_state_manager(datastore)
+                    _rm = get_realtime_manager()
+                    active_match = _mm.get_active_match(event_id)
+                    if active_match:
+                        _match_id = active_match.get("id")
+                        _match_source = active_match.get("match_source", "schedule")
+                        _match_key = f"{event_id}_{_match_source}_{_match_id}"
+                        _mm.refresh_match_state(event_id, _match_key)
+                        active_match = _mm.get_active_match(event_id)
+                        if active_match:
+                            match_data = dict(active_match)
+                            match_data["server_timestamp"] = time.time()
+                            socketio.emit("match_update", {"type": "match_update", "match": match_data}, room=screen_id, namespace="/audience")
+                            current_scores = _rm.get_current_scores(_match_key)
+                            if current_scores:
+                                red_data = current_scores.get("red", {})
+                                blue_data = current_scores.get("blue", {})
+                                red_score = blue_score = 0
+                                if red_data or blue_data:
+                                    try:
+                                        if red_data:
+                                            red_score = ScoreCalculator().calculate_alliance_score("red", red_data, blue_data).get("total_score", 0)
+                                        if blue_data:
+                                            blue_score = ScoreCalculator().calculate_alliance_score("blue", blue_data, red_data).get("total_score", 0)
+                                    except Exception as calc_err:
+                                        logger.warning("Audience subscribe skor hesaplama: %s", calc_err)
+                                socketio.emit("scores_update", {
+                                    "type": "scores_update",
+                                    "scores": {"red_score": red_score, "blue_score": blue_score},
+                                    "server_timestamp": time.time()
+                                }, room=screen_id, namespace="/audience")
                 
                 logger.info(f"Audience WebSocket abone oldu: screen_id={screen_id}, sid={session_id}")
                 

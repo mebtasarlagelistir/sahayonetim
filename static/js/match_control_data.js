@@ -1,15 +1,56 @@
 /**
  * Maç Kontrol - Veri Yükleme Modülü
- * 
+ *
  * Maç listelerini yükleme, maç seçimi ve veri yönetimi işlemleri.
- * 
+ *
  * Bağımlılıklar: match_control_core.js, match_control_ui.js, match_control_realtime.js
  */
+
+(function () {
+  // Script tamamlandıktan hemen sonra Takvim event listener ve window.loadScheduleMatches kaydı
+  // (diğer kod hata verse bile bu çalışır; loadScheduleMatches bu noktada henüz tanımlı değil)
+  function registerScheduleTabAPI() {
+    if (typeof window === "undefined") return;
+    if (typeof loadScheduleMatches !== "function") return;
+    window.loadScheduleMatches = loadScheduleMatches;
+    if (window._scheduleTabOpenRegistered) return;
+    window._scheduleTabOpenRegistered = true;
+    document.addEventListener("match-control-schedule-tab-open", function onScheduleTabOpen() {
+      loadScheduleMatches().catch(function (err) {
+        console.error("match-control-schedule-tab-open: loadScheduleMatches hatası:", err);
+      });
+    });
+  }
+  if (typeof queueMicrotask !== "undefined") queueMicrotask(registerScheduleTabAPI);
+  else setTimeout(registerScheduleTabAPI, 0);
+})();
+
+/**
+ * MatchCore instance'ını güvenli şekilde alır
+ * @returns {Object|null} MatchCore instance veya null
+ */
+function getMatchCoreInstance() {
+  return (typeof window !== "undefined" && window.MatchCore) || 
+         (typeof MatchCore !== "undefined" && MatchCore) ||
+         (typeof globalThis !== "undefined" && globalThis.MatchCore) ||
+         null;
+}
 
 /**
  * Sıradaki maçı yükler ve seçer
  */
 async function loadNextMatchAndSelect() {
+  // Çift tıklamayı önle
+  const btnLoadNext = qs("btn_load_next_match");
+  if (btnLoadNext && btnLoadNext.disabled) {
+    return; // Zaten işlem yapılıyor
+  }
+  
+  // Buton loading state
+  if (btnLoadNext && typeof setButtonLoading === "function") {
+    setButtonLoading(btnLoadNext, true);
+  }
+  
   try {
     const data = await apiGet("/api/match-control/next-match");
     if (!data.match) {
@@ -17,7 +58,13 @@ async function loadNextMatchAndSelect() {
       return;
     }
     
-    await selectMatch(data.match.id);
+    // Sıradaki maç takvim veya deneme olabilir (API tarih/saat sırasına göre döndürür)
+    const matchSource = data.match.match_source || data.match.source || "schedule";
+    if (matchSource === "practice" && typeof selectPracticeMatch === "function") {
+      await selectPracticeMatch(data.match);
+    } else {
+      await selectMatch(data.match.id);
+    }
     if (typeof switchTab === "function") {
       switchTab("active-match");
     }
@@ -25,30 +72,65 @@ async function loadNextMatchAndSelect() {
   } catch (err) {
     console.error("Load next match error:", err);
     showToast("Maç yüklenirken hata oluştu", "error");
+  } finally {
+    // Buton loading state'i kaldır
+    if (btnLoadNext && typeof setButtonLoading === "function") {
+      setButtonLoading(btnLoadNext, false);
+    }
   }
 }
 
 /**
- * Schedule tab için maçları yükler
+ * Schedule tab için maçları yükler (Takvim sekmesi).
  */
+/** Takvim maç listesi yüklemesinin devam edip etmediği (çift tetiklemeyi önlemek için) */
+var scheduleLoadInProgress = false;
+if (typeof window !== "undefined") {
+  window.scheduleLoadInProgress = false;
+}
+
 async function loadScheduleMatches() {
   const listContainer = qs("schedule_match_list");
-  if (!listContainer) return;
-  
+  if (!listContainer) {
+    console.warn("loadScheduleMatches: schedule_match_list elementi bulunamadı");
+    return;
+  }
+  if (scheduleLoadInProgress) {
+    return;
+  }
+  scheduleLoadInProgress = true;
+  if (typeof window !== "undefined") {
+    window.scheduleLoadInProgress = true;
+  }
   listContainer.innerHTML = "<div class='loading'>Yükleniyor...</div>";
-  
+
   try {
     const fieldNumber = qs("schedule_field_selector")?.value;
     const matchType = qs("schedule_match_type_selector")?.value;
     
+    console.log("loadScheduleMatches: Maçlar yükleniyor...", { fieldNumber, matchType });
     const matches = await fetchScheduleMatches(fieldNumber, matchType);
+    console.log("loadScheduleMatches: Maçlar yüklendi", { count: matches.length, matches });
     
     if (matches.length === 0) {
+      let message = "Maç bulunamadı.";
       if (matchType === "elimination") {
-        listContainer.innerHTML = "<div class='empty'>Eleme (Playoff) maçları, ittifaklar belirlendikten sonra otomatik oluşur.</div>";
+        message = "Eleme (Playoff) maçları, ittifaklar belirlendikten sonra otomatik oluşur.";
+      } else if (matchType === "practice") {
+        message = "Deneme maçı bulunamadı. Setup sayfasından deneme maçları oluşturabilirsiniz.";
+      } else if (matchType === "qualification") {
+        message = "Sıralama maçı bulunamadı. Setup sayfasından maç takvimi oluşturabilirsiniz.";
+      } else if (matchType === "final") {
+        message = "Final maçı bulunamadı. Sıralama maçları tamamlandıktan sonra final maçları oluşturulur.";
       } else {
-        listContainer.innerHTML = "<div class='empty'>Maç bulunamadı</div>";
+        const matchTypeLabel = (typeof getMatchTypeLabel === "function") 
+          ? getMatchTypeLabel(matchType) 
+          : (matchType || "seçilen");
+        message = `Maç bulunamadı. ${fieldNumber ? `Saha ${fieldNumber} için ` : ""}${matchType ? `${matchTypeLabel} tipi için ` : ""}maç oluşturulmamış olabilir. Setup sayfasından maç takvimi oluşturabilirsiniz.`;
       }
+      message += " Aktif etkinlik seçili değilse veya henüz maç oluşturulmadıysa liste boş olur.";
+      listContainer.innerHTML = `<div class='empty'>${message}</div>`;
+      console.warn("loadScheduleMatches: Maç bulunamadı", { fieldNumber, matchType });
       return;
     }
     
@@ -87,6 +169,8 @@ async function loadScheduleMatches() {
         </div>` : "";
       // Her iki maç tipi için de "Yükle" butonu göster (tutarlılık için)
       const activateButton = `<button class="btn-small btn-primary schedule-load-btn" data-match-id="${match.id}" data-source="${match.source || 'schedule'}" type="button">Yükle</button>`;
+      const redAlliance = Array.isArray(match.red_alliance) ? match.red_alliance.join(", ") : (match.red_alliance || "-");
+      const blueAlliance = Array.isArray(match.blue_alliance) ? match.blue_alliance.join(", ") : (match.blue_alliance || "-");
       return `
         <div class="match-item ${statusClass}" data-match-id="${match.id}" data-source="${match.source}">
           <div class="match-item-header">
@@ -96,11 +180,11 @@ async function loadScheduleMatches() {
           <div class="match-item-info">
             <span>${getMatchTypeLabel(match.match_type)}</span>
             <span>Saha ${match.field_number}</span>
-            <span>${match.match_date} ${match.match_time}</span>
+            <span>${match.match_date || ""} ${match.match_time || ""}</span>
           </div>
           <div class="match-item-teams">
-            <span class="alliance-red">K: ${match.red_alliance.join(", ")}</span>
-            <span class="alliance-blue">M: ${match.blue_alliance.join(", ")}</span>
+            <span class="alliance-red">K: ${redAlliance}</span>
+            <span class="alliance-blue">M: ${blueAlliance}</span>
           </div>
           ${scoreDisplay}
           ${activateButton}
@@ -157,7 +241,40 @@ async function loadScheduleMatches() {
     
   } catch (err) {
     console.error("Load schedule matches error:", err);
-    listContainer.innerHTML = "<div class='error'>Maç listesi yüklenirken hata oluştu</div>";
+    console.error("Load schedule matches error details:", {
+      message: err.message,
+      stack: err.stack,
+      fieldNumber,
+      matchType
+    });
+    const errorMessage = err?.response?.error || err?.message || "Bilinmeyen hata";
+    listContainer.innerHTML = `<div class='error'>
+      <p><strong>Maç listesi yüklenirken hata oluştu:</strong></p>
+      <p>${errorMessage}</p>
+      <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
+        Lütfen sayfayı yenileyin (F5) veya console'u kontrol edin.
+      </p>
+    </div>`;
+    // Kullanıcıya toast mesajı da göster
+    if (typeof showToast === "function") {
+      showToast(`Takvim maçları yüklenemedi: ${errorMessage}`, "error");
+    }
+  } finally {
+    scheduleLoadInProgress = false;
+    if (typeof window !== "undefined") {
+      window.scheduleLoadInProgress = false;
+    }
+  }
+}
+if (typeof window !== "undefined") {
+  window.loadScheduleMatches = loadScheduleMatches;
+  if (!window._scheduleTabOpenRegistered) {
+    window._scheduleTabOpenRegistered = true;
+    document.addEventListener("match-control-schedule-tab-open", function onScheduleTabOpen() {
+      loadScheduleMatches().catch(function (err) {
+        console.error("match-control-schedule-tab-open: loadScheduleMatches hatası:", err);
+      });
+    });
   }
 }
 
@@ -184,7 +301,9 @@ async function fetchScheduleMatches(fieldNumber, matchType) {
 async function loadPracticeScheduleMatches(fieldNumber) {
   const params = {};
   if (fieldNumber) params.field = fieldNumber;
+  console.log("loadPracticeScheduleMatches: API çağrısı yapılıyor", params);
   const matches = await apiGet("/api/practice-matches", params);
+  console.log("loadPracticeScheduleMatches: API yanıtı alındı", { count: matches?.length || 0, matches });
   return (matches || []).map(match => ({
     ...match,
     match_type: "practice",
@@ -196,10 +315,13 @@ async function loadPracticeScheduleMatches(fieldNumber) {
  * Resmi maçları Schedule formatında döndürür
  */
 async function loadOfficialScheduleMatches(fieldNumber, matchType) {
+  // Backend /api/match-schedule beklediği parametreler: field, type (field_number/match_type değil)
   const params = {};
-  if (fieldNumber) params.field_number = fieldNumber;
-  if (matchType) params.match_type = matchType;
+  if (fieldNumber) params.field = fieldNumber;
+  if (matchType) params.type = matchType;
+  console.log("loadOfficialScheduleMatches: API çağrısı yapılıyor", params);
   const matches = await apiGet("/api/match-schedule", params);
+  console.log("loadOfficialScheduleMatches: API yanıtı alındı", { count: matches?.length || 0, matches });
   return (matches || []).map(match => ({
     ...match,
     source: "schedule",
@@ -419,10 +541,11 @@ async function loadNextMatch() {
  */
 async function checkActiveMatch() {
   // Match Core kullanılıyorsa, aktif maç kontrolü Match Core'da yapılıyor
-  if (typeof MatchCore !== "undefined") {
+  const matchCoreInstance = getMatchCoreInstance();
+  if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
     // Sadece manuel seçim yönetimi için kullan
     if (manuallySelectedMatchId && manuallySelectedMatchSource) {
-      MatchCore.setManualSelection(manuallySelectedMatchId, manuallySelectedMatchSource);
+      matchCoreInstance.setManualSelection(manuallySelectedMatchId, manuallySelectedMatchSource);
     }
     // Aktif maç yükleme Match Core'da otomatik yapılıyor (periyodik kontrol ile)
     return;
@@ -658,20 +781,24 @@ async function selectMatch(matchId, matches = null) {
   }
   
   // Match Core kullanılıyorsa, manuel seçimi Match Core'a bildir ve maçı set et
-  if (typeof MatchCore !== "undefined") {
-    MatchCore.setManualSelection(matchId, match.source || "schedule");
+  const matchCoreInstance = getMatchCoreInstance();
+  if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+    matchCoreInstance.setManualSelection(matchId, match.source || "schedule");
     // Preview maçlar için Match Core'a maç bilgisini set et (WebSocket bağlantısı olmadan)
     // skipWebSocket=true ile preview maçlar için WebSocket başlatılmaz
-    const matchToSet = {
-      ...currentMatch,
-      match_source: match.source || "schedule",
-      source: match.source || "schedule"
-    };
-    MatchCore.setMatch(matchToSet, true); // skipWebSocket=true
+    if (typeof matchCoreInstance.setMatch === "function") {
+      const matchToSet = {
+        ...currentMatch,
+        match_source: match.source || "schedule",
+        source: match.source || "schedule"
+      };
+      matchCoreInstance.setMatch(matchToSet, true); // skipWebSocket=true
+    }
   }
   
   // Gerçek zamanlı skor güncellemelerini başlat (Match Core kullanılıyorsa gerek yok)
-  if (typeof MatchCore === "undefined" && typeof startRealtimeScoreUpdates === "function") {
+  // matchCoreInstance zaten yukarıda tanımlı (satır 688)
+  if (!matchCoreInstance && typeof startRealtimeScoreUpdates === "function") {
     startRealtimeScoreUpdates(matchId, match.source || "schedule");
   }
   
@@ -681,13 +808,14 @@ async function selectMatch(matchId, matches = null) {
     // Aktif maç seçildi, manuel seçimi temizle (artık aktif maç olacak)
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.clearManualSelection();
+    const matchCoreInstance = getMatchCoreInstance();
+    if (matchCoreInstance && typeof matchCoreInstance.clearManualSelection === "function") {
+      matchCoreInstance.clearManualSelection();
     }
     
     // Match Core kullanılıyorsa, aktif maçı Match Core'dan yükle
-    if (typeof MatchCore !== "undefined") {
-      await MatchCore.loadActiveMatch(true); // force=true ile manuel seçimi yok say
+    if (matchCoreInstance && typeof matchCoreInstance.loadActiveMatch === "function") {
+      await matchCoreInstance.loadActiveMatch(true); // force=true ile manuel seçimi yok say
     } else {
       // Fallback: Eski yöntem
       if (typeof updateMatchStatus === "function") {
@@ -704,8 +832,9 @@ async function selectMatch(matchId, matches = null) {
     // Manuel seçimi kaydet (tamamlanmış maçı görüntülemek için)
     manuallySelectedMatchId = matchId;
     manuallySelectedMatchSource = match.source || "schedule";
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.setManualSelection(matchId, match.source || "schedule");
+    const matchCoreInstance = getMatchCoreInstance();
+    if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+      matchCoreInstance.setManualSelection(matchId, match.source || "schedule");
     }
     
     // Status'u "completed" olarak koru
@@ -739,8 +868,9 @@ async function selectMatch(matchId, matches = null) {
       // Manuel seçimi kaydet - checkActiveMatch ve updateMatchStatus bunu override etmemeli
       manuallySelectedMatchId = matchId;
       manuallySelectedMatchSource = match.source || "schedule";
-      if (typeof MatchCore !== "undefined") {
-        MatchCore.setManualSelection(matchId, match.source || "schedule");
+      const matchCoreInstance = getMatchCoreInstance();
+      if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+        matchCoreInstance.setManualSelection(matchId, match.source || "schedule");
       }
       
       console.log(`selectMatch: Manuel seçim kaydedildi - ID: ${matchId}, Source: ${match.source || "schedule"}`);
@@ -842,19 +972,22 @@ async function selectPracticeMatch(match) {
   }
   
     // Match Core kullanılıyorsa, manuel seçimi Match Core'a bildir ve maçı set et
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.setManualSelection(match.id, "practice");
+    const matchCoreInstance = getMatchCoreInstance();
+    if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+      matchCoreInstance.setManualSelection(match.id, "practice");
       // Preview maçlar için Match Core'a maç bilgisini set et (WebSocket bağlantısı olmadan)
-      const matchToSet = {
-        ...currentMatch,
-        match_source: "practice",
-        source: "practice"
-      };
-      MatchCore.setMatch(matchToSet, true); // skipWebSocket=true
+      if (typeof matchCoreInstance.setMatch === "function") {
+        const matchToSet = {
+          ...currentMatch,
+          match_source: "practice",
+          source: "practice"
+        };
+        matchCoreInstance.setMatch(matchToSet, true); // skipWebSocket=true
+      }
     }
     
-    // Gerçek zamanlı skor güncellemelerini başlat (Match Core kullanılıyorsa gerek yok)
-    if (typeof MatchCore === "undefined" && typeof startRealtimeScoreUpdates === "function") {
+  // Gerçek zamanlı skor güncellemelerini başlat (Match Core kullanılıyorsa gerek yok)
+  if (!matchCoreInstance && typeof startRealtimeScoreUpdates === "function") {
       startRealtimeScoreUpdates(match.id, "practice");
     }
   
@@ -864,9 +997,14 @@ async function selectPracticeMatch(match) {
     // Aktif maç seçildi, manuel seçimi temizle (aktif maç zaten gösterilecek)
     manuallySelectedMatchId = null;
     manuallySelectedMatchSource = null;
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.clearManualSelection();
-      await MatchCore.loadActiveMatch(true); // force=true ile manuel seçimi yok say
+    const matchCoreInstance = getMatchCoreInstance();
+    if (matchCoreInstance) {
+      if (typeof matchCoreInstance.clearManualSelection === "function") {
+        matchCoreInstance.clearManualSelection();
+      }
+      if (typeof matchCoreInstance.loadActiveMatch === "function") {
+        await matchCoreInstance.loadActiveMatch(true); // force=true ile manuel seçimi yok say
+      }
     }
   } else if (matchStatus === "completed") {
     // Maç tamamlanmış - skorları göster, preview yapma
@@ -875,8 +1013,9 @@ async function selectPracticeMatch(match) {
     // Manuel seçimi kaydet (tamamlanmış maçı görüntülemek için)
     manuallySelectedMatchId = match.id;
     manuallySelectedMatchSource = "practice";
-    if (typeof MatchCore !== "undefined") {
-      MatchCore.setManualSelection(match.id, "practice");
+    const matchCoreInstance = getMatchCoreInstance();
+    if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+      matchCoreInstance.setManualSelection(match.id, "practice");
     }
     
     // Status'u "completed" olarak koru
@@ -900,8 +1039,9 @@ async function selectPracticeMatch(match) {
       // Manuel seçimi kaydet - checkActiveMatch ve updateMatchStatus bunu override etmemeli
       manuallySelectedMatchId = match.id;
       manuallySelectedMatchSource = "practice";
-      if (typeof MatchCore !== "undefined") {
-        MatchCore.setManualSelection(match.id, "practice");
+      const matchCoreInstance = getMatchCoreInstance();
+      if (matchCoreInstance && typeof matchCoreInstance.setManualSelection === "function") {
+        matchCoreInstance.setManualSelection(match.id, "practice");
       }
       
       console.log(`selectPracticeMatch: Manuel seçim kaydedildi - ID: ${match.id}, Source: practice`);
@@ -932,5 +1072,9 @@ function getMatchBySource(matches, source, matchId) {
   return matches.find(m => (m.source || "schedule") === source && m.id === matchId);
 }
 
-// Global fonksiyonlar (HTML'den çağrılabilir)
+// Global fonksiyonlar (HTML ve diğer scriptlerden erişilebilir olsun diye window'a yazıyoruz)
 window.selectMatch = selectMatch;
+window.loadScheduleMatches = loadScheduleMatches;
+window.loadPracticeScheduleMatches = loadPracticeScheduleMatches;
+window.loadOfficialScheduleMatches = loadOfficialScheduleMatches;
+window.fetchScheduleMatches = fetchScheduleMatches;

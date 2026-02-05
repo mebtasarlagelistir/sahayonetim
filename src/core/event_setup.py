@@ -137,6 +137,8 @@ def default_config_dict() -> Dict:
                 "active_view": "match",
                 "overlay_enabled": False,
                 "overlay_text": "",
+                "overlay_chroma_enabled": False,
+                "overlay_chroma_color": "#00ff00",
             },
             "custom_fields": [],
         },

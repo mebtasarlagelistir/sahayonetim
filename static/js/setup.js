@@ -432,6 +432,13 @@ function setupMatchScheduleListeners() {
   if (qs("add_match_schedule")) {
     qs("add_match_schedule").addEventListener("click", createMatchSchedule);
   }
+  // Final maçları için event listener'lar
+  if (qs("generate_final_matches")) {
+    qs("generate_final_matches").addEventListener("click", generateFinalMatches);
+  }
+  if (qs("view_final_rankings")) {
+    qs("view_final_rankings").addEventListener("click", viewFinalRankings);
+  }
   if (qs("apply_match_filters")) {
     qs("apply_match_filters").addEventListener("click", loadMatchSchedule);
   }

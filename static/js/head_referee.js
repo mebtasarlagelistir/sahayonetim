@@ -7,6 +7,20 @@ let currentMatch = null;
 let headRefereeSocket = null; // WebSocket bağlantısı (SSE yerine WebSocket kullanılıyor)
 let refereeMeta = {};
 let retryCount = 0;
+/** Baş hakem kaydından sonra formun eski veriyle ezilmesini önlemek için (ms) */
+let lastHeadRefereeSaveTime = 0;
+const HEAD_REF_SAVE_GUARD_MS = 3500;
+/** Son yüklenen maç ID; sadece maç değişince loadHeadRefereeMatch çağrılsın (her notify'da form ezilmesin) */
+let lastHeadRefereeMatchId = null;
+/** Otomatik kayıt debounce (hakem panelleri gibi) - ittifak bazlı */
+let headRefAutoSaveTimerRed = null;
+let headRefAutoSaveTimerBlue = null;
+const HEAD_REF_AUTO_SAVE_DELAY = 800;
+/** Baş hakem timer (akıcı geri sayım, WebSocket ile senkron) */
+let headTimerInterval = null;
+let headTimerStartTime = null;
+let headTimerInitialTime = null;
+let headTimerState = null;
 const MAX_RETRY_COUNT = NETWORK_CONSTANTS.SSE_RETRY_MAX || 5;
 const RETRY_DELAY_BASE = NETWORK_CONSTANTS.SSE_RETRY_DELAY_BASE || 1000;
 
@@ -106,8 +120,8 @@ async function initializeHeadReferee() {
   
   if (matchCoreInstance) {
     console.log("initializeHeadReferee: Match Core bulundu, subscribe olunuyor...");
+    // Akış: Maç Kontrol maç başlatır → Kırmızı/Mavi hakemler giriş yapar → Baş hakem canlı görür, düzenleyebilir, Kaydet → Hakemler Girişlerini Tamamlar → Baş hakem Maçı Onaylar → Maç Kontrol'den Maçı Tamamla
     matchCoreUnsubscribe = matchCoreInstance.subscribe((state) => {
-      // State değiştiğinde UI'ı güncelle
       if (state.match) {
         currentMatch = state.match;
         
@@ -123,38 +137,47 @@ async function initializeHeadReferee() {
           currentMatch.source = "schedule";
         }
         
-        // Maç bilgilerini yükle
-        if (typeof loadHeadRefereeMatch === "function") {
-          loadHeadRefereeMatch();
-        }
-        
-          // Skorları güncelle
-          if (state.scores.red || state.scores.blue) {
-            // Skorları render et (head_referee.js'deki fonksiyonlar)
-            if (typeof updateHeadRefereeDetailedScores === "function") {
-              updateHeadRefereeDetailedScores(state.scores);
-            }
+        // Sadece maç değiştiğinde tam yükleme; her notify'da loadHeadRefereeMatch çağrılmaz (form ezilmesin)
+        var matchId = currentMatch.id;
+        if (matchId !== lastHeadRefereeMatchId) {
+          lastHeadRefereeMatchId = matchId;
+          if (typeof loadHeadRefereeMatch === "function") {
+            loadHeadRefereeMatch();
           }
-        
-          // Referee meta güncelle
-          if (state.scores.referee_meta) {
+        } else {
+          // Aynı maç: form hiç oluşturulmadıysa (sayfa geç yüklendi vb.) bir kez oluştur
+          var formExists = qs("head_red_auto_bent1_own") || qs("head_blue_auto_bent1_own");
+          if (!formExists && typeof loadHeadRefereeMatch === "function") {
+            loadHeadRefereeMatch();
+          }
+          if (typeof updateHeadRefereeTimer === "function") {
+            updateHeadRefereeTimer(state.currentState, state.timeRemaining);
+          }
+          // Baş hakem formunu notify ile GÜNCELLEMİYORUZ: sunucu periyodik "scores" gönderdiği için
+          // her seferinde form eziliyordu. Form sadece maç yüklendiğinde (loadHeadRefereeMatch) set edilir;
+          // kullanıcı düzenleyebilir, Kaydet ile kaydeder. Hakem panelinden gelen güncellemeyi görmek için "Skorları Yenile" kullanılabilir.
+          if (!formExists) return;
+          var calc = state.match && state.match.scoring_data && state.match.scoring_data.calculated_scores;
+          if (calc) {
+            var redTotal = (calc.red && calc.red.total_score !== undefined) ? calc.red.total_score : 0;
+            var blueTotal = (calc.blue && calc.blue.total_score !== undefined) ? calc.blue.total_score : 0;
+            var redEl = qs("head_red_score");
+            var blueEl = qs("head_blue_score");
+            if (redEl) redEl.textContent = redTotal;
+            if (blueEl) blueEl.textContent = blueTotal;
+          }
+          if (state.scores && state.scores.referee_meta) {
             refereeMeta = state.scores.referee_meta;
-            // updateSubmitStatus fonksiyonu referee_panel'de var, head_referee'de farklı olabilir
-            // Eğer yoksa loadCurrentScores çağrılabilir
             if (typeof updateSubmitStatus === "function") {
               updateSubmitStatus();
-            } else if (typeof loadCurrentScores === "function") {
-              loadCurrentScores();
+            } else if (typeof updateHeadRefereeStatus === "function") {
+              updateHeadRefereeStatus();
             }
           }
-        
-        // Timer güncelle
-        if (typeof updateHeadRefereeTimer === "function") {
-          updateHeadRefereeTimer(state.currentState, state.timeRemaining);
         }
       } else {
-        // Aktif maç yok
         currentMatch = null;
+        lastHeadRefereeMatchId = null;
         if (typeof renderNoMatch === "function") {
           renderNoMatch("Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.");
         }
@@ -613,6 +636,17 @@ async function loadHeadRefereeMatch() {
     const noMatchEl = qs("head_no_match");
     if (noMatchEl) noMatchEl.style.display = "none";
 
+    // Detaylı skorlama kartını göster; baş hakem her zaman skor girebilmeli (hakem girişi beklemeden)
+    var detailedEl = qs("head_referee_detailed_scores");
+    if (detailedEl) {
+      detailedEl.style.display = "block";
+      var initialData = currentMatch.scoring_data ? {
+        red: { scoring_data: currentMatch.scoring_data.red || {} },
+        blue: { scoring_data: currentMatch.scoring_data.blue || {} }
+      } : {};
+      loadDetailedScores(initialData);
+    }
+
     // Timer'ı başlat (eğer maç aktifse)
     if (currentMatch.current_state && currentMatch.time_remaining !== undefined) {
       updateHeadRefereeTimer(currentMatch.current_state, currentMatch.time_remaining);
@@ -652,8 +686,11 @@ async function loadCurrentScores() {
     refereeMeta = (data && data.referee_meta) ? data.referee_meta : {};
     updateHeadRefereeStatus();
     
-    // Detaylı skorları yükle
-    loadDetailedScores(data);
+    // Baş hakem az önce kaydettiyse detay formunu ezme; WebSocket zaten güncelledi
+    var now = Date.now();
+    if (now - lastHeadRefereeSaveTime >= HEAD_REF_SAVE_GUARD_MS) {
+      loadDetailedScores(data);
+    }
   } catch (err) {
     console.error("Head referee load scores error:", err);
     showToast("Skorlar yüklenirken hata oluştu", "warning");
@@ -677,16 +714,9 @@ function updateHeadRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
   
   if (!timerEl || !timerDisplayEl || !timerStateEl) return;
   
-  // Timer'ı göster
   timerEl.style.display = "block";
   
-  // Zamanı formatla (MM:SS)
-  const minutes = Math.floor((timeRemaining || 0) / 60);
-  const seconds = (timeRemaining || 0) % 60;
-  timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  
-  // Durum etiketini güncelle
-  const stateLabels = {
+  var stateLabels = {
     idle: "Beklemede",
     autonomous: "Otonom",
     prepare_teleop: "Hazırlık",
@@ -695,30 +725,56 @@ function updateHeadRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
     post_match: "Maç Sonrası",
     completed: "Tamamlandı"
   };
-  
   timerStateEl.textContent = stateLabels[currentState] || currentState || "-";
+
+  if (headTimerInterval) {
+    clearInterval(headTimerInterval);
+    headTimerInterval = null;
+  }
+
+  if (headTimerState !== currentState || headTimerInitialTime !== timeRemaining) {
+    headTimerState = currentState;
+    headTimerInitialTime = timeRemaining;
+    headTimerStartTime = Date.now() - timeOffset;
+  }
+
+  function tick() {
+    var remaining = timeRemaining;
+    if (timeRemaining > 0 && headTimerStartTime) {
+      var elapsed = Math.floor((Date.now() - headTimerStartTime) / 1000);
+      remaining = Math.max(0, headTimerInitialTime - elapsed);
+    }
+    var minutes = Math.floor((remaining || 0) / 60);
+    var seconds = (remaining || 0) % 60;
+    timerDisplayEl.textContent = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+    if (remaining <= 0 && headTimerInterval) {
+      clearInterval(headTimerInterval);
+      headTimerInterval = null;
+    }
+  }
+
+  tick();
+  if (timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed") {
+    headTimerInterval = setInterval(tick, 100);
+  }
 }
 
 /**
- * Detaylı skorları yükler ve formları doldurur
+ * Detaylı skorları yükler ve formları doldurur.
+ * Baş hakem her zaman skor girebilmeli: veri yoksa boş form gösterilir.
  */
 function loadDetailedScores(data) {
-  if (!data) return;
-  
   const detailedScoresEl = qs("head_referee_detailed_scores");
   if (!detailedScoresEl) return;
   
-  // Detaylı skorlama bölümünü göster
   detailedScoresEl.style.display = "block";
   
-  // Kırmızı ittifak skorları
-  if (data.red && data.red.scoring_data) {
-    applyScoringDataToHeadRefereeForm("red", data.red.scoring_data);
-  }
-  
-  // Mavi ittifak skorları
-  if (data.blue && data.blue.scoring_data) {
-    applyScoringDataToHeadRefereeForm("blue", data.blue.scoring_data);
+  var redData = (data && data.red && data.red.scoring_data) ? data.red.scoring_data : {};
+  var blueData = (data && data.blue && data.blue.scoring_data) ? data.blue.scoring_data : {};
+  applyScoringDataToHeadRefereeForm("red", redData);
+  applyScoringDataToHeadRefereeForm("blue", blueData);
+  if (typeof setHeadRefereeFormEditable === "function") {
+    setHeadRefereeFormEditable(canHeadRefereeEdit());
   }
 }
 
@@ -733,7 +789,7 @@ function applyScoringDataToHeadRefereeForm(alliance, scoringData) {
   
   // Kompakt form oluştur (yan yana görünüm için)
   let html = '<div class="scoring-section auto-section">';
-  html += '<h5>OTONOM (OKS)</h5>';
+  html += '<h4 class="section-title">Otonom - İlk 30 Saniye</h4>';
   
   // Başlangıç Alanını Terk Etme
   html += '<div class="scoring-group compact-group"><div class="group-header">Başlangıç (3/Robot)</div>';
@@ -806,7 +862,7 @@ function applyScoringDataToHeadRefereeForm(alliance, scoringData) {
   
   // Teleop Bölümü
   html += '<div class="scoring-section teleop-section">';
-  html += '<h5>SÜRÜCÜ KONTROLLÜ (SKS)</h5>';
+  html += '<h4 class="section-title">Sürücü Kontrollü - 30. Saniyeden Sonra</h4>';
   
   // Teleop Bent 1
   html += '<div class="scoring-group compact-group"><div class="group-header">Bent 1 (2/Küre)</div>';
@@ -910,19 +966,26 @@ function applyScoringDataToHeadRefereeForm(alliance, scoringData) {
 }
 
 /**
- * Anlık skor güncellemelerini uygular (WebSocket'ten gelen güncellemeler için)
+ * Anlık skor güncellemelerini uygular (WebSocket / Match Core'dan gelen hakem girişleri için)
+ * Hem { red: { scoring_data: {...} } } hem { red: {...} } formatını kabul eder.
  */
 function updateHeadRefereeDetailedScores(scores) {
   if (!scores) return;
   
-  // Kırmızı ittifak skorlarını güncelle
-  if (scores.red && scores.red.scoring_data) {
-    updateHeadRefereeFormFields("red", scores.red.scoring_data);
+  // Kırmızı ittifak: hakem panelinden gelen ham veri veya scoring_data
+  if (scores.red) {
+    const redData = scores.red.scoring_data || scores.red;
+    if (redData && typeof redData === "object") {
+      updateHeadRefereeFormFields("red", redData);
+    }
   }
   
-  // Mavi ittifak skorlarını güncelle
-  if (scores.blue && scores.blue.scoring_data) {
-    updateHeadRefereeFormFields("blue", scores.blue.scoring_data);
+  // Mavi ittifak
+  if (scores.blue) {
+    const blueData = scores.blue.scoring_data || scores.blue;
+    if (blueData && typeof blueData === "object") {
+      updateHeadRefereeFormFields("blue", blueData);
+    }
   }
 }
 
@@ -1142,6 +1205,11 @@ function updateHeadRefereeStatus() {
   if (approveBtn) {
     approveBtn.disabled = !canApprove;
   }
+  
+  // Baş hakem formu: sadece her iki hakem "Maç Girişini Bitir" dedikten sonra düzenlenebilir
+  if (typeof setHeadRefereeFormEditable === "function") {
+    setHeadRefereeFormEditable(canApprove || !!headMeta.approved);
+  }
 }
 
 async function approveMatch() {
@@ -1160,6 +1228,13 @@ async function approveMatch() {
 }
 
 function renderNoMatch(message) {
+  if (headTimerInterval) {
+    clearInterval(headTimerInterval);
+    headTimerInterval = null;
+  }
+  headTimerStartTime = null;
+  headTimerInitialTime = null;
+  headTimerState = null;
   qs("head_referee_match_card").style.display = "none";
   qs("head_referee_scores").style.display = "none";
   const detailedScoresEl = qs("head_referee_detailed_scores");
@@ -1187,20 +1262,35 @@ function setupHeadRefereeEvents() {
   // Detaylı skor kaydetme butonları
   const saveRedBtn = qs("btn_head_save_red");
   if (saveRedBtn) {
-    saveRedBtn.addEventListener("click", () => saveHeadRefereeScore("red"));
+    saveRedBtn.addEventListener("click", () => {
+      if (headRefAutoSaveTimerRed) { clearTimeout(headRefAutoSaveTimerRed); headRefAutoSaveTimerRed = null; }
+      saveHeadRefereeScore("red", false);
+    });
   }
   
   const saveBlueBtn = qs("btn_head_save_blue");
   if (saveBlueBtn) {
-    saveBlueBtn.addEventListener("click", () => saveHeadRefereeScore("blue"));
+    saveBlueBtn.addEventListener("click", () => {
+      if (headRefAutoSaveTimerBlue) { clearTimeout(headRefAutoSaveTimerBlue); headRefAutoSaveTimerBlue = null; }
+      saveHeadRefereeScore("blue", false);
+    });
+  }
+  const refreshScoresBtn = qs("btn_head_refresh_scores");
+  if (refreshScoresBtn) {
+    refreshScoresBtn.addEventListener("click", function () {
+      if (typeof loadCurrentScores === "function" && currentMatch && currentMatch.id) {
+        lastHeadRefereeSaveTime = 0;
+        loadCurrentScores();
+        showToast("Skorlar yenilendi", "info");
+      }
+    });
   }
 }
 
 /**
- * Baş hakem form event listener'larını kurar
+ * Baş hakem form event listener'larını kurar (plus/minus + otomatik kayıt debounce)
  */
 function setupHeadRefereeFormEvents(alliance) {
-  // Plus/minus butonları
   const formEl = qs(`head_${alliance}_scoring_form`);
   if (!formEl) return;
   
@@ -1215,19 +1305,81 @@ function setupHeadRefereeFormEvents(alliance) {
         } else {
           field.value = Math.max(0, currentValue - 1);
         }
-        // Değişiklik olduğunu işaretle
         field.dispatchEvent(new Event("change"));
       }
     });
   });
+  
+  // Otomatik kayıt (hakem panelleri gibi): input/change sonrası debounce ile sunucuya gönder
+  formEl.addEventListener("input", function (e) {
+    if (e.target.matches("input, select")) scheduleHeadRefereeAutoSave(alliance);
+  });
+  formEl.addEventListener("change", function (e) {
+    if (e.target.matches("input, select")) scheduleHeadRefereeAutoSave(alliance);
+  });
 }
 
 /**
- * Baş hakem skor kaydetme
+ * Baş hakem otomatik kayıt zamanlayıcısı (debounce - hakem panelleri gibi)
  */
-async function saveHeadRefereeScore(alliance) {
+function scheduleHeadRefereeAutoSave(alliance) {
+  if (!canHeadRefereeEdit()) return;
+  var timerKey = alliance === "red" ? "headRefAutoSaveTimerRed" : "headRefAutoSaveTimerBlue";
+  var timer = alliance === "red" ? headRefAutoSaveTimerRed : headRefAutoSaveTimerBlue;
+  if (timer) {
+    clearTimeout(timer);
+  }
+  timer = setTimeout(function () {
+    if (alliance === "red") headRefAutoSaveTimerRed = null; else headRefAutoSaveTimerBlue = null;
+    saveHeadRefereeScore(alliance, true);
+  }, HEAD_REF_AUTO_SAVE_DELAY);
+  if (alliance === "red") headRefAutoSaveTimerRed = timer; else headRefAutoSaveTimerBlue = timer;
+}
+
+/**
+ * Baş hakem düzenleme yapabilir mi? (Her iki hakem "Maç Girişini Bitir" dedikten sonra)
+ */
+function canHeadRefereeEdit() {
+  var redMeta = refereeMeta?.red || {};
+  var blueMeta = refereeMeta?.blue || {};
+  return !!(redMeta.submitted && blueMeta.submitted);
+}
+
+/**
+ * Baş hakem formunu düzenlenebilir / salt okunur yapar
+ */
+function setHeadRefereeFormEditable(canEdit) {
+  var msgEl = qs("head_referee_edit_message");
+  ["red", "blue"].forEach(function (alliance) {
+    var formEl = qs("head_" + alliance + "_scoring_form");
+    if (formEl) {
+      formEl.querySelectorAll("input").forEach(function (input) {
+        input.disabled = !canEdit;
+      });
+      formEl.querySelectorAll("button.btn-score-plus, button.btn-score-minus").forEach(function (btn) {
+        btn.disabled = !canEdit;
+      });
+    }
+    var saveBtn = qs("btn_head_save_" + alliance);
+    if (saveBtn) saveBtn.disabled = !canEdit;
+  });
+  if (msgEl) {
+    msgEl.style.display = canEdit ? "none" : "block";
+  }
+}
+
+/**
+ * Baş hakem skor kaydetme (otomatik veya manuel; silent=true ise toast yok)
+ */
+async function saveHeadRefereeScore(alliance, silent) {
   if (!currentMatch || !currentMatch.id) {
-    showToast("Aktif maç bulunamadı", "error");
+    if (!silent) showToast("Aktif maç bulunamadı", "error");
+    return;
+  }
+  
+  var formEl = qs("head_" + alliance + "_scoring_form");
+  if (!formEl || formEl.querySelectorAll("input").length === 0) {
+    if (!silent) showToast("Skor formu henüz yüklenmedi. Lütfen birkaç saniye bekleyip tekrar deneyin.", "warning");
     return;
   }
   
@@ -1238,14 +1390,17 @@ async function saveHeadRefereeScore(alliance) {
       match_id: currentMatch.id,
       alliance: alliance,
       scoring_data: scoringData,
-      match_source: currentMatch.match_source || "schedule"
+      match_source: currentMatch.match_source || "schedule",
+      from_head_referee: true
     });
     
-    showToast(`${alliance === "red" ? "Kırmızı" : "Mavi"} ittifak skorları kaydedildi`, "success");
-    await loadCurrentScores(); // Skorları yeniden yükle
+    lastHeadRefereeSaveTime = Date.now();
+    if (!silent) {
+      showToast(`${alliance === "red" ? "Kırmızı" : "Mavi"} ittifak skorları kaydedildi`, "success");
+    }
   } catch (err) {
     console.error("Head referee save score error:", err);
-    showToast("Skor kaydedilirken hata oluştu", "error");
+    if (!silent) showToast("Skor kaydedilirken hata oluştu", "error");
   }
 }
 

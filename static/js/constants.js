@@ -7,15 +7,18 @@
 
 /**
  * Maç kontrolü ile ilgili sabitler
+ * NOT: Backend (src/core/constants.py) ile aynı değerler olmalı. Timer kararlı sayar.
  */
 const MATCH_CONSTANTS = {
-  // Maç zamanlayıcı süreleri (saniye)
-  AUTONOMOUS_DURATION: 30,
+  // Maç zamanlayıcı süreleri (saniye) - OKS 30 sn, SKS 120 sn
+  AUTONOMOUS_DURATION: 30,      // OKS - Otonom
   PREPARE_TELEOP_DURATION: 5,
-  DRIVER_CONTROLLED_DURATION: 120,
+  DRIVER_CONTROLLED_DURATION: 120,  // SKS - Sürücü kontrollü
   END_GAME_DURATION: 30,
   POST_MATCH_DURATION: 10,
   
+  // Timer: tüm arayüzlerde akıcı geri sayım için yerel tick aralığı (ms)
+  TIMER_TICK_MS: 100,
   // Maç durumları
   STATES: {
     idle: "Beklemede",

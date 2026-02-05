@@ -1,12 +1,13 @@
 /**
  * Audience Display - UI Module
- * 
- * Bu modül UI güncellemeleri ile ilgili tüm fonksiyonları içerir:
- * - Timer güncellemeleri
- * - Skor güncellemeleri
- * - Overlay yönetimi
- * - Takım formatlama
+ * Timer tüm arayüzlerde akıcı ve senkron: sunucudan gelen time_remaining ile yerel geri sayım.
  */
+
+/** Yerel timer (akıcı geri sayım, WebSocket ile senkron) */
+let audienceTimerInterval = null;
+let audienceTimerStartTime = null;
+let audienceTimerInitialTime = null;
+let audienceTimerState = null;
 
 /**
  * Zamanı formatlar (MM:SS formatında)
@@ -33,33 +34,46 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
     console.warn("updateTimerDisplay: Timer elementi bulunamadı");
     return;
   }
-  
-  // timeOffset kullanarak senkronize zaman hesapla (eğer verilmişse)
-  let displayTime = timeRemaining;
-  if (timeOffset !== 0 && timeRemaining > 0) {
-    // timeOffset pozitif ise client server'dan ileride, negatif ise geride
-    // Bu durumda timeRemaining'i timeOffset'e göre ayarla
-    // (Basit yaklaşım: timeOffset'i göz ardı et, server'dan gelen timeRemaining'i kullan)
-    displayTime = timeRemaining;
+
+  function applyTimerDisplay(displayTime) {
+    const formattedTime = formatTime(displayTime);
+    if (timerEl.textContent !== formattedTime) {
+      timerEl.textContent = formattedTime;
+    }
+    timerEl.classList.remove("warning", "critical");
+    if (displayTime <= 10 && displayTime > 0) {
+      timerEl.classList.add("critical");
+    } else if (displayTime <= 30 && displayTime > 10) {
+      timerEl.classList.add("warning");
+    }
   }
-  
-  const formattedTime = formatTime(displayTime);
-  const oldTime = timerEl.textContent;
-  
-  // Zaman değiştiyse güncelle
-  if (formattedTime !== oldTime) {
-    timerEl.textContent = formattedTime;
+
+  var isActive = timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed";
+  var stateOrTimeChanged = audienceTimerState !== currentState || audienceTimerInitialTime !== timeRemaining;
+
+  if (audienceTimerInterval) {
+    clearInterval(audienceTimerInterval);
+    audienceTimerInterval = null;
   }
-  
-  // Durum bazlı stil güncellemeleri
-  timerEl.classList.remove("warning", "critical");
-  
-  if (displayTime <= 10 && displayTime > 0) {
-    // Kritik: Son 10 saniye
-    timerEl.classList.add("critical");
-  } else if (displayTime <= 30 && displayTime > 10) {
-    // Uyarı: Son 30 saniye
-    timerEl.classList.add("warning");
+
+  if (isActive && stateOrTimeChanged) {
+    audienceTimerState = currentState;
+    audienceTimerInitialTime = timeRemaining;
+    audienceTimerStartTime = Date.now() - timeOffset;
+    applyTimerDisplay(timeRemaining);
+    audienceTimerInterval = setInterval(function () {
+      var elapsed = Math.floor((Date.now() - audienceTimerStartTime) / 1000);
+      var remaining = Math.max(0, audienceTimerInitialTime - elapsed);
+      applyTimerDisplay(remaining);
+      if (remaining <= 0) {
+        clearInterval(audienceTimerInterval);
+        audienceTimerInterval = null;
+      }
+    }, 100);
+  } else {
+    audienceTimerState = currentState;
+    audienceTimerInitialTime = timeRemaining;
+    applyTimerDisplay(timeRemaining);
   }
 }
 
@@ -73,14 +87,12 @@ function updateScoreDisplay(alliance, newScore) {
   const scoreEl = qs(`audience_${alliance}_score`);
   if (!scoreEl) return;
   
-  const oldScore = parseInt(scoreEl.textContent) || 0;
-  const score = parseInt(newScore) || 0;
+  const oldScore = parseInt(scoreEl.textContent, 10) || 0;
+  const score = parseInt(newScore, 10) || 0;
   
-  // Skor değiştiyse güncelle ve animasyon ekle
+  // Her zaman güncelle (ilk yüklemede veya 0 geldiğinde de görünsün)
+  scoreEl.textContent = String(score);
   if (score !== oldScore) {
-    scoreEl.textContent = score;
-    
-    // Animasyon ekle
     scoreEl.classList.add("updating");
     setTimeout(() => {
       scoreEl.classList.remove("updating");
@@ -89,7 +101,7 @@ function updateScoreDisplay(alliance, newScore) {
 }
 
 /**
- * Overlay'i uygular
+ * Overlay'i uygular (üst metin)
  */
 function applyOverlay() {
   const overlay = qs("audience_overlay");
@@ -97,6 +109,63 @@ function applyOverlay() {
   if (!overlay || !text) return;
   text.textContent = overlayText;
   overlay.style.display = overlayEnabled && overlayText ? "block" : "none";
+}
+
+/**
+ * Chroma key arka planı uygular (yeşil ekran / yayın için).
+ * - Ön izleme veya canlı maç ekranında: sadece bar altındaki alan chroma olur; bar yayında kalır.
+ * - Diğer ekranlarda: tüm sayfa chroma renge boyanır.
+ * @param {boolean} enabled - Chroma key açık mı
+ * @param {string} color - Hex renk (örn. #00ff00)
+ * @param {string} [layoutMode] - "vs_preview" | "match" | null - bar+chroma layout kullanılıyorsa hangi alan
+ */
+function applyChromaBackground(enabled, color, layoutMode) {
+  const container = document.querySelector(".audience-container");
+  const body = document.body;
+  const vsChroma = document.getElementById("vs_chroma_area");
+  const matchChroma = document.getElementById("match_chroma_area");
+  const hex = (color && /^#[0-9A-Fa-f]{6}$/.test(color)) ? color : "#00ff00";
+  const darkBg = "#0f172a";
+  
+  if (layoutMode === "vs_preview" && vsChroma) {
+    if (enabled) {
+      vsChroma.style.backgroundColor = hex;
+      if (matchChroma) matchChroma.style.backgroundColor = "";
+    } else {
+      vsChroma.style.backgroundColor = "#00ff00";
+    }
+    if (body) body.style.backgroundColor = darkBg;
+    if (container) container.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = darkBg;
+    return;
+  }
+  
+  if (layoutMode === "match" && matchChroma) {
+    if (enabled) {
+      matchChroma.style.backgroundColor = hex;
+      if (vsChroma) vsChroma.style.backgroundColor = "";
+    } else {
+      matchChroma.style.backgroundColor = "#00ff00";
+    }
+    if (body) body.style.backgroundColor = darkBg;
+    if (container) container.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = darkBg;
+    return;
+  }
+  
+  if (enabled) {
+    if (container) container.style.backgroundColor = hex;
+    if (body) body.style.backgroundColor = hex;
+    if (document.documentElement) document.documentElement.style.backgroundColor = hex;
+    if (vsChroma) vsChroma.style.backgroundColor = "";
+    if (matchChroma) matchChroma.style.backgroundColor = "";
+  } else {
+    if (container) container.style.backgroundColor = "";
+    if (body) body.style.backgroundColor = "";
+    if (document.documentElement) document.documentElement.style.backgroundColor = "";
+    if (vsChroma) vsChroma.style.backgroundColor = "#00ff00";
+    if (matchChroma) matchChroma.style.backgroundColor = "#00ff00";
+  }
 }
 
 /**
@@ -112,6 +181,23 @@ function formatTeamsWithRank(teams, rankings) {
   return teams.map((team) => {
     const rank = rankings[team];
     return rank ? `${team} (#${rank})` : team;
+  }).join(", ");
+}
+
+/**
+ * Takım numaralarını isimlerle formatlar (seyirci ekranı maç görünümü için)
+ * 
+ * @param {Array} teamNumbers - Takım numaraları dizisi
+ * @param {Object} teamsMap - Takım numarası -> { name, school } (audienceTeamsMap)
+ * @returns {string} - "202520 - Takım Adı, 202523 - Diğer" veya sadece numaralar
+ */
+function formatTeamsWithNames(teamNumbers, teamsMap) {
+  if (!teamNumbers || !teamNumbers.length) return "-";
+  const map = teamsMap || (typeof audienceTeamsMap !== "undefined" ? audienceTeamsMap : {});
+  return teamNumbers.map((num) => {
+    const t = map[String(num)] || {};
+    const name = (t.name || "").trim();
+    return name ? `${num} – ${name}` : String(num);
   }).join(", ");
 }
 

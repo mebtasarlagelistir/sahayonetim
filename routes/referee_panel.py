@@ -230,10 +230,12 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
                 # scoring_data'dan team_statuses'i kaldır (çünkü zaten persisted'e eklendi)
                 # Ama scoring_data[alliance] içinde tutmaya devam ediyoruz (geriye dönük uyumluluk)
 
-            # Hakem daha önce submit ettiyse, yeni girişte submit'i düşür
+            # Hakem daha önce submit ettiyse, yeni girişte submit'i düşür - AMA baş hakem düzenlemesinde düşürme
+            # Baş hakem düzenleyince hakemin "Maç Girişini Bitir" durumu korunur; tekrar basması gerekmez
+            from_head_referee = data.get("from_head_referee", False)
             current_meta = _get_referee_meta(match)
             alliance_meta = current_meta.get(alliance, {})
-            if alliance_meta.get("submitted"):
+            if not from_head_referee and alliance_meta.get("submitted"):
                 updated_meta = {
                     **current_meta,
                     alliance: {
@@ -426,6 +428,18 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
             }
             realtime_manager.update_referee_meta(match_key, updated_meta)
             _persist_referee_meta(match_id, match_source, match.get("scoring_data") or {}, updated_meta)
+
+            # Maç kontrol ekranının anında güncellenmesi için skor odasına "scores" emit et
+            # (referee_meta.head.approved böylece MatchCore ve skor kontrol ekranına ulaşır)
+            if socketio:
+                current_scores = realtime_manager.get_current_scores(match_key)
+                if current_scores:
+                    response_data = dict(current_scores)
+                    if "team_statuses" in current_scores:
+                        response_data["team_statuses"] = current_scores["team_statuses"]
+                    room = f"match:{event_id}:{match_source}:{match_id}"
+                    socketio.emit("scores", {"type": "scores", "scores": response_data}, room=room, namespace="/match")
+                    logger.info(f"Baş hakem onayı sonrası skor odasına emit: room={room}")
 
             return jsonify({"ok": True, "referee_meta": updated_meta})
         except Exception as e:

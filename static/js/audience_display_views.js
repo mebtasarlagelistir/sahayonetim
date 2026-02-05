@@ -9,6 +9,21 @@
  */
 
 /**
+ * Maç türüne göre üst bar için kısa etiket (seyirci ekranında "hangi maç" doğrulaması).
+ * @param {Object} match - match objesi (match_type, match_number)
+ * @returns {string} Örn. "Maç P19", "Sıralama #12", "Maç 7"
+ */
+function getMatchHeaderLabel(match) {
+  if (!match) return "";
+  const type = (match.match_type || "qualification").toLowerCase();
+  const num = match.match_number ?? "";
+  if (type === "practice") return num ? `Maç ${num}` : "Deneme Maçı";
+  if (type === "qualification") return num ? `Sıralama #${num}` : "Sıralama";
+  if (type === "elimination" || type === "final") return num ? `Maç ${num}` : "Maç";
+  return num ? `Maç ${num}` : "";
+}
+
+/**
  * Maç görünümünü günceller (WebSocket'ten gelen verilerle)
  * 
  * @param {Object} match - Maç objesi
@@ -41,6 +56,8 @@ function updateMatchView(match, timeOffset = 0) {
     if (redTeams) redTeams.textContent = "-";
     if (blueTeams) blueTeams.textContent = "-";
     if (matchMeta) matchMeta.textContent = "";
+    const headerMatchEl = document.getElementById("audience_header_match");
+    if (headerMatchEl) headerMatchEl.textContent = "";
     
     if (typeof hideResultsPanel === "function") {
       hideResultsPanel();
@@ -81,34 +98,42 @@ function updateMatchView(match, timeOffset = 0) {
     stateLabel.textContent = match.state_label || "Beklemede";
   }
   
-  // Timer güncelleme (animasyonlu, timeOffset ile senkronize)
+  // Timer: her zaman yaz (görünsün)
   if (typeof updateTimerDisplay === "function") {
-    updateTimerDisplay(match.time_remaining || 0, match.current_state, timeOffset);
+    updateTimerDisplay(match.time_remaining ?? 0, match.current_state || "idle", timeOffset);
   } else if (timerValue) {
-    // Fallback: Basit timer güncelleme
-    const minutes = Math.floor((match.time_remaining || 0) / 60);
-    const seconds = (match.time_remaining || 0) % 60;
+    const sec = match.time_remaining ?? 0;
+    const minutes = Math.floor(Number(sec) / 60);
+    const seconds = Number(sec) % 60;
     timerValue.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
   
-  // Skor güncellemeleri (animasyonlu)
+  // Skor: her zaman yaz (görünsün)
   if (typeof updateScoreDisplay === "function") {
-    updateScoreDisplay("red", match.red_score || 0);
-    updateScoreDisplay("blue", match.blue_score || 0);
+    updateScoreDisplay("red", match.red_score ?? 0);
+    updateScoreDisplay("blue", match.blue_score ?? 0);
   } else {
-    // Fallback: Basit skor güncelleme
-    if (redScore) redScore.textContent = match.red_score || 0;
-    if (blueScore) blueScore.textContent = match.blue_score || 0;
+    if (redScore) redScore.textContent = String(match.red_score ?? 0);
+    if (blueScore) blueScore.textContent = String(match.blue_score ?? 0);
   }
   
   if (redTeams) {
-    redTeams.textContent = (match.red_alliance || []).join(", ") || "-";
+    redTeams.textContent = typeof formatTeamsWithNames === "function"
+      ? formatTeamsWithNames(match.red_alliance, typeof audienceTeamsMap !== "undefined" ? audienceTeamsMap : {})
+      : ((match.red_alliance || []).join(", ") || "-");
   }
   if (blueTeams) {
-    blueTeams.textContent = (match.blue_alliance || []).join(", ") || "-";
+    blueTeams.textContent = typeof formatTeamsWithNames === "function"
+      ? formatTeamsWithNames(match.blue_alliance, typeof audienceTeamsMap !== "undefined" ? audienceTeamsMap : {})
+      : ((match.blue_alliance || []).join(", ") || "-");
   }
   if (matchMeta) {
     matchMeta.textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
+  }
+  // Üst bar ortası: hangi maç gösteriliyor (P19, Sıralama #12 vb.) – doğru etkinlik/maç kontrolü için
+  const headerMatchEl = document.getElementById("audience_header_match");
+  if (headerMatchEl) {
+    headerMatchEl.textContent = getMatchHeaderLabel(match);
   }
   if (nextMatch) {
     nextMatch.textContent = "";
@@ -161,19 +186,31 @@ async function loadMatchView() {
 }
 
 /**
+ * Sıradaki maç satırını günceller (API'den sıradaki maç bilgisi veya bilgi mesajı).
+ */
+function setNextMatchText(text) {
+  const el = qs("audience_next_match");
+  if (el) el.textContent = text;
+}
+
+/**
  * Sıradaki maç önizlemesini yükler
  */
 async function loadNextMatchPreview() {
   try {
     const data = await apiGet("/api/public/next-match");
-    if (!data.match) {
-      qs("audience_next_match").textContent = "Sıradaki maç yok";
+    if (!data || !data.match) {
+      setNextMatchText("Sıradaki maç yok");
       return;
     }
     const match = data.match;
-    qs("audience_next_match").textContent = `Sıradaki: ${match.match_number} • Saha ${match.field_number} • ${match.match_date} ${match.match_time}`;
+    const num = match.match_number || "-";
+    const field = match.field_number ? `Saha ${match.field_number}` : "";
+    const dateTime = [match.match_date, match.match_time].filter(Boolean).join(" ");
+    setNextMatchText(`Sıradaki: ${num}${field ? " • " + field : ""}${dateTime ? " • " + dateTime : ""}`.trim() || "Sıradaki maç yok");
   } catch (err) {
-    qs("audience_next_match").textContent = "Sıradaki maç yüklenemedi";
+    console.warn("loadNextMatchPreview:", err);
+    setNextMatchText("Sıradaki maç bilgisi alınamadı");
   }
 }
 

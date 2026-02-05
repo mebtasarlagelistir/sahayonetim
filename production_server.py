@@ -19,6 +19,9 @@ from pathlib import Path
 # Production modunu zorla
 os.environ["FLASK_ENV"] = "production"
 
+# logs klasörü yoksa oluştur (FileHandler hata vermesin)
+Path(__file__).resolve().parent.joinpath("logs").mkdir(exist_ok=True)
+
 from app_web import create_app
 
 # Logging yapılandırması - Production için WARNING seviyesi

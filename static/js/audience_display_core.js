@@ -24,6 +24,9 @@ let lastMatchId = null;
 let audienceSocket = null; // WebSocket bağlantısı (SSE yerine WebSocket kullanılıyor)
 let retryCount = 0;
 
+/** Takım numarası -> { name, school } (seyirci ekranında takım isimleri için) */
+let audienceTeamsMap = {};
+
 // Constants
 const MAX_RETRY_COUNT = 10;
 const RETRY_DELAY_BASE = 1000; // 1 saniye
@@ -79,6 +82,45 @@ async function sendHeartbeat() {
     await apiPost("/api/screens/heartbeat", payload);
   } catch (err) {
     console.warn("Heartbeat error:", err);
+  }
+}
+
+/**
+ * Aktif etkinlik adını yükler ve header/footer'a yazar (maç kontrol ile aynı etkinlik).
+ * GET /api/public/event-info giriş gerektirmez; get_active_event_id() tek kaynaktır.
+ */
+async function loadAudienceEventInfo() {
+  try {
+    const data = await apiGet("/api/public/event-info");
+    const name = (data && data.name) ? String(data.name).trim() : "";
+    const code = (data && data.code) ? String(data.code).trim() : "";
+    const title = name || code || "MEMSKOR";
+    const headerEvent = document.getElementById("audience_header_event");
+    const footerEvent = document.getElementById("audience_footer_event");
+    const footerTitle = document.getElementById("audience_footer_title");
+    if (headerEvent) headerEvent.textContent = title || "MEMSKOR";
+    if (footerEvent) footerEvent.textContent = title || "MEMSKOR";
+    if (footerTitle) footerTitle.textContent = title || "Türkiye Şampiyonası";
+  } catch (err) {
+    console.warn("loadAudienceEventInfo:", err);
+  }
+}
+
+/**
+ * Takım listesini yükler (seyirci ekranında takım isimleri göstermek için)
+ */
+async function loadAudienceTeams() {
+  try {
+    const data = await apiGet("/api/teams");
+    if (!Array.isArray(data)) return;
+    audienceTeamsMap = {};
+    data.forEach((t) => {
+      if (t && t.number != null) {
+        audienceTeamsMap[String(t.number)] = { name: t.name || "", school: t.school || "" };
+      }
+    });
+  } catch (err) {
+    console.warn("loadAudienceTeams:", err);
   }
 }
 

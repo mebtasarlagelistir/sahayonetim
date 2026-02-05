@@ -235,23 +235,50 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("touchstart", resumeAudio, { once: true });
   }
   
-  // Audience Core'u başlat
+  // Aktif etkinlik adını yükle (maç kontrol ile aynı etkinlik; header/footer doğrulaması)
+  if (typeof loadAudienceEventInfo === "function") {
+    loadAudienceEventInfo().catch(() => {});
+  }
+  // Takım listesini yükle (seyirci ekranında takım isimleri için)
+  if (typeof loadAudienceTeams === "function") {
+    loadAudienceTeams().catch(() => {});
+  }
+
+  // Audience Core'u başlat (instance window.AudienceCore'tan alınır; script sırasına göre tanımlı olmalı)
   let audienceCoreUnsubscribe = null;
-  if (typeof AudienceCore !== "undefined") {
-    // Audience Core'u initialize et
-    await AudienceCore.initialize(screenId);
+  const core = (typeof window !== "undefined" && window.AudienceCore) || (typeof AudienceCore !== "undefined" ? AudienceCore : null);
+  if (core && typeof core.initialize === "function") {
+    await core.initialize(screenId);
     
     // State değişikliklerini dinle
-    audienceCoreUnsubscribe = AudienceCore.subscribe((state) => {
+    audienceCoreUnsubscribe = core.subscribe((state) => {
+      // İlk görüntü gelince yükleme göstergesini kaldır (önizleme veya maç ekranı doğru gelsin)
+      const loadingEl = document.getElementById("audience_initial_loading");
+      if (loadingEl && !loadingEl.getAttribute("aria-hidden")) {
+        loadingEl.setAttribute("aria-hidden", "true");
+      }
       // Global state değişkenlerini güncelle (geriye dönük uyumluluk için)
       currentView = state.currentView;
       previewPayload = state.previewPayload;
       overlayEnabled = state.overlayEnabled;
       overlayText = state.overlayText;
       
+      // View değişikliği: Önce hangi panelin görüneceğini ayarla (puan/timer doğru panelde güncellensin)
+      if (!state.hasPreview) {
+        const views = ["match", "inspection", "rankings", "awards"];
+        views.forEach((view) => {
+          const el = qs(`audience_${view}_view`);
+          if (el) {
+            el.style.display = view === state.currentView ? "block" : "none";
+          }
+        });
+        if (state.currentView !== "match" && typeof hideVSPreview === "function") {
+          hideVSPreview();
+        }
+      }
+      
       // UI güncellemeleri
       if (state.hasPreview) {
-        // Preview aktif
         if (state.previewState === "vs_preview" && typeof applyVSPreviewPayload === "function") {
           applyVSPreviewPayload(state.previewPayload);
         } else if (state.previewState === "results" && typeof applyResultsPayload === "function") {
@@ -260,41 +287,33 @@ document.addEventListener("DOMContentLoaded", async () => {
           applyPreviewPayload(state.previewPayload);
         }
       } else {
-        // Preview yok, normal maç görünümü
         if (state.currentView === "match") {
-          if (state.match) {
-            // Maç var, görünümü güncelle
-            if (typeof updateMatchView === "function") {
-              // State değişikliği kontrolü (ses efekti için)
-              // Audience Core'da _stateChanged flag'i set edilmişse ses efekti çal
-              if (state.match._stateChanged && typeof announceState === "function") {
-                announceState(state.currentState);
-                // Flag'i temizle (bir sonraki güncelleme için)
-                delete state.match._stateChanged;
-              }
-              
-              updateMatchView(state.match);
+          if (state.match && typeof updateMatchView === "function") {
+            if (state.match._stateChanged && typeof announceState === "function") {
+              announceState(state.currentState);
+              delete state.match._stateChanged;
             }
-          } else {
-            // Maç yok, boş görünüm göster
-            if (typeof updateMatchView === "function") {
-              updateMatchView(null);
-            }
+            // Timer senkronizasyonu: sunucu zamanı ile client farkı (ms)
+            const timeOffsetMs = state.serverTimestamp != null ? (Date.now() - state.serverTimestamp * 1000) : 0;
+            updateMatchView(state.match, timeOffsetMs);
+          } else if (typeof updateMatchView === "function") {
+            updateMatchView(null);
           }
-        } else if (state.currentView === "inspection") {
-          if (typeof loadInspectionView === "function") {
-            loadInspectionView();
-          }
-        } else if (state.currentView === "awards") {
-          if (typeof loadAwardsView === "function") {
-            loadAwardsView();
-          }
+        } else if (state.currentView === "inspection" && typeof loadInspectionView === "function") {
+          loadInspectionView();
+        } else if (state.currentView === "awards" && typeof loadAwardsView === "function") {
+          loadAwardsView();
         }
       }
       
-      // Overlay güncelle
       if (typeof applyOverlay === "function") {
         applyOverlay();
+      }
+      
+      // Chroma key arka planı uygula
+      if (typeof applyChromaBackground === "function") {
+        const layoutMode = state.previewState === "vs_preview" ? "vs_preview" : (state.currentView === "match" ? "match" : null);
+        applyChromaBackground(state.overlayChromaEnabled === true, state.overlayChromaColor || "#00ff00", layoutMode);
       }
       
       // Ceremony state değişikliğini AudienceCeremony modülüne ilet
@@ -338,13 +357,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
     
-    // İlk maç görünümünü yükle (preview yoksa)
-    if (!AudienceCore.previewPayload && AudienceCore.currentView === "match") {
-      await AudienceCore.loadMatchView();
+    // İlk maç görünümünü yükle (baş hakem ekranı gibi REST ile hemen veri al)
+    if (!core.previewPayload && core.currentView === "match") {
+      await core.loadMatchView();
+      // Kısa süre sonra tekrar çek (race / gecikme için; baş hakem mantığı)
+      setTimeout(() => {
+        if (core.currentView === "match" && core.previewState === "none" && typeof core.loadMatchView === "function") {
+          core.loadMatchView().catch(() => {});
+        }
+      }, 400);
+      if (typeof loadNextMatchPreview === "function") {
+        loadNextMatchPreview();
+      }
     }
   } else {
-    console.error("AudienceCore tanımlı değil! audience_core.js yüklenmemiş olabilir.");
+    console.error("AudienceCore veya initialize bulunamadı. audience_core.js yüklendi mi? core=", !!core, "initialize=", core && typeof core.initialize);
     // Fallback: Eski yöntem
+    const loadingEl = document.getElementById("audience_initial_loading");
+    if (loadingEl) loadingEl.setAttribute("aria-hidden", "true");
     await sendHeartbeat();
     await loadScreenSettings();
     if (!previewPayload && currentView === "match") {
@@ -359,8 +389,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (audienceCoreUnsubscribe) {
       audienceCoreUnsubscribe();
     }
-    if (typeof AudienceCore !== "undefined") {
-      AudienceCore.cleanup();
+    if (core && typeof core.cleanup === "function") {
+      core.cleanup();
+    } else if (typeof window.AudienceCore !== "undefined" && typeof window.AudienceCore.cleanup === "function") {
+      window.AudienceCore.cleanup();
     } else {
       // Fallback: Eski yöntem
       stopAudienceSSE();

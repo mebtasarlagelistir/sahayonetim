@@ -117,20 +117,13 @@ async function initializeRefereePanel() {
     
     if (matchCoreInstance) {
       console.log("initializeRefereePanel: Match Core bulundu, subscribe olunuyor...");
+      let lastRefereeMatchId = null;
+      /** Robot durumunu sadece backend verisi gerçekten değiştiğinde uygula (seçimlerin kaybolmasını önler) */
+      let lastAppliedTeamStatusesKey = "";
       matchCoreUnsubscribe = matchCoreInstance.subscribe((state) => {
-        console.log("initializeRefereePanel: Match Core state güncellendi:", {
-          hasMatch: !!state.match,
-          matchId: state.match?.id,
-          status: state.match?.status,
-          currentState: state.currentState
-        });
-        
         // State değiştiğinde UI'ı güncelle
         if (state.match) {
-          console.log("initializeRefereePanel: Maç var, UI güncelleniyor...");
           currentMatch = state.match;
-          
-          // match_source alanını ekle (geriye dönük uyumluluk için)
           if (!currentMatch.match_source && currentMatch.source) {
             currentMatch.match_source = currentMatch.source;
           } else if (!currentMatch.match_source) {
@@ -142,49 +135,66 @@ async function initializeRefereePanel() {
             currentMatch.source = "schedule";
           }
           
-          // Maç bilgilerini yükle
-          if (typeof loadMatchForReferee === "function") {
-            console.log("initializeRefereePanel: loadMatchForReferee çağrılıyor...");
-            loadMatchForReferee();
-          } else {
-            console.warn("initializeRefereePanel: loadMatchForReferee fonksiyonu bulunamadı");
-          }
-          
-          // Sadece atanan ittifakın skorlarını güncelle
-          // ÖNEMLİ: Kullanıcı input yapıyorsa skor güncellemelerini ignore et (kullanıcının girdilerini koru)
-          if (!isUserEditing) {
-            if (assignedAlliance === "red" && state.scores.red) {
-              if (typeof applyScoringDataToForm === "function") {
-                console.log("initializeRefereePanel: Kırmızı ittifak skorları güncelleniyor (kullanıcı input yok)");
-                applyScoringDataToForm(state.scores.red);
-              }
-            } else if (assignedAlliance === "blue" && state.scores.blue) {
-              if (typeof applyScoringDataToForm === "function") {
-                console.log("initializeRefereePanel: Mavi ittifak skorları güncelleniyor (kullanıcı input yok)");
-                applyScoringDataToForm(state.scores.blue);
-              }
+          // Sadece maç değiştiğinde tam yükleme (loadMatchForReferee API çağırır; her notify'da çağırmak seçimleri siliyordu)
+          const matchChanged = state.match.id !== lastRefereeMatchId;
+          if (matchChanged) {
+            lastRefereeMatchId = state.match.id;
+            lastAppliedTeamStatusesKey = "";
+            if (typeof clearRefereeScoringForm === "function") {
+              clearRefereeScoringForm();
+            }
+            if (typeof loadMatchForReferee === "function") {
+              loadMatchForReferee();
+            }
+            // İlk yüklemede backend'den gelen robot durumlarını hemen uygula
+            const tsInitial = state.teamStatuses != null ? state.teamStatuses : {};
+            const tsKeyInitial = JSON.stringify(tsInitial);
+            if (tsKeyInitial && typeof loadRefereeRobotStatuses === "function") {
+              loadRefereeRobotStatuses({ team_statuses: tsInitial });
+              lastAppliedTeamStatusesKey = tsKeyInitial;
             }
           } else {
-            console.log("initializeRefereePanel: Kullanıcı input yapıyor, skor güncellemeleri ignore ediliyor");
+            // Aynı maç: sadece timer, meta ve WebSocket'ten gelen skorları uygula (formu silmeden)
+            if (typeof updateRefereeTimer === "function") {
+              updateRefereeTimer(state.currentState, state.timeRemaining);
+            }
+            if (state.scores && state.scores.referee_meta && typeof updateSubmitStatus === "function") {
+              refereeMeta = state.scores.referee_meta;
+              updateSubmitStatus();
+            }
+            if (!isUserEditing && state.scores) {
+              if (assignedAlliance === "red" && state.scores.red && typeof applyScoringDataToForm === "function") {
+                applyScoringDataToForm(state.scores.red);
+              } else if (assignedAlliance === "blue" && state.scores.blue && typeof applyScoringDataToForm === "function") {
+                applyScoringDataToForm(state.scores.blue);
+              }
+              // Robot durumlarını sadece teamStatuses gerçekten değiştiğinde uygula (tek kaynak: backend)
+              const ts = state.teamStatuses != null ? state.teamStatuses : {};
+              const tsKey = JSON.stringify(ts);
+              if (tsKey !== lastAppliedTeamStatusesKey && typeof loadRefereeRobotStatuses === "function") {
+                loadRefereeRobotStatuses({ team_statuses: ts });
+                lastAppliedTeamStatusesKey = tsKey;
+              }
+            }
           }
           
-          // Timer güncelle
+          // Timer ve referee meta her zaman güncelle
           if (typeof updateRefereeTimer === "function") {
             updateRefereeTimer(state.currentState, state.timeRemaining);
           }
-          
-          // Referee meta güncelle
-          if (state.scores.referee_meta && typeof updateSubmitStatus === "function") {
+          if (state.scores && state.scores.referee_meta && typeof updateSubmitStatus === "function") {
             refereeMeta = state.scores.referee_meta;
             updateSubmitStatus();
           }
           
-          // Preview durumundaki maçlar için mesaj göster
+          // Preview durumundaki maçlar için mesaj göster (metin yapıyı bozmadan sadece mesaj alanını güncelle)
           if (state.isPreview) {
             const noMatchMsg = qs("no_match_message");
             if (noMatchMsg) {
               noMatchMsg.style.display = "block";
-              noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+              const textEl = noMatchMsg.querySelector("#no_match_message_text");
+              if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+              else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
             }
           } else {
             const noMatchMsg = qs("no_match_message");
@@ -286,7 +296,9 @@ async function checkActiveMatch() {
         const noMatchMsg = qs("no_match_message");
         if (noMatchMsg) {
           noMatchMsg.style.display = "block";
-          noMatchMsg.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
+          const textEl = noMatchMsg.querySelector("#no_match_message_text");
+          if (textEl) textEl.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
+          else noMatchMsg.textContent = "Giriş yapmanız gerekiyor. Lütfen giriş yapın.";
         }
         return;
       }
@@ -324,7 +336,9 @@ async function checkActiveMatch() {
           const noMatchMsg = qs("no_match_message");
           if (noMatchMsg) {
             noMatchMsg.style.display = "block";
-            noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            const textEl = noMatchMsg.querySelector("#no_match_message_text");
+            if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
           }
         }
       } else {
@@ -351,7 +365,9 @@ async function checkActiveMatch() {
           const noMatchMsg = qs("no_match_message");
           if (noMatchMsg) {
             noMatchMsg.style.display = "block";
-            noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            const textEl = noMatchMsg.querySelector("#no_match_message_text");
+            if (textEl) textEl.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
+            else noMatchMsg.textContent = "Maç önizleme modunda. Maç kontrol sayfasından maçı başlatın.";
           }
         } else {
           // Preview değilse mesajı gizle
@@ -375,7 +391,9 @@ async function checkActiveMatch() {
       const noMatchMsg = qs("no_match_message");
       if (noMatchMsg) {
         noMatchMsg.style.display = "block";
-        noMatchMsg.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
+        const textEl = noMatchMsg.querySelector("#no_match_message_text");
+        if (textEl) textEl.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
+        else noMatchMsg.textContent = "Aktif maç bulunmuyor. Maç kontrol sayfasından bir maç başlatın.";
       }
       
       // Gerçek zamanlı güncellemeleri durdur
@@ -388,7 +406,9 @@ async function checkActiveMatch() {
     const noMatchMsg = qs("no_match_message");
     if (noMatchMsg) {
       noMatchMsg.style.display = "block";
-      noMatchMsg.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
+      const textEl = noMatchMsg.querySelector("#no_match_message_text");
+      if (textEl) textEl.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
+      else noMatchMsg.textContent = "Aktif maç kontrol edilirken hata oluştu. Lütfen sayfayı yenileyin.";
     }
   }
 }

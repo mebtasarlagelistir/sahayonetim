@@ -50,6 +50,26 @@ async function loadCurrentScores(applyScores = true) {
 }
 
 /**
+ * Hakem puanlama formundaki tüm seçimleri sıfırlar.
+ * Yeni maç başladığında önceki maçtan kalan değerler kalmasın diye çağrılır.
+ */
+function clearRefereeScoringForm() {
+  const panel = typeof qs === "function" ? qs("scoring_panel") : document.getElementById("scoring_panel");
+  if (!panel) return;
+  const inputs = panel.querySelectorAll("input, select");
+  inputs.forEach((el) => {
+    if (el.type === "checkbox") {
+      el.checked = false;
+    } else if (el.type === "number" || el.type === "text") {
+      el.value = el.getAttribute("min") === null ? "0" : (el.getAttribute("min") || "0");
+    }
+  });
+  if (typeof loadRefereeRobotStatuses === "function") {
+    loadRefereeRobotStatuses({});
+  }
+}
+
+/**
  * Puanlama verilerini forma uygular
  */
 function applyScoringDataToForm(scoringData) {
