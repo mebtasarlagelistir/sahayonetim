@@ -86,6 +86,27 @@ async function sendHeartbeat() {
 }
 
 /**
+ * Aktif etkinlik adını yükler ve header/footer'a yazar (maç kontrol ile aynı etkinlik).
+ * GET /api/public/event-info giriş gerektirmez; get_active_event_id() tek kaynaktır.
+ */
+async function loadAudienceEventInfo() {
+  try {
+    const data = await apiGet("/api/public/event-info");
+    const name = (data && data.name) ? String(data.name).trim() : "";
+    const code = (data && data.code) ? String(data.code).trim() : "";
+    const title = name || code || "MEMSKOR";
+    const headerEvent = document.getElementById("audience_header_event");
+    const footerEvent = document.getElementById("audience_footer_event");
+    const footerTitle = document.getElementById("audience_footer_title");
+    if (headerEvent) headerEvent.textContent = title || "MEMSKOR";
+    if (footerEvent) footerEvent.textContent = title || "MEMSKOR";
+    if (footerTitle) footerTitle.textContent = title || "Türkiye Şampiyonası";
+  } catch (err) {
+    console.warn("loadAudienceEventInfo:", err);
+  }
+}
+
+/**
  * Takım listesini yükler (seyirci ekranında takım isimleri göstermek için)
  */
 async function loadAudienceTeams() {

@@ -385,8 +385,13 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                             match_id = active_match.get("id")
                             match_source = active_match.get("match_source", "schedule")
                             match_key = f"{event_id}_{match_source}_{match_id}"
-                            
-                            # Maç durumu güncellemesi
+                            # Timer maç kontrol ile senkron: cache'deki time_remaining güncellenir
+                            match_state_manager.refresh_match_state(event_id, match_key)
+                            active_match = match_state_manager.get_active_match(event_id)
+                            if not active_match:
+                                time.sleep(0.1)
+                                continue
+                            # Maç durumu güncellemesi (güncel time_remaining ile)
                             current_state = active_match.get("current_state")
                             time_remaining = active_match.get("time_remaining")
                             
@@ -455,7 +460,7 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                                     "server_timestamp": time.time()
                                 }, room=screen_id, namespace="/audience")
                         
-                        time.sleep(0.3)  # 300ms'de bir güncelle
+                        time.sleep(0.1)  # 100ms: maç kontrol ile senkron timer/skor/ses için hızlı güncelleme
                         
                     except Exception as e:
                         logger.error(f"Audience update thread hatası (screen_id={screen_id}): {str(e)}", exc_info=True)
@@ -491,6 +496,43 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 # Güncelleme thread'ini başlat (eğer yoksa)
                 if screen_id not in _audience_update_threads:
                     _start_audience_update_thread(screen_id)
+                
+                # Yeni bağlanan seyirciye anında canlı skor ve timer gönder (beklemeden)
+                event_id = datastore.get_active_event_id()
+                if event_id:
+                    from src.core.match_state import get_match_state_manager
+                    from src.core.scoring.realtime import get_realtime_manager
+                    _mm = get_match_state_manager(datastore)
+                    _rm = get_realtime_manager()
+                    active_match = _mm.get_active_match(event_id)
+                    if active_match:
+                        _match_id = active_match.get("id")
+                        _match_source = active_match.get("match_source", "schedule")
+                        _match_key = f"{event_id}_{_match_source}_{_match_id}"
+                        _mm.refresh_match_state(event_id, _match_key)
+                        active_match = _mm.get_active_match(event_id)
+                        if active_match:
+                            match_data = dict(active_match)
+                            match_data["server_timestamp"] = time.time()
+                            socketio.emit("match_update", {"type": "match_update", "match": match_data}, room=screen_id, namespace="/audience")
+                            current_scores = _rm.get_current_scores(_match_key)
+                            if current_scores:
+                                red_data = current_scores.get("red", {})
+                                blue_data = current_scores.get("blue", {})
+                                red_score = blue_score = 0
+                                if red_data or blue_data:
+                                    try:
+                                        if red_data:
+                                            red_score = ScoreCalculator().calculate_alliance_score("red", red_data, blue_data).get("total_score", 0)
+                                        if blue_data:
+                                            blue_score = ScoreCalculator().calculate_alliance_score("blue", blue_data, red_data).get("total_score", 0)
+                                    except Exception as calc_err:
+                                        logger.warning("Audience subscribe skor hesaplama: %s", calc_err)
+                                socketio.emit("scores_update", {
+                                    "type": "scores_update",
+                                    "scores": {"red_score": red_score, "blue_score": blue_score},
+                                    "server_timestamp": time.time()
+                                }, room=screen_id, namespace="/audience")
                 
                 logger.info(f"Audience WebSocket abone oldu: screen_id={screen_id}, sid={session_id}")
                 

@@ -215,6 +215,16 @@ function calculateScoreBreakdown() {
   });
 
   updateRankingPoints(rankingData);
+
+  // Skor Düzenle sekmesindeyse: Kırmızı/Mavi Skor input'larını hesaplanan toplamlarla güncelle (otomatik güncelleme)
+  if (typeof scoreEditSelected !== "undefined" && scoreEditSelected) {
+    const redTotalEl = qs("red_total_score");
+    const blueTotalEl = qs("blue_total_score");
+    const redEditInput = qs("score_edit_red_score");
+    const blueEditInput = qs("score_edit_blue_score");
+    if (redTotalEl && redEditInput) redEditInput.value = redTotalEl.textContent || "0";
+    if (blueTotalEl && blueEditInput) blueEditInput.value = blueTotalEl.textContent || "0";
+  }
 }
 
 /**
@@ -643,7 +653,10 @@ async function loadScoreEditMatches() {
     };
     
     listContainer.innerHTML = completed.map(match => {
-      const hasScores = match.red_score !== null && match.blue_score !== null;
+      // Hakemler tek ittifak girmiş olsa bile skorları göster (red/blue null olabilir)
+      const redVal = match.red_score !== null && match.red_score !== undefined ? match.red_score : null;
+      const blueVal = match.blue_score !== null && match.blue_score !== undefined ? match.blue_score : null;
+      const hasAnyScore = redVal !== null || blueVal !== null;
       const isSelected = scoreEditSelected && scoreEditSelected.id === match.id && (scoreEditSelected.source || "schedule") === (match.source || "schedule");
       const matchDate = match.match_date || "";
       const matchTime = match.match_time || "";
@@ -672,27 +685,19 @@ async function loadScoreEditMatches() {
             </div>
           </div>
           
-          ${hasScores ? `
-            <div class="score-edit-card-scores">
-              <div class="score-display-large">
-                <div class="score-display-item score-red-large">
-                  <span class="score-label">Kırmızı</span>
-                  <span class="score-value">${match.red_score || 0}</span>
-                </div>
-                <div class="score-separator-large">-</div>
-                <div class="score-display-item score-blue-large">
-                  <span class="score-label">Mavi</span>
-                  <span class="score-value">${match.blue_score || 0}</span>
-                </div>
+          <div class="score-edit-card-scores">
+            <div class="score-display-large">
+              <div class="score-display-item score-red-large">
+                <span class="score-label">Kırmızı</span>
+                <span class="score-value">${hasAnyScore ? (redVal !== null ? redVal : "-") : "0"}</span>
+              </div>
+              <div class="score-separator-large">-</div>
+              <div class="score-display-item score-blue-large">
+                <span class="score-label">Mavi</span>
+                <span class="score-value">${hasAnyScore ? (blueVal !== null ? blueVal : "-") : "0"}</span>
               </div>
             </div>
-          ` : `
-            <div class="score-edit-card-scores">
-              <div class="score-display-large no-scores">
-                <span>Skor girilmemiş</span>
-              </div>
-            </div>
-          `}
+          </div>
           
           <div class="score-edit-card-actions">
             <button class="btn-primary btn-medium" data-action="edit">
@@ -732,16 +737,17 @@ async function loadScoreEditMatches() {
 }
 
 /**
- * Skor düzenleme için maç seçer
+ * Skor düzenleme için maç seçer.
+ * Hakem puanlarının görünmesi için seçilen maçı sunucudan yeniden çeker (red_score, blue_score, scoring_data).
  */
-function selectScoreEditMatch(matchId, matchSource) {
+async function selectScoreEditMatch(matchId, matchSource) {
   const form = qs("score_edit_form");
   const info = qs("score_edit_match_info");
   const redInput = qs("score_edit_red_score");
   const blueInput = qs("score_edit_blue_score");
   const notesInput = qs("score_edit_notes");
-  const match = scoreEditMatches.find((m) => m.id === matchId && (m.source || "schedule") === (matchSource || "schedule"));
-  
+  let match = scoreEditMatches.find((m) => m.id === matchId && (m.source || "schedule") === (matchSource || "schedule"));
+
   // Önceki seçili kartı temizle
   const listContainer = qs("score_edit_match_list");
   if (listContainer) {
@@ -750,8 +756,6 @@ function selectScoreEditMatch(matchId, matchSource) {
       const btn = card.querySelector("[data-action='edit']");
       if (btn) btn.textContent = "Düzenle";
     });
-    
-    // Yeni seçili kartı vurgula
     const selectedCard = listContainer.querySelector(`[data-match-id="${matchId}"][data-match-source="${matchSource}"]`);
     if (selectedCard) {
       selectedCard.classList.add("selected");
@@ -761,10 +765,28 @@ function selectScoreEditMatch(matchId, matchSource) {
   }
   if (!match || !form || !info || !redInput || !blueInput) return;
 
+  // Hakemlerin girdiği güncel skor ve detayları almak için sunucudan maçı tekrar çek
+  try {
+    const scheduleMatches = await apiGet("/api/match-schedule");
+    const practiceMatches = await apiGet("/api/practice-matches");
+    const merged = [
+      ...(Array.isArray(scheduleMatches) ? scheduleMatches : []).map((m) => ({ ...m, source: "schedule" })),
+      ...(Array.isArray(practiceMatches) ? practiceMatches : []).map((m) => ({ ...m, source: "practice", match_type: m.match_type || "practice" }))
+    ];
+    const fromServer = merged.find((m) => m.id === matchId && (m.source || "schedule") === (matchSource || "schedule"));
+    if (fromServer) {
+      match = fromServer;
+      const idx = scoreEditMatches.findIndex((m) => m.id === matchId && (m.source || "schedule") === (matchSource || "schedule"));
+      if (idx >= 0) scoreEditMatches[idx] = match;
+    }
+  } catch (err) {
+    console.warn("Score edit: Maç verisi sunucudan yeniden alınamadı, önbellek kullanılıyor:", err);
+  }
+
   scoreEditSelected = match;
   info.textContent = `Maç ${match.match_number} • ${getMatchTypeLabel(match.match_type)} • Saha ${match.field_number}`;
-  redInput.value = match.red_score ?? 0;
-  blueInput.value = match.blue_score ?? 0;
+  redInput.value = match.red_score !== null && match.red_score !== undefined ? match.red_score : 0;
+  blueInput.value = match.blue_score !== null && match.blue_score !== undefined ? match.blue_score : 0;
   if (notesInput) {
     notesInput.value = match.notes || "";
   }
@@ -776,8 +798,12 @@ function selectScoreEditMatch(matchId, matchSource) {
     renderDetailedAllianceTeams("blue", match.blue_alliance);
     renderDetailedAllianceTeams("red", match.red_alliance);
   }
-  applyScoringData(match.scoring_data || {});
-  calculateScoreBreakdown();
+  // scoring_data: hakemlerin girdiği detaylı puanlar { red: {...}, blue: {...} }
+  const scoringData = match.scoring_data && typeof match.scoring_data === "object" ? match.scoring_data : {};
+  applyScoringData(scoringData);
+  if (typeof calculateScoreBreakdown === "function") {
+    calculateScoreBreakdown();
+  }
 }
 
 /**
@@ -818,6 +844,10 @@ async function saveScoreEdit() {
     scoreEditSelected.notes = notesInput?.value || "";
     showToast("Skor güncellendi", "success");
     await loadScoreEditMatches();
+    // Listeyi yeniledikten sonra seçili maçı tekrar seç; böylece hem liste kartı hem form güncel sonucu gösterir
+    if (scoreEditSelected) {
+      selectScoreEditMatch(scoreEditSelected.id, scoreEditSelected.source || "schedule");
+    }
   } catch (err) {
     console.error("Score edit save error:", err);
     showToast("Skor kaydedilemedi", "error");

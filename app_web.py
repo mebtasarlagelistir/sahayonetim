@@ -635,6 +635,24 @@ def create_app() -> Flask:
             awards = []
         return jsonify(awards)
 
+    @app.get("/api/public/event-info")
+    def get_event_info_public():
+        """
+        Seyirci ekranı için aktif etkinlik adı/kodu (giriş gerektirmez).
+        Maç kontrol ile aynı etkinlik: get_active_event_id() tek kaynaktır.
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"name": "", "code": "", "id": None})
+        event_data = datastore.get_event()
+        if not event_data:
+            return jsonify({"name": "", "code": "", "id": event_id})
+        return jsonify({
+            "id": event_id,
+            "name": event_data.get("name") or "",
+            "code": event_data.get("code") or "",
+        })
+
     @app.get("/api/public/inspection-status")
     def get_inspection_status_public():
         """

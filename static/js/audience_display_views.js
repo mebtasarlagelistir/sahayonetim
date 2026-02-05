@@ -9,6 +9,21 @@
  */
 
 /**
+ * Maç türüne göre üst bar için kısa etiket (seyirci ekranında "hangi maç" doğrulaması).
+ * @param {Object} match - match objesi (match_type, match_number)
+ * @returns {string} Örn. "Maç P19", "Sıralama #12", "Maç 7"
+ */
+function getMatchHeaderLabel(match) {
+  if (!match) return "";
+  const type = (match.match_type || "qualification").toLowerCase();
+  const num = match.match_number ?? "";
+  if (type === "practice") return num ? `Maç ${num}` : "Deneme Maçı";
+  if (type === "qualification") return num ? `Sıralama #${num}` : "Sıralama";
+  if (type === "elimination" || type === "final") return num ? `Maç ${num}` : "Maç";
+  return num ? `Maç ${num}` : "";
+}
+
+/**
  * Maç görünümünü günceller (WebSocket'ten gelen verilerle)
  * 
  * @param {Object} match - Maç objesi
@@ -41,6 +56,8 @@ function updateMatchView(match, timeOffset = 0) {
     if (redTeams) redTeams.textContent = "-";
     if (blueTeams) blueTeams.textContent = "-";
     if (matchMeta) matchMeta.textContent = "";
+    const headerMatchEl = document.getElementById("audience_header_match");
+    if (headerMatchEl) headerMatchEl.textContent = "";
     
     if (typeof hideResultsPanel === "function") {
       hideResultsPanel();
@@ -112,6 +129,11 @@ function updateMatchView(match, timeOffset = 0) {
   }
   if (matchMeta) {
     matchMeta.textContent = `${match.match_type || ""} • Saha ${match.field_number || "-"}`;
+  }
+  // Üst bar ortası: hangi maç gösteriliyor (P19, Sıralama #12 vb.) – doğru etkinlik/maç kontrolü için
+  const headerMatchEl = document.getElementById("audience_header_match");
+  if (headerMatchEl) {
+    headerMatchEl.textContent = getMatchHeaderLabel(match);
   }
   if (nextMatch) {
     nextMatch.textContent = "";

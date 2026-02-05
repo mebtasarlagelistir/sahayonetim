@@ -235,6 +235,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("touchstart", resumeAudio, { once: true });
   }
   
+  // Aktif etkinlik adını yükle (maç kontrol ile aynı etkinlik; header/footer doğrulaması)
+  if (typeof loadAudienceEventInfo === "function") {
+    loadAudienceEventInfo().catch(() => {});
+  }
   // Takım listesini yükle (seyirci ekranında takım isimleri için)
   if (typeof loadAudienceTeams === "function") {
     loadAudienceTeams().catch(() => {});
@@ -320,10 +324,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
     
-    // İlk maç görünümünü yükle (preview yoksa)
+    // İlk maç görünümünü yükle (baş hakem ekranı gibi REST ile hemen veri al)
     if (!core.previewPayload && core.currentView === "match") {
       await core.loadMatchView();
-      // Maç yoksa "Sıradaki maç" satırını mutlaka güncelle (varsayılan "Sıradaki maç yükleniyor..." kalmasın)
+      // Kısa süre sonra tekrar çek (race / gecikme için; baş hakem mantığı)
+      setTimeout(() => {
+        if (core.currentView === "match" && core.previewState === "none" && typeof core.loadMatchView === "function") {
+          core.loadMatchView().catch(() => {});
+        }
+      }, 400);
       if (typeof loadNextMatchPreview === "function") {
         loadNextMatchPreview();
       }

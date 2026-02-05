@@ -387,6 +387,11 @@ class MatchStateManager:
         """
         match_data = match_state.get("match_data", {})
         
+        try:
+            from src.core.constants import MatchConstants
+            state_label = MatchConstants.MATCH_STATES.get(match_state.get("state", "idle"), "Beklemede")
+        except ImportError:
+            state_label = "Beklemede"
         response = {
             "id": match_state.get("match_id"),
             "match_number": match_data.get("match_number"),
@@ -399,6 +404,7 @@ class MatchStateManager:
             "status": match_state.get("status"),
             "match_source": match_state.get("match_source"),
             "current_state": match_state.get("state", "idle"),
+            "state_label": state_label,
             "time_remaining": match_state.get("time_remaining", 0),
             "started_at": match_state.get("started_at"),
             "is_preview": match_state.get("status") == "preview",

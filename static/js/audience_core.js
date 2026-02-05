@@ -82,7 +82,7 @@ class AudienceCore {
     this.matchViewInterval = null; // Canlı maç verisi yedek (WebSocket yoksa)
     this.SETTINGS_CHECK_INTERVAL = 500; // 0.5 saniye - "Ön izleme göster" sonrası ilk görüntü hızlı gelsin
     this.HEARTBEAT_INTERVAL = 5000; // 5 saniye
-    this.MATCH_VIEW_INTERVAL = 3000; // 3 saniyede bir maç verisi (yedek)
+    this.MATCH_VIEW_INTERVAL = 1000; // 1 saniye (baş hakem ekranı gibi periyodik REST ile timer/skor)
     
     // Error recovery
     this.lastError = null;
@@ -327,12 +327,17 @@ class AudienceCore {
       if (data.match) {
         this.match = data.match;
         this.currentState = data.match.current_state || "idle";
-        this.timeRemaining = data.match.time_remaining || 0;
+        this.timeRemaining = data.match.time_remaining ?? 0;
         this.scores = {
-          red: data.match.red_score || 0,
-          blue: data.match.blue_score || 0
+          red: data.match.red_score ?? 0,
+          blue: data.match.blue_score ?? 0
         };
-        
+        if (data.server_timestamp != null) {
+          this.lastServerTimestamp = data.server_timestamp;
+        }
+        if (this.match && data.server_timestamp != null) {
+          this.match.server_timestamp = data.server_timestamp;
+        }
         this.notify();
       } else {
         // Maç yok
@@ -380,19 +385,21 @@ class AudienceCore {
         this.retryCount = 0;
         this.isWebSocketActive = true;
         
-        // Audience güncellemelerine abone ol
+        // Abone ol; sunucu anında match_update + scores_update gönderir
         this.audienceSocket.emit("subscribe_audience", {
           screen_id: this.screenId
         });
         
         this.notify();
+        // Canlı skor/timer için REST yedek (sunucu yanıtı gecikirse)
+        this.loadMatchView().catch(() => {});
       });
       
-      // Maç güncellemesi (timer senkron: server_timestamp; maç başlayınca önizlemeyi kaldır)
+      // Maç güncellemesi (maç kontrol ile senkron: state değişince broadcast gelir; timer/ses aynı anda)
       this.audienceSocket.on("match_update", (data) => {
         try {
           const match = data.match;
-          const isActiveMatch = match && ["autonomous", "driver_controlled", "end_game"].includes(match.current_state);
+          const isActiveMatch = match && ["autonomous", "prepare_teleop", "driver_controlled", "end_game"].includes(match.current_state);
           if (this.previewState !== "none" && isActiveMatch) {
             this.previewPayload = null;
             this.previewState = "none";

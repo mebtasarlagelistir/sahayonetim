@@ -98,11 +98,51 @@ async function startMatch() {
     
   } catch (err) {
     console.error("Start match error:", err);
-    showToast("Maç başlatılırken hata oluştu", "error");
+    const msg = (err && err.message) ? String(err.message) : "";
+    const status = err && (err.status ?? err.statusCode);
+    const is409 = status === 409 || (msg && (msg.indexOf("Zaten aktif") !== -1 || msg.indexOf("409") !== -1));
+    if (is409) {
+      showToast("Zaten aktif bir maç var (örn. Maç 2). Yeni maç başlatmak için üstteki «Aktif Maçı Sıfırla» butonuna tıklayın.", "warning");
+    } else {
+      showToast(msg || "Maç başlatılırken hata oluştu", "error");
+    }
   } finally {
     // Buton loading state'i kaldır
     if (btnStart && typeof setButtonLoading === "function") {
       setButtonLoading(btnStart, false);
+    }
+  }
+}
+
+/**
+ * Veritabanında takılı kalan aktif maçı sıfırlar; yeni maç başlatmak için kullanılır.
+ */
+async function resetActiveMatch() {
+  const btnReset = qs("btn_reset_active");
+  if (btnReset && typeof setButtonLoading === "function") {
+    setButtonLoading(btnReset, true);
+  }
+  try {
+    const data = await apiPost("/api/match-control/reset-active", {});
+    const reset = (data && data.reset) || [];
+    if (reset.length) {
+      showToast(`Aktif maç sıfırlandı (${reset.length} maç). Artık yeni maç başlatabilirsiniz.`, "success");
+    } else {
+      showToast("Veritabanında şu an 'devam eden' maç yok. Ekrandaki maç Takvim'den yüklenen kayıtlı maçtır. Yeni maç başlatmak için «Maçı Başlat» deyin.", "info");
+    }
+    const matchCoreInstance = (typeof window !== "undefined" && window.MatchCore) || (typeof MatchCore !== "undefined" && MatchCore);
+    if (matchCoreInstance && typeof matchCoreInstance.loadActiveMatch === "function") {
+      await matchCoreInstance.loadActiveMatch(true);
+    }
+    if (typeof loadMatchList === "function") {
+      loadMatchList();
+    }
+  } catch (err) {
+    console.error("Reset active match error:", err);
+    showToast((err && err.message) || "Aktif maç sıfırlanırken hata oluştu", "error");
+  } finally {
+    if (btnReset && typeof setButtonLoading === "function") {
+      setButtonLoading(btnReset, false);
     }
   }
 }

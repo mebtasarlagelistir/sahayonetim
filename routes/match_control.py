@@ -386,6 +386,33 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                         response_data["team_statuses"] = current_scores["team_statuses"]
                     socketio.emit("scores", {"type": "scores", "scores": response_data}, room=room, namespace="/match")
                 logger.info(f"WebSocket match_state ve scores gönderildi (maç başlatıldı): room={room}")
+                # Seyirci ekranları maç başlangıcı ile senkron: anında match_update + scores_update
+                match_data["state_label"] = MATCH_STATES.get(match_data.get("current_state"), "Beklemede")
+                socketio.emit("match_update", {
+                    "type": "match_update",
+                    "match": match_data,
+                    "server_timestamp": match_data["server_timestamp"]
+                }, namespace="/audience", broadcast=True)
+                red_score = 0
+                blue_score = 0
+                if current_scores:
+                    try:
+                        from src.core.scoring import ScoreCalculator
+                        calc = ScoreCalculator()
+                        red_data = current_scores.get("red") or {}
+                        blue_data = current_scores.get("blue") or {}
+                        if red_data or blue_data:
+                            if red_data:
+                                red_score = calc.calculate_alliance_score("red", red_data, blue_data).get("total_score", 0)
+                            if blue_data:
+                                blue_score = calc.calculate_alliance_score("blue", blue_data, red_data).get("total_score", 0)
+                    except Exception as calc_err:
+                        logger.warning(f"Audience skor hesaplama (start_match): {calc_err}")
+                socketio.emit("scores_update", {
+                    "type": "scores_update",
+                    "scores": {"red_score": red_score, "blue_score": blue_score},
+                    "server_timestamp": time.time()
+                }, namespace="/audience", broadcast=True)
             
             if active_match:
                 return jsonify({
@@ -503,6 +530,35 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             logger.error(f"Maç durdurma hatası: {str(e)} (match_id: {data.get('match_id')}, kullanıcı: {session.get('username', 'unknown')})", exc_info=True)
             return jsonify({"error": "Maç durdurulurken bir hata oluştu"}), 500
     
+    @bp.route("/api/match-control/reset-active", methods=["POST"])
+    @require_login
+    @require_event_manager
+    def reset_active_match():
+        """
+        Veritabanında in_progress kalan (takılı kalan) aktif maçı sıfırlar.
+        Yeni maç başlatmak için kullanılır; Maç 2 (Saha 2) gibi eski aktif maç temizlenir.
+        """
+        try:
+            event_id = datastore.get_active_event_id()
+            if not event_id:
+                return jsonify({"error": "Aktif etkinlik yok"}), 400
+            
+            reset_list = []
+            active_schedule = datastore.get_match_schedule(event_id=event_id, status="in_progress")
+            for m in active_schedule or []:
+                match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="schedule")
+                reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "schedule"})
+            active_practice = datastore.get_practice_matches(event_id=event_id, status="in_progress")
+            for m in active_practice or []:
+                match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="practice")
+                reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "practice"})
+            
+            logger.info("Aktif maç sıfırlandı: %s (kullanıcı: %s)", reset_list, session.get("user", "?"))
+            return jsonify({"ok": True, "reset": reset_list})
+        except Exception as e:
+            logger.error("Aktif maç sıfırlama hatası: %s", e, exc_info=True)
+            return jsonify({"error": "Aktif maç sıfırlanırken bir hata oluştu"}), 500
+    
     @bp.route("/api/match-control/state", methods=["POST"])
     @require_login
     @require_event_manager
@@ -560,6 +616,13 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "match": match_data
                 }, room=room, namespace="/match")
                 logger.info(f"WebSocket match_state gönderildi (durum güncellendi): room={room}, state={new_state}")
+                # Seyirci ekranları maç kontrol ile senkron: aynı anda match_update gönder (ses + timer)
+                match_data["state_label"] = MATCH_STATES.get(match_data.get("current_state"), "Beklemede")
+                socketio.emit("match_update", {
+                    "type": "match_update",
+                    "match": match_data,
+                    "server_timestamp": match_data["server_timestamp"]
+                }, namespace="/audience", broadcast=True)
             
             return jsonify({
                 "ok": True,
@@ -1136,22 +1199,29 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         """
         Audience display için canlı maç bilgisini döner.
         Bu endpoint kimlik doğrulama gerektirmez (herkese açık).
-        
-        Returns:
-            JSON: Canlı maç bilgisi (skorlar, durum, takımlar)
+        REST fallback ile seyirci ekranı güncel timer/skor alır; önce refresh_match_state ile güncellenir.
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
             return jsonify({"match": None})
         
-        # Merkezi MatchStateManager'dan aktif maçı al
         match = match_state_manager.get_active_match(event_id)
-        
         if not match:
             return jsonify({"match": None})
         
-        # Audience display için formatla
+        # Canlı timer için cache güncelle (REST ile açan seyirci de güncel görsün)
+        match_id = match.get("id")
+        match_source = match.get("match_source", "schedule")
+        match_key = _build_match_key(event_id, match_id, match_source)
+        match_state_manager.refresh_match_state(event_id, match_key)
+        match = match_state_manager.get_active_match(event_id)
+        if not match:
+            return jsonify({"match": None})
+        
+        # Baş hakem / MatchCore ile aynı mantık: timer senkronu için server_timestamp
+        server_ts = time.time()
         return jsonify({
+            "server_timestamp": server_ts,
             "match": {
                 "id": match.get("id"),
                 "match_number": match.get("match_number"),
@@ -1164,7 +1234,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 "blue_score": match.get("blue_score", 0),
                 "current_state": match.get("current_state", "idle"),
                 "time_remaining": match.get("time_remaining", 0),
-                "state_label": MATCH_STATES.get(match.get("current_state", "idle"), "Beklemede"),
+                "state_label": match.get("state_label") or MATCH_STATES.get(match.get("current_state", "idle"), "Beklemede"),
+                "server_timestamp": server_ts,
             }
         })
     

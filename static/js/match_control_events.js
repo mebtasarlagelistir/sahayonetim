@@ -408,6 +408,16 @@ function setupEventListeners() {
     });
   }
 
+  // Aktif maçı sıfırla (takılı kalan maç için)
+  const btnResetActive = qs("btn_reset_active");
+  if (btnResetActive) {
+    btnResetActive.addEventListener("click", () => {
+      if (typeof resetActiveMatch === "function") {
+        resetActiveMatch();
+      }
+    });
+  }
+
   // Sonuçları göster
   const btnShowResults = qs("btn_show_results");
   if (btnShowResults) {
