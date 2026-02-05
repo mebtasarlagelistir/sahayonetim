@@ -75,6 +75,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     def _finalize_completed_match(event_id: int, match_id: int, match_source: str) -> None:
         """
         Süresi biten maçı tamamlandı olarak işaretler ve canlı durumu temizler.
+        Rankings güncellemesini audience ekranlarına bildirir.
         """
         try:
             if match_source == "practice":
@@ -85,6 +86,21 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             match_key = _build_match_key(event_id, match_id, match_source)
             realtime_manager = get_realtime_manager()
             realtime_manager.cleanup_match(match_key)
+            
+            # WebSocket ile tüm audience ekranlarına maç tamamlandı ve rankings güncellemesi bildir
+            if socketio:
+                socketio.emit("match_completed", {
+                    "type": "match_completed",
+                    "match_id": match_id,
+                    "match_source": match_source
+                }, namespace="/audience")
+                
+                # Rankings güncellemesi (maç tamamlandığında sıralama değişir)
+                socketio.emit("rankings_update", {
+                    "type": "rankings_update",
+                    "reason": "match_completed"
+                }, namespace="/audience")
+                logger.info(f"Match completed broadcast: match_id={match_id}")
         except Exception as e:
             logger.error(
                 f"Maç otomatik tamamlama hatası: {str(e)} (match_id: {match_id})",
@@ -827,6 +843,20 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                         "type": "scores",
                         "scores": response_data
                     }, room=room, namespace="/match")
+                    
+                    # Audience ekranlarına da skor güncellemesi gönder (anlık güncelleme için)
+                    red_score = calculated_scores.get("red", {}).get("total_score", 0)
+                    blue_score = calculated_scores.get("blue", {}).get("total_score", 0)
+                    socketio.emit("scores_update", {
+                        "type": "scores_update",
+                        "scores": {
+                            "red_score": red_score,
+                            "blue_score": blue_score
+                        },
+                        "match_id": match_id,
+                        "server_timestamp": time.time()
+                    }, namespace="/audience")
+                    
                     logger.info(f"WebSocket broadcast: match_id={match_id}, alliance={alliance}, room={room}")
 
             # scoring_data'yı veritabanında sakla (ittifak bazlı)

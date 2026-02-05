@@ -1,234 +1,104 @@
-# Inspection Module - Phase 1: FRC Enhancement Flow
+# BRANCH MERGE FLOW - Sudem & Hasan → Main
 
-## Strategic Flow Plan
+## 1. MEVCUT DURUM ANALİZİ
 
-### Problem Definition
-**What:** Mevcut inspection modülü temel tiplere sahip (hardware, size, safety, software, weight, custom). FRC yarışmalarına özel daha detaylı inceleme kategorileri ve checklist sistemi eklenmeli.
+### Branch Yapısı
+- **main**: Base branch (son merge: Sudem'in bazı değişiklikleri - #1 PR)
+- **origin/Hasan**: 5 yeni commit (WebSocket refactor + Chroma Key + Ranking/Bracket + Test)
+- **origin/sudem**: 1 yeni commit (WebSocket altyapısı + Screens modern tasarım)
 
-**Why:** FRC yarışmaları katı kurallara sahip. Her robot kategori bazlı detaylı inceleme geçmelidir. Mevcut sistem genel amaçlı, FRC'nin özel ihtiyaçlarını karşılamıyor.
-
-**Success Criteria:**
-1. ✅ 10 FRC-specific inspection type tanımlanmalı
-2. ✅ Her inspection type için checklist template'i olmalı
-3. ✅ Checklist durumu (pass/fail/na) kaydedilmeli
-4. ✅ Durum renklendirmesi görünmeli (yeşil/sarı/kırmızı)
-5. ✅ Print/export checklist içermeli
-6. ✅ Backward compatibility (mevcut veriler bozulmamalı)
+### Ortak Ata
+Her iki branch de `f2f8321` commit'inden dallanmış.
 
 ---
 
-## User Flow Map
+## 2. ÖZELLİK HARİTASI
 
-### Flow 1: Inspection Settings Configuration
-```
-1. Admin/Event Manager → Setup → İnceleme Programı
-2. "İnceleme Tipi Süreleri" bölümünde 10 FRC tipi görür:
-   - Weight (Ağırlık) ⚖️
-   - Size (Boyut) 📏
-   - General Hardware (Genel Donanım) 🔧
-   - Electrical (Elektrik) ⚡
-   - Pneumatics (Pnömatik - opsiyonel) 💨
-   - Radio/Communication (Radio/İletişim) 📡
-   - Software/Control (Yazılım) 💻
-   - Bumpers (Tamponlar) 🛡️
-   - Game-Specific (Oyuna Özel) 🎮
-   - Safety (Güvenlik) ⚠️
-3. Her tip için:
-   - Checkbox (aktif/pasif)
-   - Süre ayarı (dakika)
-   - Checklist template seçimi (dropdown - gelecek özellik)
-4. "Süreleri Kaydet" → Backend'e POST /api/inspection-settings
-5. Ayarlar event.inspection_settings altına kaydedilir
-```
+### HASAN BRANCH ÖZELLİKLERİ
+1. **WebSocket Refactor**: SSE'den WebSocket'e geçiş (çok kapsamlı)
+2. **Chroma Key (Yeşil Ekran)**: Seyirci ekranı için OBS uyumlu arka plan
+3. **Ranking System**: Yeni ranking_config, ranking_points, team_rankings
+4. **Bracket System**: bracket_config, bracket_generator (turnuva braketleri)
+5. **Match Control İyileştirmeleri**: Aktif maç sıfırlama, senkronizasyon
+6. **Head Referee Panel**: Gelişmiş hakem paneli özellikleri
+7. **Dokümantasyon**: Birçok .md dosyası (temizlik yapılmış - çoğu silindi)
+8. **Test Dosyaları**: Yeni test yapısı (tests/ klasörü)
+9. **Dashboard İyileştirmeleri**: dashboard.js güncellemeleri
 
-### Flow 2: Automatic Schedule Generation with FRC Types
-```
-1. Admin → "Otomatik Takvim Oluştur" butonu
-2. Seçili FRC tipleri için (checkbox işaretli olanlar) slot oluşturulur
-3. Backend algorithm:
-   - Her takım için seçili tiplerin hepsi oluşturulur
-   - Sıralama: Önce Weight → Size → Electrical → ... (priority order)
-   - Her slot için checklist_data başlatılır (boş template)
-4. Slotlar DB'ye kaydedilir (inspection_slots tablosu)
-```
-
-### Flow 3: Inspector Conducts Inspection (Checklist)
-```
-1. Inspector → İnceleme Programı sayfası
-2. Grid veya Liste görünümünde slot seçer
-3. Slot satırına tıklayınca "Checklist" modal açılır:
-   - Inspection type'a özel checklist items gösterilir
-   - Her item için: [ ] checkbox, notes input, Pass/Fail/N/A butonları
-4. Inspector işaretler:
-   - Pass (✓) → Yeşil
-   - Fail (✗) → Kırmızı
-   - N/A (—) → Gri
-5. "Kaydet" → Backend'e PUT /api/inspection-slots/<id>
-   - checklist_data JSON olarak notes alanına kaydedilir
-6. Slot durumu otomatik güncellenir:
-   - Tüm items PASS → status: "passed" (yeşil)
-   - En az 1 FAIL → status: "failed" (kırmızı)
-   - PASS + bazı N/A → status: "passed_with_conditions" (sarı)
-```
-
-### Flow 4: Status Color Coding
-```
-1. Liste görünümü:
-   - Status dropdown'ında seçilen değere göre row arka plan rengi
-   - scheduled → Varsayılan (beyaz/açık gri)
-   - in_progress → Mavi
-   - passed → Yeşil
-   - passed_with_conditions → Sarı
-   - failed → Açık kırmızı
-   - pending_reinspection → Turuncu
-   - cancelled, no_show → Gri
-2. Grid görünümü:
-   - Cell background color aynı mantıkla değişir
-```
-
-### Flow 5: Print Schedule with Checklist
-```
-1. Admin → "🖨️ Yazdır" butonu
-2. Backend:
-   - Slot listesi alınır
-   - Her slot için checklist_data parse edilir
-3. Print window:
-   - Slot tablosu (team, type, date, time, status)
-   - Her slot için checklist summary (pass/fail count)
-   - Detaylı checklist (opsiyonel toggle)
-4. Browser print dialog → PDF/Printer
-```
+### SUDEM BRANCH ÖZELLİKLERİ
+1. **WebSocket Altyapısı**: inspection_update, awards_update, rankings_update, match_completed events
+2. **Screens Sayfası Modern Tasarım**: screens.html ve screens.js tamamen yeniden tasarım
+3. **Audience Display Views**: inspection, awards, rankings view'ları için WebSocket entegrasyonu
+4. **Style Güncellemeleri**: Modern CSS (screens için özellikle)
+5. **Inspection Route**: inspection.py güncellemeleri
 
 ---
 
-## Data Model Changes
+## 3. ÇAKIŞAN DOSYALAR VE STRATEJİ
 
-### inspection_slots Table (No Schema Change)
-```sql
--- Mevcut şema yeterli, sadece notes alanı JSON olarak kullanılacak
-notes TEXT -- JSON format: {"checklist": [...], "general_notes": "..."}
-```
-
-### Checklist Data Structure (JSON in notes field)
-```json
-{
-  "checklist": [
-    {
-      "id": "weight_robot",
-      "category": "weight",
-      "label": "Robot weight with battery ≤ 56.7 kg",
-      "status": "pass",  // pass, fail, na, pending
-      "notes": "55.2 kg measured",
-      "checked_by": "Inspector 1",
-      "checked_at": "2026-01-30T10:15:00Z"
-    },
-    {
-      "id": "size_starting",
-      "category": "size",
-      "label": "Starting configuration within 120\" perimeter",
-      "status": "pass",
-      "notes": "",
-      "checked_by": "Inspector 1",
-      "checked_at": "2026-01-30T10:16:00Z"
-    }
-  ],
-  "general_notes": "All inspections passed. Team ready for competition.",
-  "overall_status": "passed"  // passed, failed, passed_with_conditions
-}
-```
+| Dosya | Hasan | Sudem | Strateji |
+|-------|-------|-------|----------|
+| `app_web.py` | +18 satır | +10 satır | Her ikisini birleştir |
+| `routes/match_control.py` | +227 satır | +30 satır | Hasan'ınki baz, Sudem ekle |
+| `routes/screens.py` | +65 satır (chroma) | +10 satır | Hasan'ınki baz |
+| `static/js/audience_core.js` | +116 satır (chroma+timer) | +76 satır (events) | HER İKİSİ GEREKLİ |
+| `static/js/audience_display.js` | +40 satır | +87 satır | Birleştir |
+| `static/js/audience_display_views.js` | +71 satır | +170 satır | Birleştir |
+| `static/style.css` | +924 satır | +893 satır | Dikkatli birleştir |
+| `templates/audience_display.html` | +158 satır (chroma) | +42 satır | Birleştir |
 
 ---
 
-## API Changes
+## 4. MERGE STRATEJİSİ
 
-### Existing Endpoints (Extended)
-```
-POST /api/inspection-settings
-  Request body (NEW fields):
-    {
-      "type_durations": {
-        "weight": 5,
-        "size": 10,
-        "general_hardware": 20,
-        "electrical": 15,
-        "pneumatics": 10,
-        "radio": 10,
-        "software": 15,
-        "bumpers": 5,
-        "game_specific": 10,
-        "safety": 15
-      },
-      "selected_types": ["weight", "size", "electrical", ...],
-      "checklist_templates": {  // NEW
-        "weight": "frc_weight_default",
-        "size": "frc_size_default",
-        ...
-      }
-    }
+### Önerilen Yaklaşım: "Hasan Base + Sudem Cherry-Pick"
 
-PUT /api/inspection-slots/<id>
-  Request body (NEW field):
-    {
-      "notes": "{\"checklist\": [...], \"general_notes\": \"...\"}",  // JSON string
-      "status": "passed"  // Auto-calculated from checklist
-    }
-```
+**Neden?**
+- Hasan'ın branch'ı daha kapsamlı değişiklikler içeriyor (5 commit vs 1 commit)
+- Hasan WebSocket'i zaten refactor etmiş, Sudem ek event'ler eklemiş
+- Hasan Chroma Key özelliğini eklemiş (kritik)
+- Sudem'in screens tasarımı Hasan'da yok - bu eklenecek
 
-### New Endpoints (Optional - Phase 2)
-```
-GET /api/inspection-slots/<id>/checklist
-  Returns parsed checklist data
-
-POST /api/inspection-slots/<id>/checklist
-  Updates checklist items
-```
+### Adımlar:
+1. Yeni bir merge branch oluştur: `merge-all-features`
+2. Önce Hasan'ı merge et (base olarak)
+3. Sudem'in benzersiz değişikliklerini cherry-pick veya manuel ekle
+4. Çakışmaları çöz
+5. Test et
+6. Main'e push et
 
 ---
 
-## UI Component Changes
+## 5. BENZERSİZ DOSYALAR (ÇAKIŞMA YOK)
 
-### 1. Inspection Type Checkboxes
-**File:** `templates/setup/step_inspection_schedule.html`
-- Expand from 6 types to 10 types
-- Add icons for each type
-- Show optional badge for pneumatics
+### Sadece Hasan'da (ALINACAK):
+- `routes/match_schedule.py` ✓
+- `routes/referee_panel.py` güncellemeleri ✓
+- `src/core/scoring/ranking_config.py` ✓
+- `src/core/scoring/team_rankings.py` ✓
+- `src/core/tournament/bracket_config.py` ✓
+- `src/core/tournament/bracket_generator.py` ✓
+- `static/js/head_referee.js` güncellemeleri ✓
+- `static/js/match_schedule.js` ✓
+- `tests/` klasörü ✓
+- `production_server.py` ✓
 
-### 2. Checklist Modal
-**New Component:** `static/js/inspection_checklist.js`
-- Modal dialog (overlay)
-- Accordion sections (per category)
-- Pass/Fail/N/A buttons
-- Notes textarea
-- Save button
-
-### 3. Status Color Coding
-**File:** `static/js/inspection.js`
-- Update `loadInspectionSlots()` function
-- Add CSS classes for status colors
-- Update `renderInspectionGrid()` for grid view
-
-### 4. Print Template
-**File:** `static/js/inspection.js` → `printInspectionSchedule()`
-- Include checklist summary
-- Show pass/fail/na counts
-- Optional detailed checklist
+### Sadece Sudem'de (ALINACAK):
+- `routes/inspection.py` güncellemeleri ✓
+- `static/js/screens.js` ✓ (Modern tasarım)
+- `templates/screens.html` ✓ (Modern tasarım)
+- `templates/dashboard.html` küçük değişiklik ✓
 
 ---
 
-## Implementation Priority
+## 6. BAŞARI KRİTERLERİ
 
-### Critical (Day 1)
-1. ✅ Add 10 FRC inspection types to UI
-2. ✅ Extend inspection_settings storage
-3. ✅ Checklist JSON structure definition
-4. ✅ Status color coding
-
-### Important (Day 2)
-5. ✅ Checklist modal UI
-6. ✅ Checklist CRUD operations
-7. ✅ Print template update
-
-### Nice-to-Have (Day 3+)
-8. ⭐ Checklist templates (predefined)
-9. ⭐ Bulk checklist operations
-10. ⭐ Inspector signature field
+1. ✅ WebSocket tüm ekranlarda çalışıyor
+2. ✅ Chroma Key (yeşil ekran) özelliği çalışıyor
+3. ✅ Screens sayfası modern tasarımla çalışıyor
+4. ✅ Inspection, Awards, Rankings güncellemeleri anlık geliyor
+5. ✅ Match Control tüm özellikleriyle çalışıyor
+6. ✅ Ranking sistemi çalışıyor
+7. ✅ Bracket generator çalışıyor
+8. ✅ Tüm testler geçiyor
+9. ✅ Syntax/lint hatası yok

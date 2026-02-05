@@ -264,29 +264,47 @@ document.addEventListener("DOMContentLoaded", async () => {
       overlayText = state.overlayText;
       
       // View değişikliği: Önce hangi panelin görüneceğini ayarla (puan/timer doğru panelde güncellensin)
-      if (!state.hasPreview) {
-        const views = ["match", "inspection", "rankings", "awards"];
-        views.forEach((view) => {
-          const el = qs(`audience_${view}_view`);
-          if (el) {
-            el.style.display = view === state.currentView ? "block" : "none";
-          }
-        });
-        if (state.currentView !== "match" && typeof hideVSPreview === "function") {
-          hideVSPreview();
+      // ÖNCELİKLE: Tüm view elementlerini gizle
+      const views = ["match", "inspection", "rankings", "awards", "ceremony"];
+      views.forEach((view) => {
+        const el = qs(`audience_${view}_view`);
+        if (el) {
+          el.style.display = "none";
         }
+      });
+      
+      // VS Preview'ı da gizle (default)
+      const vsPreview = qs("audience_vs_preview");
+      if (vsPreview && !state.hasPreview) {
+        vsPreview.style.display = "none";
       }
       
       // UI güncellemeleri
       if (state.hasPreview) {
+        // Preview aktif - sadece VS Preview veya Match view göster
         if (state.previewState === "vs_preview" && typeof applyVSPreviewPayload === "function") {
           applyVSPreviewPayload(state.previewPayload);
+          // VS Preview göster, diğerleri gizli kalacak
         } else if (state.previewState === "results" && typeof applyResultsPayload === "function") {
+          // Results için match view göster
+          const matchEl = qs("audience_match_view");
+          if (matchEl) matchEl.style.display = "block";
           applyResultsPayload(state.previewPayload);
         } else if (state.previewState === "normal_preview" && typeof applyPreviewPayload === "function") {
+          // Normal preview için match view göster
+          const matchEl = qs("audience_match_view");
+          if (matchEl) matchEl.style.display = "block";
           applyPreviewPayload(state.previewPayload);
         }
       } else {
+        // Preview yok - seçilen view'ı göster
+        const currentViewEl = qs(`audience_${state.currentView}_view`);
+        if (currentViewEl) {
+          // Awards ve ceremony view'ları flex olarak göster
+          currentViewEl.style.display = (state.currentView === "awards" || state.currentView === "ceremony") ? "flex" : "block";
+        }
+        
+        // View'a göre içerik yükle
         if (state.currentView === "match") {
           if (state.match && typeof updateMatchView === "function") {
             if (state.match._stateChanged && typeof announceState === "function") {
@@ -299,10 +317,22 @@ document.addEventListener("DOMContentLoaded", async () => {
           } else if (typeof updateMatchView === "function") {
             updateMatchView(null);
           }
-        } else if (state.currentView === "inspection" && typeof loadInspectionView === "function") {
-          loadInspectionView();
-        } else if (state.currentView === "awards" && typeof loadAwardsView === "function") {
-          loadAwardsView();
+        } else if (state.currentView === "inspection") {
+          if (typeof loadInspectionView === "function") {
+            loadInspectionView();
+          }
+        } else if (state.currentView === "rankings") {
+          if (typeof loadRankingsView === "function") {
+            loadRankingsView();
+          }
+        } else if (state.currentView === "awards") {
+          if (typeof loadAwardsView === "function") {
+            loadAwardsView();
+          }
+        } else if (state.currentView === "ceremony") {
+          if (state.ceremonyState && typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {
+            window.AudienceCeremony.handleUpdate(state.ceremonyState);
+          }
         }
       }
       
@@ -314,46 +344,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof applyChromaBackground === "function") {
         const layoutMode = state.previewState === "vs_preview" ? "vs_preview" : (state.currentView === "match" ? "match" : null);
         applyChromaBackground(state.overlayChromaEnabled === true, state.overlayChromaColor || "#00ff00", layoutMode);
-      }
-      
-      // Ceremony state değişikliğini AudienceCeremony modülüne ilet
-      if (state.ceremonyState && state.currentView === "ceremony") {
-        if (typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {
-          window.AudienceCeremony.handleUpdate(state.ceremonyState);
-        }
-      }
-      
-      // View değişikliği için UI güncellemesi (sadece preview yoksa)
-      if (!state.hasPreview) {
-        // View elementlerini güncelle
-        const views = ["match", "inspection", "rankings", "awards", "ceremony"];
-        views.forEach((view) => {
-          const el = qs(`audience_${view}_view`);
-          if (el) {
-            if (view === state.currentView) {
-              // Awards ve ceremony view'ları flex olarak göster
-              el.style.display = (view === "awards" || view === "ceremony") ? "flex" : "block";
-            } else {
-              el.style.display = "none";
-            }
-          }
-        });
-        
-        // VS Preview'ı gizle (normal view'a geçildiğinde)
-        if (state.currentView !== "match") {
-          if (typeof hideVSPreview === "function") {
-            hideVSPreview();
-          }
-        }
-        
-        // View'a göre içerik yükle
-        if (state.currentView === "inspection" && typeof loadInspectionView === "function") {
-          loadInspectionView();
-        } else if (state.currentView === "awards" && typeof loadAwardsView === "function") {
-          loadAwardsView();
-        } else if (state.currentView === "ceremony" && typeof showCeremonyView === "function") {
-          showCeremonyView();
-        }
       }
     });
     

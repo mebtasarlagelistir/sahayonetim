@@ -4,9 +4,12 @@
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def register_inspection_routes(bp, datastore, require_login, require_event_manager):
+def register_inspection_routes(bp, datastore, require_login, require_event_manager, socketio=None):
     """
     İnceleme route'larını Blueprint'e kaydeder.
     
@@ -15,6 +18,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         datastore: DataStore instance
         require_login: require_login decorator
         require_event_manager: require_event_manager decorator
+        socketio: SocketIO instance (WebSocket için)
     """
     
     @bp.get("/inspection-settings")
@@ -188,6 +192,14 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             slot_date=slot_date,
             status=status,
         )
+        
+        # Takım adlarını eşleştir
+        teams = datastore.get_teams()
+        team_names = {str(t.get("number", "")).strip(): t.get("name", "") for t in teams}
+        
+        for slot in slots:
+            slot["team_name"] = team_names.get(str(slot.get("team_number", "")).strip(), "")
+        
         return jsonify(slots)
 
     @bp.post("/inspection-slots")
@@ -314,6 +326,16 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 notes=data.get("notes"),
                 station_name=data.get("station_name"),
             )
+            
+            # WebSocket ile tüm audience ekranlarına inspection güncellemesini bildir
+            if socketio:
+                socketio.emit("inspection_update", {
+                    "slot_id": slot_id,
+                    "status": data.get("status"),
+                    "team_number": data.get("team_number"),
+                }, namespace="/audience")
+                logger.info(f"Inspection update broadcast: slot_id={slot_id}")
+            
             return jsonify({"ok": True})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

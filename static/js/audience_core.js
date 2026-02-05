@@ -442,6 +442,82 @@ class AudienceCoreManager {
         }
       });
       
+      // ===== INSPECTION UPDATE EVENT (İNCELEME GÜNCELLEMELERİ) =====
+      // Bu event her zaman dinlenir ve anlık inceleme güncellemesi sağlar
+      this.audienceSocket.on("inspection_update", (data) => {
+        try {
+          console.log("AudienceCore: inspection_update event alındı:", data);
+          
+          // Inspection view aktifse içeriği yeniden yükle
+          if (this.currentView === "inspection") {
+            // loadInspectionView audience_display_views.js'de tanımlı
+            if (typeof loadInspectionView === "function") {
+              loadInspectionView();
+            }
+          }
+          
+          this.notify();
+        } catch (err) {
+          console.error("AudienceCore: inspection_update error:", err);
+        }
+      });
+      
+      // ===== AWARDS UPDATE EVENT (ÖDÜL GÜNCELLEMELERİ) =====
+      // Bu event her zaman dinlenir ve anlık ödül güncellemesi sağlar
+      this.audienceSocket.on("awards_update", (data) => {
+        try {
+          console.log("AudienceCore: awards_update event alındı:", data);
+          
+          // Awards view aktifse içeriği yeniden yükle
+          if (this.currentView === "awards") {
+            if (typeof loadAwardsView === "function") {
+              loadAwardsView();
+            }
+          }
+          
+          this.notify();
+        } catch (err) {
+          console.error("AudienceCore: awards_update error:", err);
+        }
+      });
+      
+      // ===== RANKINGS UPDATE EVENT (SIRALAMA GÜNCELLEMELERİ) =====
+      // Bu event maç tamamlandığında tetiklenir
+      this.audienceSocket.on("rankings_update", (data) => {
+        try {
+          console.log("AudienceCore: rankings_update event alındı:", data);
+          
+          // Rankings view aktifse içeriği yeniden yükle
+          if (this.currentView === "rankings") {
+            if (typeof loadRankingsView === "function") {
+              loadRankingsView();
+            }
+          }
+          
+          this.notify();
+        } catch (err) {
+          console.error("AudienceCore: rankings_update error:", err);
+        }
+      });
+      
+      // ===== MATCH COMPLETED EVENT (MAÇ TAMAMLANDI) =====
+      // Bu event maç tamamlandığında tetiklenir
+      this.audienceSocket.on("match_completed", (data) => {
+        try {
+          console.log("AudienceCore: match_completed event alındı:", data);
+          
+          // Maç view aktifse ve bu maç için tamamlandıysa UI'ı güncelle
+          if (this.currentView === "match") {
+            // Maç verilerini yeniden yükle
+            this.loadMatchView();
+          }
+          
+          this.notify();
+        } catch (err) {
+          console.error("AudienceCore: match_completed error:", err);
+        }
+      });
+      
       // ===== CEREMONY UPDATE EVENT (TÖREN GÜNCELLEMELERİ) =====
       // Bu event her zaman dinlenir ve anlık tören güncellemesi sağlar
       this.audienceSocket.on("ceremony_update", (data) => {

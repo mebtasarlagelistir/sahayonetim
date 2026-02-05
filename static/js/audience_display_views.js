@@ -215,35 +215,118 @@ async function loadNextMatchPreview() {
 }
 
 /**
- * İnceleme görünümünü yükler
+ * İnceleme görünümünü yükler (inspection-tracking stilinde)
  */
 async function loadInspectionView() {
   try {
     const data = await apiGet("/api/public/inspection-status");
     const teams = data.teams || [];
     const slots = data.slots || [];
-    const slotMap = {};
+    
+    // Her takım için en son slot durumunu al
+    const teamStatuses = {};
     (slots || []).forEach((slot) => {
       const key = slot.team_number;
       const ts = `${slot.slot_date} ${slot.slot_time}`;
-      if (!slotMap[key] || ts > slotMap[key].ts) {
-        slotMap[key] = { status: slot.status, ts };
+      if (!teamStatuses[key] || ts > teamStatuses[key].ts) {
+        teamStatuses[key] = { 
+          status: slot.status, 
+          ts,
+          notes: slot.notes || ''
+        };
       }
     });
-    const completed = Object.values(slotMap).filter((item) => item.status === "completed").length;
+    
+    // Durumları hesapla
+    const mapStatus = (apiStatus) => {
+      const statusMap = {
+        'completed': 'passed',
+        'passed': 'passed',
+        'failed': 'failed',
+        'pending': 'not-started',
+        'in_progress': 'not-started',
+        'scheduled': 'not-started',
+        'planned': 'not-started',
+        'not_started': 'not-started'
+      };
+      return statusMap[apiStatus] || 'not-started';
+    };
+    
+    let passed = 0, failed = 0, notStarted = 0;
+    const teamRows = [];
+    
+    teams.forEach(team => {
+      const statusInfo = teamStatuses[team.number];
+      let status = 'not-started';
+      if (statusInfo) {
+        status = mapStatus(statusInfo.status);
+      }
+      
+      if (status === 'passed') passed++;
+      else if (status === 'failed') failed++;
+      else notStarted++;
+      
+      teamRows.push({ team, status });
+    });
+    
     const total = teams.length;
-    const summary = qs("audience_inspection_summary");
-    if (summary) {
-      summary.textContent = `Tamamlanan: ${completed} / ${total}`;
+    
+    // Summary kartlarını güncelle
+    const totalEl = qs("insp_total");
+    const passedEl = qs("insp_passed");
+    const failedEl = qs("insp_failed");
+    const notStartedEl = qs("insp_not_started");
+    
+    if (totalEl) totalEl.textContent = total;
+    if (passedEl) passedEl.textContent = passed;
+    if (failedEl) failedEl.textContent = failed;
+    if (notStartedEl) notStartedEl.textContent = notStarted;
+    
+    // Progress bar güncelle
+    const passedPct = total > 0 ? Math.round((passed / total) * 100) : 0;
+    const failedPct = total > 0 ? Math.round((failed / total) * 100) : 0;
+    const notStartedPct = 100 - passedPct - failedPct;
+    
+    const barPassed = qs("insp_bar_passed");
+    const barFailed = qs("insp_bar_failed");
+    const barNotStarted = qs("insp_bar_not_started");
+    
+    if (barPassed) {
+      barPassed.style.width = passedPct + '%';
+      barPassed.textContent = passedPct > 8 ? passedPct + '%' : '';
     }
+    if (barFailed) {
+      barFailed.style.width = failedPct + '%';
+      barFailed.textContent = failedPct > 8 ? failedPct + '%' : '';
+    }
+    if (barNotStarted) {
+      barNotStarted.style.width = notStartedPct + '%';
+      barNotStarted.textContent = notStartedPct > 8 ? notStartedPct + '%' : '';
+    }
+    
+    // Takım listesini render et (durum sırasına göre)
+    const statusOrder = { 'not-started': 0, 'failed': 1, 'passed': 2 };
+    teamRows.sort((a, b) => {
+      const orderDiff = statusOrder[a.status] - statusOrder[b.status];
+      if (orderDiff !== 0) return orderDiff;
+      return a.team.number - b.team.number;
+    });
+    
     const table = qs("audience_inspection_table");
     if (table) {
-      table.innerHTML = (teams || []).map((team) => {
-        const status = slotMap[team.number]?.status || "planned";
-        return `<div class="audience-table-row">
-          <span>${team.number}</span>
-          <span>${team.name || ""}</span>
-          <span>${status}</span>
+      const getStatusLabel = (status) => {
+        switch(status) {
+          case 'passed': return '<span class="status-badge passed">✅ Geçti</span>';
+          case 'failed': return '<span class="status-badge failed">❌ Kaldı</span>';
+          default: return '<span class="status-badge not-started">📋 Başlamadı</span>';
+        }
+      };
+      
+      table.innerHTML = teamRows.map(({ team, status }) => {
+        return `<div class="inspection-team-row ${status}">
+          <span class="team-number">${team.number}</span>
+          <span class="team-name">${team.name || '-'}</span>
+          <span class="team-status">${getStatusLabel(status)}</span>
         </div>`;
       }).join("");
     }
@@ -301,6 +384,65 @@ async function loadAwardsView() {
     }).join("");
   } catch (err) {
     console.error("Awards view error:", err);
+  }
+}
+
+/**
+ * Sıralama görünümünü yükler
+ */
+async function loadRankingsView() {
+  try {
+    const data = await apiGet("/api/event");
+    const rankings = data.rankings || [];
+    const teams = data.teams || [];
+    
+    const container = qs("audience_rankings_view");
+    const table = qs("audience_rankings_table");
+    if (!table) return;
+    
+    if (!rankings.length) {
+      table.innerHTML = "<div class='audience-placeholder'>Henüz sıralama verisi yok.</div>";
+      return;
+    }
+    
+    // Takım adlarını eşleştir
+    const teamNames = {};
+    teams.forEach(t => {
+      teamNames[String(t.number)] = t.name || "";
+    });
+    
+    // Sıralamaya göre sırala
+    const sortedRankings = [...rankings].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+    
+    table.innerHTML = `
+      <div class="rankings-header">
+        <span class="rank-col">Sıra</span>
+        <span class="team-col">Takım</span>
+        <span class="wins-col">G</span>
+        <span class="losses-col">M</span>
+        <span class="ties-col">B</span>
+        <span class="rp-col">RP</span>
+        <span class="sp-col">SP</span>
+      </div>
+      ${sortedRankings.map((r) => {
+        const teamNumber = r.team_number || r.team;
+        const teamName = teamNames[String(teamNumber)] || "";
+        return `<div class="rankings-row">
+          <span class="rank-col">${r.rank || '-'}</span>
+          <span class="team-col">
+            <strong>${teamNumber}</strong>
+            ${teamName ? `<small>${escapeHtml(teamName)}</small>` : ""}
+          </span>
+          <span class="wins-col">${r.wins || 0}</span>
+          <span class="losses-col">${r.losses || 0}</span>
+          <span class="ties-col">${r.ties || 0}</span>
+          <span class="rp-col">${r.ranking_points || r.rp || 0}</span>
+          <span class="sp-col">${r.sort_order_1 || r.sp || 0}</span>
+        </div>`;
+      }).join("")}
+    `;
+  } catch (err) {
+    console.error("Rankings view error:", err);
   }
 }
 
