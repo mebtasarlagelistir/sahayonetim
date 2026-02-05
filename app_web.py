@@ -799,6 +799,14 @@ def create_app() -> Flask:
         
         try:
             count = datastore.bulk_save_award_winners(data)
+            
+            # WebSocket ile tüm audience ekranlarına awards güncellemesini bildir
+            socketio.emit("awards_update", {
+                "type": "awards_update",
+                "count": count
+            }, namespace="/audience")
+            logger.info(f"Awards update broadcast: {count} kazanan güncellendi")
+            
             return jsonify({"ok": True, "count": count})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -1207,7 +1215,7 @@ def create_app() -> Flask:
     # Inspection route'larını Blueprint'e kaydet
     from flask import Blueprint
     inspection_bp = Blueprint("inspection", __name__, url_prefix="/api")
-    register_inspection_routes(inspection_bp, datastore, require_login, require_event_manager)
+    register_inspection_routes(inspection_bp, datastore, require_login, require_event_manager, socketio)
     app.register_blueprint(inspection_bp)
 
     # Practice Matches route'larını Blueprint'e kaydet

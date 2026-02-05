@@ -93,14 +93,46 @@
       </section>
 
       <section class="audience-panel" id="audience_inspection_view" style="display: none;">
-        <h1>İnceleme Durumları</h1>
-        <div id="audience_inspection_summary"></div>
-        <div id="audience_inspection_table" class="audience-table"></div>
+        <div class="inspection-tracking-view">
+          <h1>🔍 Inspection (Denetim) Durumu</h1>
+          
+          <!-- Summary Cards -->
+          <div class="inspection-summary-cards">
+            <div class="summary-card total">
+              <div class="value" id="insp_total">0</div>
+              <div class="label">Toplam</div>
+            </div>
+            <div class="summary-card passed">
+              <div class="value" id="insp_passed">0</div>
+              <div class="label">Geçti ✓</div>
+            </div>
+            <div class="summary-card failed">
+              <div class="value" id="insp_failed">0</div>
+              <div class="label">Kaldı ✗</div>
+            </div>
+            <div class="summary-card not-started">
+              <div class="value" id="insp_not_started">0</div>
+              <div class="label">Başlamadı</div>
+            </div>
+          </div>
+          
+          <!-- Progress Bar -->
+          <div class="inspection-progress-bar">
+            <div class="progress-bar-visual">
+              <div class="progress-segment passed" id="insp_bar_passed"></div>
+              <div class="progress-segment failed" id="insp_bar_failed"></div>
+              <div class="progress-segment not-started" id="insp_bar_not_started"></div>
+            </div>
+          </div>
+          
+          <!-- Teams List -->
+          <div class="inspection-teams-list" id="audience_inspection_table"></div>
+        </div>
       </section>
 
       <section class="audience-panel" id="audience_rankings_view" style="display: none;">
-        <h1>Sıralama Puanları</h1>
-        <div class="audience-placeholder">Bu ekran yakında etkinleştirilecek.</div>
+        <h1>🏅 Sıralama Puanları</h1>
+        <div id="audience_rankings_table" class="audience-table rankings-table"></div>
       </section>
 
       <section class="audience-panel" id="audience_awards_view" style="display: none;">

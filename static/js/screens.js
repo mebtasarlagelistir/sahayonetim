@@ -31,58 +31,137 @@ async function saveScreenSettings() {
 
 function formatLastSeen(secondsAgo) {
   if (secondsAgo < 5) return "Az önce";
-  if (secondsAgo < 60) return `${Math.round(secondsAgo)} sn`;
-  return `${Math.round(secondsAgo / 60)} dk`;
+  if (secondsAgo < 60) return `${Math.round(secondsAgo)} sn önce`;
+  if (secondsAgo < 3600) return `${Math.round(secondsAgo / 60)} dk önce`;
+  return `${Math.round(secondsAgo / 3600)} saat önce`;
+}
+
+function getViewLabel(view) {
+  const labels = {
+    match: "⚽ Maç Ekranı",
+    inspection: "🔍 İnceleme",
+    rankings: "🏆 Sıralama",
+    awards: "🌟 Ödüller",
+    ceremony: "🎉 Tören"
+  };
+  return labels[view] || view;
 }
 
 async function loadConnectedScreens() {
   const list = qs("connected_screens_list");
+  const countEl = qs("screens_count");
   if (!list) return;
-  list.innerHTML = "<div class='loading'>Yükleniyor...</div>";
+  
+  list.innerHTML = `
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <span>Ekranlar yükleniyor...</span>
+    </div>
+  `;
+  
   try {
     const screens = await apiGet("/api/screens");
+    
+    // Update count
+    if (countEl) {
+      countEl.textContent = screens.length > 0 
+        ? `${screens.length} ekran bağlı` 
+        : "Bağlı ekran yok";
+    }
+    
     if (!screens.length) {
-      list.innerHTML = "<div class='empty'>Bağlı ekran yok</div>";
+      list.innerHTML = `
+        <div class="empty-screens">
+          <div class="empty-screens-icon">📺</div>
+          <div class="empty-screens-text">
+            Henüz bağlı ekran yok.<br>
+            Yeni bir seyirci ekranı açarak başlayın.
+          </div>
+        </div>
+      `;
       return;
     }
+    
     const now = Date.now() / 1000;
+    
     list.innerHTML = screens.map((screen) => {
       const secondsAgo = now - (screen.last_seen || now);
       const desiredView = screen.desired_view || "match";
       const followGlobal = !!screen.follow_global;
+      const isActive = secondsAgo < 30;
+      const statusClass = isActive ? "active" : "inactive";
+      const statusText = isActive ? "Çevrimiçi" : "Çevrimdışı";
+      const statusBadgeClass = isActive ? "online" : "offline";
+      
       return `
-        <div class="screen-item">
-          <div>
-            <div class="screen-name">${screen.screen_name || "Seyirci Ekranı"}</div>
-            <div class="screen-meta">
-              <span>${screen.ip || "-"}</span>
-              <span>Görüntü: ${screen.view || "-"}</span>
+        <div class="screen-card ${statusClass}">
+          <div class="screen-card-header">
+            <div class="screen-card-title">
+              <span class="screen-icon">🖥️</span>
+              <span class="screen-card-name">${screen.screen_name || "Seyirci Ekranı"}</span>
+            </div>
+            <span class="status-badge ${statusBadgeClass}">${statusText}</span>
+          </div>
+          
+          <div class="screen-card-info">
+            <div class="info-item">
+              <span>🌐</span>
+              <span>${screen.ip || "Bilinmiyor"}</span>
+            </div>
+            <div class="info-item">
+              <span>📺</span>
+              <span>${getViewLabel(screen.view)}</span>
+            </div>
+            <div class="info-item">
+              <span>⏱️</span>
               <span>${formatLastSeen(secondsAgo)}</span>
             </div>
-            <div class="screen-controls">
-              <select class="screen-view-select" data-screen-id="${screen.screen_id}">
-                <option value="match" ${desiredView === "match" ? "selected" : ""}>Maç</option>
-                <option value="inspection" ${desiredView === "inspection" ? "selected" : ""}>İnceleme</option>
-                <option value="rankings" ${desiredView === "rankings" ? "selected" : ""}>Sıralama</option>
-                <option value="awards" ${desiredView === "awards" ? "selected" : ""}>Ödüller</option>
-                <option value="ceremony" ${desiredView === "ceremony" ? "selected" : ""}>Tören</option>
+          </div>
+          
+          <div class="screen-card-controls">
+            <div class="control-row">
+              <label>Görünüm:</label>
+              <select class="custom-select screen-view-select" data-screen-id="${screen.screen_id}">
+                <option value="match" ${desiredView === "match" ? "selected" : ""}>⚽ Maç Ekranı</option>
+                <option value="inspection" ${desiredView === "inspection" ? "selected" : ""}>🔍 İnceleme</option>
+                <option value="rankings" ${desiredView === "rankings" ? "selected" : ""}>🏆 Sıralama</option>
+                <option value="awards" ${desiredView === "awards" ? "selected" : ""}>🌟 Ödüller</option>
+                <option value="ceremony" ${desiredView === "ceremony" ? "selected" : ""}>🎉 Tören</option>
               </select>
-              <label class="checkbox small">
+            </div>
+            
+            <div class="control-row">
+              <label class="follow-toggle">
                 <input type="checkbox" class="screen-follow-toggle" data-screen-id="${screen.screen_id}" ${followGlobal ? "checked" : ""} />
-                Global Takip
+                <span class="checkbox-custom"></span>
+                <span>Global Takip</span>
               </label>
-              <button class="btn-small btn-primary screen-apply-btn" data-screen-id="${screen.screen_id}">Uygula</button>
+              
+              <button class="btn-action btn-primary-gradient screen-apply-btn" data-screen-id="${screen.screen_id}" style="padding: 8px 16px; font-size: 13px;">
+                <span class="btn-icon">✔</span>
+                Uygula
+              </button>
+              
+              <a href="/audience?screen_id=${encodeURIComponent(screen.screen_id)}" target="_blank" class="btn-action btn-secondary-outline" style="padding: 8px 16px; font-size: 13px;">
+                <span class="btn-icon">↗</span>
+                Aç
+              </a>
             </div>
           </div>
-          <a href="/audience?screen_id=${encodeURIComponent(screen.screen_id)}" target="_blank" class="btn-small btn-secondary">Aç</a>
         </div>
       `;
     }).join("");
+    
+    // Add event listeners
     list.querySelectorAll(".screen-apply-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const screenId = btn.dataset.screenId;
         const viewSelect = list.querySelector(`.screen-view-select[data-screen-id="${screenId}"]`);
         const followToggle = list.querySelector(`.screen-follow-toggle[data-screen-id="${screenId}"]`);
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-icon">⏳</span> Kaydediliyor...';
+        
         try {
           await apiPost("/api/screens/control", {
             screen_id: screenId,
@@ -90,15 +169,28 @@ async function loadConnectedScreens() {
             follow_global: !!followToggle?.checked
           });
           showToast("Ekran ayarı güncellendi", "success");
+          btn.innerHTML = '<span class="btn-icon">✔</span> Uygula';
         } catch (err) {
           console.error("Update screen control error:", err);
           showToast("Ekran ayarı kaydedilemedi", "error");
+          btn.innerHTML = '<span class="btn-icon">✔</span> Uygula';
+        } finally {
+          btn.disabled = false;
         }
       });
     });
+    
   } catch (err) {
     console.error("Load connected screens error:", err);
-    list.innerHTML = "<div class='error'>Ekranlar yüklenemedi</div>";
+    list.innerHTML = `
+      <div class="empty-screens">
+        <div class="empty-screens-icon">⚠️</div>
+        <div class="empty-screens-text">
+          Ekranlar yüklenirken hata oluştu.<br>
+          Lütfen sayfayı yenileyin.
+        </div>
+      </div>
+    `;
   }
 }
 

@@ -248,16 +248,18 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         screen["follow_global"] = follow_global
         _screen_registry[screen_id] = screen
         
-        # Eğer ekran global takip etmiyorsa, WebSocket ile view değişikliğini bildir
-        if not follow_global and socketio:
+        # WebSocket ile view değişikliğini bildir (her zaman, follow_global fark etmeksizin)
+        if socketio:
             global_settings = _get_global_screen_settings(datastore)
+            # follow_global true ise global ayardan al, değilse desired_view kullan
+            active_view = global_settings.get("active_view", "match") if follow_global else desired_view
             socketio.emit("view_change", {
-                "active_view": desired_view,
+                "active_view": active_view,
                 "overlay_enabled": global_settings.get("overlay_enabled", False),
                 "overlay_text": global_settings.get("overlay_text", ""),
                 "screen_id": screen_id  # Hangi ekran için olduğunu belirt
             }, namespace="/audience")
-            logger.info(f"Screen-specific view change: {screen_id} -> {desired_view}")
+            logger.info(f"Screen-specific view change: {screen_id} -> {active_view} (follow_global={follow_global})")
         
         return jsonify({"ok": True})
 

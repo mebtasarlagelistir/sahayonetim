@@ -39,49 +39,83 @@
       </div>
     </header>
 
-    <main class="layout">
-      <aside class="sidebar">
-        <div class="card">
-          <h2>Ekran Yönetimi</h2>
-          <p class="muted">Bu sayfadan seyirci ekranlarını yönetebilirsiniz.</p>
+    <main class="screens-layout">
+      <!-- Global Ayarlar Panel -->
+      <section class="screens-global-panel">
+        <div class="panel-header">
+          <div class="panel-icon">📺</div>
+          <div>
+            <h2>Global Ekran Ayarları</h2>
+            <p class="panel-subtitle">Tüm ekranlar için varsayılan görünüm</p>
+          </div>
         </div>
-      </aside>
-      <div class="content">
-        <section class="card">
-          <h2>Seyirci Ekranı Ayarları</h2>
-          <div class="grid">
-            <label>
-              Aktif Ekran
-              <select id="screen_active_view">
-                <option value="match">Maç Ekranı</option>
-                <option value="inspection">İnceleme Durumu</option>
-                <option value="rankings">Sıralama Puanları</option>
-                <option value="awards">Ödüller (Tüm Kazananlar)</option>
-                <option value="ceremony">Ödül Töreni</option>
+        
+        <div class="global-settings-grid">
+          <div class="setting-card">
+            <label class="setting-label">
+              <span class="label-icon">🎬</span>
+              Aktif Görünüm
+            </label>
+            <div class="custom-select-wrapper">
+              <select id="screen_active_view" class="custom-select">
+                <option value="match">⚽ Maç Ekranı</option>
+                <option value="inspection">🔍 İnceleme Durumu</option>
+                <option value="rankings">🏆 Sıralama Puanları</option>
+                <option value="awards">🌟 Ödüller (Tüm Kazananlar)</option>
+                <option value="ceremony">🎉 Ödül Töreni</option>
               </select>
+            </div>
+          </div>
+          
+          <div class="setting-card">
+            <label class="setting-label">
+              <span class="label-icon">📝</span>
+              Overlay Metni
             </label>
-            <label class="checkbox">
-              <input type="checkbox" id="screen_overlay_enabled" />
-              Overlay Açık
+            <input type="text" id="screen_overlay_text" class="overlay-input" placeholder="Örn: Hoş geldiniz" />
+          </div>
+          
+          <div class="setting-card toggle-card">
+            <label class="toggle-label">
+              <input type="checkbox" id="screen_overlay_enabled" class="toggle-input" />
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">Overlay Göster</span>
             </label>
           </div>
-          <label style="display: block; margin-top: 12px;">
-            Overlay Metni
-            <input type="text" id="screen_overlay_text" placeholder="Örn: Hoş geldiniz" />
-          </label>
-          <div style="margin-top: 12px;">
-            <button id="save_screen_settings" class="btn-primary">Ayarları Uygula</button>
-            <a href="/audience?new=1" target="_blank" class="button btn-secondary">Yeni Seyirci Ekranı Aç</a>
-          </div>
-        </section>
+        </div>
+        
+        <div class="global-actions">
+          <button id="save_screen_settings" class="btn-action btn-primary-gradient">
+            <span class="btn-icon">✔</span>
+            Ayarları Uygula
+          </button>
+          <a href="/audience?new=1" target="_blank" class="btn-action btn-secondary-outline">
+            <span class="btn-icon">+</span>
+            Yeni Ekran Aç
+          </a>
+        </div>
+      </section>
 
-        <section class="card">
-          <h2>Bağlı Ekranlar</h2>
-          <div id="connected_screens_list" class="screen-list">
-            <div class="loading">Yükleniyor...</div>
+      <!-- Bağlı Ekranlar Panel -->
+      <section class="screens-connected-panel">
+        <div class="panel-header">
+          <div class="panel-icon">🖥️</div>
+          <div>
+            <h2>Bağlı Ekranlar</h2>
+            <p class="panel-subtitle" id="screens_count">Yükleniyor...</p>
           </div>
-        </section>
-      </div>
+          <button class="btn-refresh" onclick="loadConnectedScreens()" title="Yenile">
+            🔄
+          </button>
+        </div>
+        
+        <div id="connected_screens_list" class="screens-grid">
+          <div class="loading-spinner">
+            <div class="spinner"></div>
+            <span>Ekranlar yükleniyor...</span>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script src="/static/js/utils.js"></script>
