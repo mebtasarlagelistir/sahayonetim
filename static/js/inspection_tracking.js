@@ -306,7 +306,7 @@
    */
   function startAutoRefresh() {
     stopAutoRefresh();
-    autoRefreshInterval = setInterval(loadData, 30000); // 30 saniye
+    autoRefreshInterval = setInterval(loadData, 5000); // 5 saniye
     console.log('[InspectionTracking] Auto-refresh started');
   }
 
