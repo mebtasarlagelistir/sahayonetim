@@ -109,6 +109,20 @@ def create_decorators(datastore):
             if role_lower == "admin":
                 return handler(*args, **kwargs)
             
+            # Müfettiş/hakem/saha yöneticisi kontrolü (inceleme ve maç işlemleri için)
+            if "mufettis" in role_lower or "inspector" in role_lower or "hakem" in role_lower or "saha_yoneticisi" in role_lower:
+                # Bu roller kendi etkinliklerine erişebilir
+                user_event_id = datastore.get_user_event_id(username)
+                active_event_id = datastore.get_active_event_id()
+                
+                if user_event_id is not None and active_event_id is not None:
+                    if user_event_id != active_event_id:
+                        if request.path.startswith("/api/"):
+                            return jsonify({"error": "forbidden", "message": "Bu etkinliğe erişim yetkiniz yok"}), 403
+                        return redirect(url_for("setup"))
+                
+                return handler(*args, **kwargs)
+            
             # Etkinlik yöneticisi kontrolü
             if "etkinlik_yoneticisi" in role_lower or "yonetici" in role_lower:
                 # Etkinlik yöneticisi sadece kendi etkinliğine erişebilir

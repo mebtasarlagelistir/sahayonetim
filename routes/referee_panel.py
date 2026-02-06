@@ -214,6 +214,20 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
                         "type": "scores",
                         "scores": response_data
                     }, room=room, namespace="/match")
+                    
+                    # Audience ekranlarına da skor güncellemesi gönder (anlık güncelleme için)
+                    red_score = calculated_scores.get("red", {}).get("total_score", 0)
+                    blue_score = calculated_scores.get("blue", {}).get("total_score", 0)
+                    socketio.emit("scores_update", {
+                        "type": "scores_update",
+                        "scores": {
+                            "red_score": red_score,
+                            "blue_score": blue_score
+                        },
+                        "match_id": match_id,
+                        "server_timestamp": time.time()
+                    }, namespace="/audience")
+                    
                     logger.info(f"WebSocket broadcast: match_id={match_id}, alliance={alliance}, room={room}")
 
             # scoring_data'yı veritabanında sakla (ittifak bazlı)

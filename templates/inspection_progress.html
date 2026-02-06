@@ -304,10 +304,16 @@
       let searchTerm = '';
       let saveTimers = {};
       let socket = null;
+      let refreshInterval = null;
+      const REFRESH_INTERVAL = 5000; // 5 saniyede bir güncelle
       
       async function init() {
         try {
           socket = io();
+          // WebSocket ile güncellemeleri dinle
+          socket.on('inspection_update', () => {
+            loadTeams(); // Güncelleme geldiğinde yeniden yükle
+          });
         } catch (e) {
           console.log('Socket.IO not available');
         }
@@ -327,6 +333,16 @@
         });
         
         await loadTeams();
+        
+        // Otomatik yenileme başlat (5 saniyede bir)
+        startAutoRefresh();
+      }
+      
+      function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(() => {
+          loadTeams();
+        }, REFRESH_INTERVAL);
       }
       
       async function loadTeams() {

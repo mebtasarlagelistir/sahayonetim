@@ -225,23 +225,25 @@ class RealtimeScoreManager:
         blue_data = scores.get("blue", {})
         
         # Her iki ittifak için skorları hesapla
+        # ÖNEMLİ: Rakip opponent aksiyonlarının hesaplanabilmesi için,
+        # HER İKİ tarafın skorları HER ZAMAN hesaplanmalı (data boş olsa bile)
         calculated_scores = {}
         
-        if red_data:
-            red_result = self._score_calculator.calculate_alliance_score(
-                alliance="red",
-                scoring_data=red_data,
-                opponent_scoring_data=blue_data
-            )
-            calculated_scores["red"] = red_result
+        # Kırmızı skoru hesapla (mavi opponent aksiyonları dahil)
+        red_result = self._score_calculator.calculate_alliance_score(
+            alliance="red",
+            scoring_data=red_data,
+            opponent_scoring_data=blue_data
+        )
+        calculated_scores["red"] = red_result
         
-        if blue_data:
-            blue_result = self._score_calculator.calculate_alliance_score(
-                alliance="blue",
-                scoring_data=blue_data,
-                opponent_scoring_data=red_data
-            )
-            calculated_scores["blue"] = blue_result
+        # Mavi skoru hesapla (kırmızı opponent aksiyonları dahil)
+        blue_result = self._score_calculator.calculate_alliance_score(
+            alliance="blue",
+            scoring_data=blue_data,
+            opponent_scoring_data=red_data
+        )
+        calculated_scores["blue"] = blue_result
         
         # Hesaplanmış skorları sakla
         self._active_scores[match_key]["calculated_scores"] = calculated_scores

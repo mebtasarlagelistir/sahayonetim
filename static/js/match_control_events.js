@@ -422,6 +422,16 @@ function setupEventListeners() {
       }
     });
   }
+  
+  // Yüklü maçı sıfırla (tamamlanmış maçı yeniden başlatmak için)
+  const btnResetLoaded = qs("btn_reset_loaded_match");
+  if (btnResetLoaded) {
+    btnResetLoaded.addEventListener("click", () => {
+      if (typeof resetLoadedMatch === "function") {
+        resetLoadedMatch();
+      }
+    });
+  }
 
   // Sonuçları göster
   const btnShowResults = qs("btn_show_results");
