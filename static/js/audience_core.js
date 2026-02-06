@@ -377,8 +377,10 @@ class AudienceCoreManager {
     this.retryCount = 0;
     
     try {
+      // WebSocket bağlantısı - simple-websocket paketi ile threading modunda desteklenir
+      // Önce WebSocket dener, başarısız olursa polling'e düşer
       this.audienceSocket = io("/audience", {
-        transports: ["websocket", "polling"],
+        transports: ["websocket", "polling"],  // WebSocket öncelikli
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
@@ -429,8 +431,16 @@ class AudienceCoreManager {
           this.overlayChromaEnabled = newChromaEnabled;
           this.overlayChromaColor = newChromaColor;
           
-          // View değişikliği (preview yoksa)
-          if (this.previewState === "none" && this.currentView !== newView) {
+          // Eğer maç view'a geçiliyorsa, preview'ı da temizle (server tarafında temizlenmiş demektir)
+          if (newView === "match" && this.previewState !== "none") {
+            console.log("AudienceCore: Maç view'a geçiliyor, preview temizleniyor");
+            this.previewPayload = null;
+            this.previewState = "none";
+            this.previewClearAttempts = 0;
+          }
+          
+          // View değişikliği
+          if (this.currentView !== newView) {
             console.log(`AudienceCore: View değiştiriliyor: ${this.currentView} -> ${newView}`);
             this.switchView(newView);
           } else {
@@ -545,9 +555,15 @@ class AudienceCoreManager {
           const match = data.match;
           const isActiveMatch = match && ["autonomous", "prepare_teleop", "driver_controlled", "end_game"].includes(match.current_state);
           if (this.previewState !== "none" && isActiveMatch) {
+            console.log("AudienceCore: Aktif maç algılandı, preview temizleniyor ve maç view'a geçiliyor");
             this.previewPayload = null;
             this.previewState = "none";
             this.previewClearAttempts = 0;
+            // Preview temizlendiğinde, eğer match view'da değilsek, match view'a geç
+            if (this.currentView !== "match") {
+              console.log(`AudienceCore: View değiştiriliyor: ${this.currentView} -> match (aktif maç nedeniyle)`);
+              this.switchView("match");
+            }
           }
           if (this.previewState !== "none") {
             return;

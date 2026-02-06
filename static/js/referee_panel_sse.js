@@ -131,6 +131,53 @@ function startRealtimeUpdates(matchId, matchSource) {
       }
     });
     
+    // Maç önizleme güncellemesi (Sıradaki Maçı Yükle butonu tıklandığında)
+    // Bu event hakem ekranlarının hemen güncellenmesini sağlar
+    matchSocket.on("match_preview", (data) => {
+      try {
+        console.log("Referee: match_preview alındı:", data);
+        const newMatch = data.match;
+        
+        if (newMatch && (!currentMatch || currentMatch.id !== newMatch.id)) {
+          console.log(`Referee: Yeni maç yükleniyor - ${newMatch.id}`);
+          
+          // Yeni maç bilgilerini güncelle
+          currentMatch = {
+            ...newMatch,
+            current_state: "pre_match",
+            time_remaining: 0,
+            status: "preview"
+          };
+          
+          // Formları sıfırla
+          if (typeof resetScoringForm === "function") {
+            resetScoringForm();
+          }
+          
+          // UI'ı güncelle
+          if (typeof updateMatchInfo === "function") {
+            updateMatchInfo(currentMatch);
+          }
+          
+          // Yeni maça abone ol
+          if (matchSocket && matchSocket.connected) {
+            matchSocket.emit("unsubscribe_match", {});
+            matchSocket.emit("subscribe_match", {
+              match_id: newMatch.id,
+              match_source: newMatch.match_source || "schedule"
+            });
+          }
+          
+          // Bilgilendirme
+          if (typeof showToast === "function") {
+            showToast(`Yeni maç yüklendi: #${newMatch.match_number || newMatch.id}`, "info");
+          }
+        }
+      } catch (err) {
+        console.error("WebSocket match_preview error:", err);
+      }
+    });
+    
     // Hata mesajı
     matchSocket.on("error", (error) => {
       console.error("WebSocket error:", error);

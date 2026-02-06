@@ -410,7 +410,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "type": "match_update",
                     "match": match_data,
                     "server_timestamp": match_data["server_timestamp"]
-                }, namespace="/audience", broadcast=True)
+                }, namespace="/audience")
                 red_score = 0
                 blue_score = 0
                 if current_scores:
@@ -430,7 +430,28 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "type": "scores_update",
                     "scores": {"red_score": red_score, "blue_score": blue_score},
                     "server_timestamp": time.time()
-                }, namespace="/audience", broadcast=True)
+                }, namespace="/audience")
+                
+                # Tüm audience ekranlarına view_change gönder (awards/rankings'den match view'a geçmeleri için)
+                # ÖNEMLİ: Bu sayede maç başladığında tüm ekranlar otomatik olarak maç view'a geçer
+                event_data_for_view = datastore.get_event()  # Aktif event'i al
+                screens_config = event_data_for_view.get("screens", {}) if event_data_for_view else {}
+                
+                # Global active_view'ı da "match" olarak güncelle
+                if event_data_for_view and screens_config.get("active_view") != "match":
+                    screens_config["active_view"] = "match"
+                    event_data_for_view["screens"] = screens_config
+                    datastore.save_event(event_data_for_view)  # Aktif event'i kaydet
+                    logger.info("Maç başladı - global active_view 'match' olarak ayarlandı")
+                
+                socketio.emit("view_change", {
+                    "active_view": "match",
+                    "overlay_enabled": screens_config.get("overlay_enabled", False),
+                    "overlay_text": screens_config.get("overlay_text", ""),
+                    "overlay_chroma_enabled": screens_config.get("overlay_chroma_enabled", False),
+                    "overlay_chroma_color": screens_config.get("overlay_chroma_color", "#00ff00")
+                }, namespace="/audience")
+                logger.info("Maç başlatıldı - view_change broadcast edildi (tüm audience ekranlarına)")
             
             if active_match:
                 return jsonify({
@@ -554,6 +575,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     def reset_active_match():
         """
         Veritabanında in_progress kalan (takılı kalan) aktif maçı sıfırlar.
+        Ayrıca cache'deki tüm maç durumlarını temizler (preview dahil).
         Yeni maç başlatmak için kullanılır; Maç 2 (Saha 2) gibi eski aktif maç temizlenir.
         """
         try:
@@ -562,17 +584,48 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 return jsonify({"error": "Aktif etkinlik yok"}), 400
             
             reset_list = []
+            
+            # 1. Veritabanındaki in_progress maçları sıfırla
             active_schedule = datastore.get_match_schedule(event_id=event_id, status="in_progress")
             for m in active_schedule or []:
                 match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="schedule")
                 reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "schedule"})
+            
             active_practice = datastore.get_practice_matches(event_id=event_id, status="in_progress")
             for m in active_practice or []:
                 match_state_manager.stop_match(event_id=event_id, match_id=m["id"], match_source="practice")
                 reset_list.append({"match_number": m.get("match_number"), "field_number": m.get("field_number"), "match_source": "practice"})
             
-            logger.info("Aktif maç sıfırlandı: %s (kullanıcı: %s)", reset_list, session.get("user", "?"))
-            return jsonify({"ok": True, "reset": reset_list})
+            # 2. Cache'deki TÜM maç durumlarını temizle (preview dahil) - önemli!
+            match_state_manager.clear_all_matches(event_id)
+            
+            # 3. Realtime manager'daki veriyi de temizle
+            realtime_manager = get_realtime_manager()
+            realtime_manager.cleanup_all_matches(event_id)
+            
+            # 4. Ekranların view'ını "match" olarak ayarla (ödül törenine dönmeyi engelle)
+            # Reset sonrası genellikle yeni maç başlatılacak
+            event_data = datastore.get_event()  # Aktif event'i al
+            if event_data:
+                current_view = event_data.get("screens", {}).get("active_view", "match")
+                if current_view != "match":
+                    event_data.setdefault("screens", {})["active_view"] = "match"
+                    datastore.save_event(event_data)  # Aktif event'i kaydet
+                    logger.info("Reset-active: active_view set to match")
+                    
+                    # WebSocket ile tüm ekranlara bildir
+                    if socketio:
+                        screens_config = event_data.get("screens", {})
+                        socketio.emit("view_change", {
+                            "active_view": "match",
+                            "overlay_enabled": screens_config.get("overlay_enabled", False),
+                            "overlay_text": screens_config.get("overlay_text", ""),
+                            "overlay_chroma_enabled": screens_config.get("overlay_chroma_enabled", False),
+                            "overlay_chroma_color": screens_config.get("overlay_chroma_color", "#00ff00")
+                        }, namespace="/audience")
+            
+            logger.info("Aktif maç sıfırlandı (DB + cache temizlendi): %s (kullanıcı: %s)", reset_list, session.get("user", "?"))
+            return jsonify({"ok": True, "reset": reset_list, "cache_cleared": True})
         except Exception as e:
             logger.error("Aktif maç sıfırlama hatası: %s", e, exc_info=True)
             return jsonify({"error": "Aktif maç sıfırlanırken bir hata oluştu"}), 500
@@ -640,7 +693,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "type": "match_update",
                     "match": match_data,
                     "server_timestamp": match_data["server_timestamp"]
-                }, namespace="/audience", broadcast=True)
+                }, namespace="/audience")
             
             return jsonify({
                 "ok": True,
@@ -657,6 +710,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     def preview_match():
         """
         Hakem tabletleri için maçı önizleme durumuna alır (DB status güncellenmez).
+        Hakem ekranlarına WebSocket ile yeni maç bilgisini gönderir.
         """
         try:
             data = request.get_json() or {}
@@ -683,6 +737,13 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             if not match:
                 return jsonify({"error": "Maç bulunamadı"}), 404
 
+            # Önceki maç skorlarını temizle (yeni maç için temiz başlangıç)
+            match_key = _build_match_key(event_id, match_id, match_source)
+            realtime_manager = get_realtime_manager()
+            # Yeni maç için realtime skorları sıfırla
+            realtime_manager.initialize_match(match_key)
+            logger.info(f"Preview: Realtime skorlar sıfırlandı - match_key={match_key}")
+
             # Merkezi MatchStateManager ile preview durumuna al
             match_state_manager.set_match_preview(
                 event_id=event_id,
@@ -690,6 +751,32 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 match_source=match_source,
                 match_data=match
             )
+            
+            # Hakem ekranlarına WebSocket ile yeni maç bilgisini gönder
+            if socketio:
+                room = _get_match_room(event_id, match_id, match_source)
+                
+                # Tüm hakem ekranlarına match_preview event'i gönder
+                preview_data = {
+                    "type": "match_preview",
+                    "match": {
+                        "id": match_id,
+                        "match_number": match.get("match_number"),
+                        "match_type": match.get("match_type", "qualification"),
+                        "match_source": match_source,
+                        "field_number": match.get("field_number", 1),
+                        "red_alliance": match.get("red_alliance", []),
+                        "blue_alliance": match.get("blue_alliance", []),
+                        "red_score": 0,  # Yeni maç için sıfır
+                        "blue_score": 0,  # Yeni maç için sıfır
+                        "status": "preview",
+                        "scoring_data": match.get("scoring_data", {})
+                    }
+                }
+                
+                # /match namespace'ine gönder (hakem ekranları bu namespace'i dinliyor)
+                socketio.emit("match_preview", preview_data, namespace="/match")
+                logger.info(f"Preview: WebSocket bildirimi gönderildi - match_id={match_id}, namespace=/match")
             
             return jsonify({"ok": True})
         except Exception as e:
@@ -1232,6 +1319,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         Audience display için canlı maç bilgisini döner.
         Bu endpoint kimlik doğrulama gerektirmez (herkese açık).
         REST fallback ile seyirci ekranı güncel timer/skor alır; önce refresh_match_state ile güncellenir.
+        
+        ÖNEMLİ: Skorlar realtime_manager'dan alınır (WebSocket ile senkron).
         """
         event_id = datastore.get_active_event_id()
         if not event_id:
@@ -1250,6 +1339,20 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         if not match:
             return jsonify({"match": None})
         
+        # Realtime skorları al (WebSocket ile senkron kalması için)
+        realtime_manager = get_realtime_manager()
+        current_scores = realtime_manager.get_current_scores(match_key)
+        
+        # Canlı skorları hesapla
+        red_score = match.get("red_score", 0)
+        blue_score = match.get("blue_score", 0)
+        
+        if current_scores:
+            calculated = current_scores.get("calculated_scores", {})
+            if calculated:
+                red_score = calculated.get("red", {}).get("total_score", red_score)
+                blue_score = calculated.get("blue", {}).get("total_score", blue_score)
+        
         # Baş hakem / MatchCore ile aynı mantık: timer senkronu için server_timestamp
         server_ts = time.time()
         return jsonify({
@@ -1262,8 +1365,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 "field_number": match.get("field_number", 1),
                 "red_alliance": match.get("red_alliance", []),
                 "blue_alliance": match.get("blue_alliance", []),
-                "red_score": match.get("red_score", 0),
-                "blue_score": match.get("blue_score", 0),
+                "red_score": red_score,
+                "blue_score": blue_score,
                 "current_state": match.get("current_state", "idle"),
                 "time_remaining": match.get("time_remaining", 0),
                 "state_label": match.get("state_label") or MATCH_STATES.get(match.get("current_state", "idle"), "Beklemede"),

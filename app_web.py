@@ -24,6 +24,11 @@ Bağımlılıklar:
 - src.core.config: Yapılandırma yönetimi
 """
 
+# Gevent monkey patching - İLK SATIRDA OLMALI
+# WebSocket ve async işlemler için gevent'in stdlib'i patch etmesi gerekir
+from gevent import monkey
+monkey.patch_all()
+
 from pathlib import Path
 import base64
 import logging
@@ -229,11 +234,12 @@ def create_app() -> Flask:
     
     # Flask-SocketIO'yu başlat
     # CORS ayarları: Tüm origin'lere izin ver (aynı ağdaki cihazlar için)
-    # NOT: Python 3.13 ile eventlet uyumlu değil, threading modu kullanılıyor
+    # gevent async_mode ile gerçek WebSocket desteği (gevent yüklü olmalı: pip install gevent)
+    # NOT: gevent ile Werkzeug development server sorunsuz çalışır
     socketio = SocketIO(
         app,
         cors_allowed_origins="*",
-        async_mode="threading",  # Threading modu (Python 3.13 uyumluluğu için)
+        async_mode="gevent",  # Gevent modu - gerçek WebSocket desteği
         logger=is_development,  # Geliştirme modunda log açık
         engineio_logger=is_development,
         ping_timeout=60,  # 60 saniye ping timeout
@@ -1339,18 +1345,19 @@ if __name__ == "__main__":
         logger = logging.getLogger(__name__)
         logger.warning(
             "ÜRETİM MODU: Bu script doğrudan çalıştırılmamalı. "
-            "Lütfen gunicorn ile eventlet worker kullanın."
+            "Lütfen gunicorn ile gevent worker kullanın."
         )
-        logger.info("Örnek: waitress-serve --host=0.0.0.0 --port=5001 app_web:application")
+        logger.info("Örnek: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 -b 0.0.0.0:5001 app_web:application")
         # Yine de çalıştır ama uyarı ver
         socketio_instance.run(application, host="0.0.0.0", port=5001, debug=False)
     else:
         # Geliştirme modu - aynı ağdaki diğer cihazlardan erişim için 0.0.0.0 kullan
+        # NOT: Gevent modunda use_reloader=False olmalı (fork hatası önlenir)
         local_ip = _get_local_ip()
         logger = logging.getLogger(__name__)
         logger.info(f"Sunucu başlatılıyor...")
         logger.info(f"Yerel erişim: http://127.0.0.1:5001")
         if local_ip != "127.0.0.1":
             logger.info(f"Ağ erişimi: http://{local_ip}:5001")
-        socketio_instance.run(application, host="0.0.0.0", port=5001, debug=True)
+        socketio_instance.run(application, host="0.0.0.0", port=5001, debug=True, use_reloader=False)
 

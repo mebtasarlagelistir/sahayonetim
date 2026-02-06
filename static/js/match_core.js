@@ -351,15 +351,12 @@ class MatchCore {
     
     try {
       this.matchSocket = io("/match", {
-        transports: ["polling", "websocket"], // Polling'i önce dene (daha güvenilir)
+        transports: ["websocket", "polling"], // WebSocket öncelikli, polling fallback
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: this.MAX_RETRY_COUNT,
-        timeout: 20000,
-        forceNew: false, // Mevcut bağlantıyı yeniden kullan
-        upgrade: true, // Polling'den WebSocket'e yükseltmeyi dene
-        rememberUpgrade: false // Her seferinde polling'den başla
+        timeout: 20000
       });
       
       // Bağlantı kurulduğunda
@@ -458,6 +455,51 @@ class MatchCore {
         }
       });
       
+      // Maç önizleme güncellemesi (Sıradaki Maçı Yükle butonu tıklandığında)
+      // Bu event hakem ekranlarının hemen güncellenmesini sağlar
+      this.matchSocket.on("match_preview", (data) => {
+        try {
+          console.log("MatchCore: match_preview alındı:", data);
+          const newMatch = data.match;
+          
+          if (newMatch) {
+            // Mevcut maç farklıysa yeni maçı yükle
+            if (!this.match || this.match.id !== newMatch.id) {
+              console.log(`MatchCore: Yeni maç yükleniyor - ${newMatch.id}`);
+              
+              // Skorları sıfırla
+              this.scores = { red: {}, blue: {}, referee_meta: {} };
+              this.teamStatuses = {};
+              
+              // Yeni maç bilgilerini set et
+              this.match = {
+                ...newMatch,
+                current_state: "pre_match",
+                time_remaining: 0,
+                status: "preview"
+              };
+              
+              // Yeni maça abone ol
+              if (this.matchSocket && this.matchSocket.connected) {
+                // Önceki maçtan çık
+                this.matchSocket.emit("unsubscribe_match", {});
+                
+                // Yeni maça abone ol
+                this.matchSocket.emit("subscribe_match", {
+                  match_id: newMatch.id,
+                  match_source: newMatch.match_source || "schedule"
+                });
+              }
+              
+              // UI'ı güncelle
+              this.notify();
+            }
+          }
+        } catch (err) {
+          console.error("MatchCore: match_preview error:", err);
+        }
+      });
+      
       // Hata mesajı
       this.matchSocket.on("error", (error) => {
         console.error("MatchCore: WebSocket error:", error);
@@ -536,10 +578,24 @@ class MatchCore {
     
     // Timer'ı server'dan gelen time_remaining ile senkronize et
     if (serverTimeRemaining !== undefined && serverTimeRemaining !== null) {
+      const previousTimeRemaining = this.timeRemaining;
       this.timeRemaining = serverTimeRemaining;
+      
+      // Lokal timer değerlerini de güncelle (titreme önleme)
+      // Sadece fark 2 saniyeden fazlaysa yeniden hesapla (network gecikmesi toleransı)
+      const timeDiff = Math.abs(previousTimeRemaining - serverTimeRemaining);
+      if (timeDiff >= 2 && this.timerInterval) {
+        // Timer çalışıyorsa başlangıç değerlerini yeniden ayarla
+        this.timerInitialDuration = serverTimeRemaining;
+        this.timerStartTime = Date.now();
+        console.log(`MatchCore: Timer re-synced due to drift (${timeDiff}s difference)`);
+      } else if (this.timerInterval) {
+        // Küçük fark: sadece timerInitialDuration'ı güncelle, startTime'ı koru
+        // Bu sayede lokal timer akışı bozulmaz
+        const elapsed = Math.floor((Date.now() - this.timerStartTime) / 1000);
+        this.timerInitialDuration = serverTimeRemaining + elapsed;
+      }
     }
-    
-    console.log(`MatchCore: Server time sync - offset: ${this.serverTimeOffset}ms, timeRemaining: ${this.timeRemaining}s`);
   }
   
   /**

@@ -313,6 +313,30 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
             _global_preview["override_view"] = None
             _global_preview["override_until"] = None
             _global_preview["override_payload"] = None
+            
+            # ÖNEMLİ: Veritabanındaki active_view'ı da "match" olarak güncelle
+            # Böylece loadScreenSettings API'si de doğru view döner
+            try:
+                event_data = datastore.get_event()
+                if event_data:
+                    screens_config = event_data.get("screens", {})
+                    if screens_config.get("active_view") != "match":
+                        screens_config["active_view"] = "match"
+                        event_data["screens"] = screens_config
+                        datastore.save_event(event_data)
+                        logger.info("Maçı Göster: active_view veritabanında 'match' olarak güncellendi")
+                        
+                        # WebSocket ile tüm audience ekranlarına bildir
+                        if socketio:
+                            socketio.emit("view_change", {
+                                "active_view": "match",
+                                "overlay_enabled": screens_config.get("overlay_enabled", False),
+                                "overlay_text": screens_config.get("overlay_text", ""),
+                                "overlay_chroma_enabled": screens_config.get("overlay_chroma_enabled", False),
+                                "overlay_chroma_color": screens_config.get("overlay_chroma_color", "#00ff00")
+                            }, namespace="/audience")
+            except Exception as e:
+                logger.warning(f"Maçı Göster: active_view güncellenirken hata: {e}")
         else:
             # ÖNEMLİ: Payload boş değilse ve geçerli bir match içeriyorsa ayarla
             if payload and isinstance(payload, dict) and payload.get("match"):
@@ -402,6 +426,7 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 last_state = None
                 last_time_remaining = None
                 last_scores_update = None
+                last_active_view_update = None  # Aktif maç sırasında view güncellemesi yapıldı mı
                 
                 while not stop_event.is_set():
                     try:
@@ -415,6 +440,15 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                         current_state = active_match.get("current_state") if active_match else None
                         # Maç başladığında (otonom/teleop/end_game) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
                         if current_state in ("autonomous", "driver_controlled", "end_game"):
+                            # Önce mevcut preview durumunu kontrol et (view veya payload varsa)
+                            screen_data = _screen_registry.get(screen_id, {})
+                            had_preview = bool(
+                                _global_preview.get("override_view") or 
+                                _global_preview.get("override_payload") or
+                                screen_data.get("override_view") or 
+                                screen_data.get("override_payload")
+                            )
+                            
                             _global_preview["override_view"] = None
                             _global_preview["override_until"] = None
                             _global_preview["override_payload"] = None
@@ -423,6 +457,36 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                             screen["override_until"] = None
                             screen["override_payload"] = None
                             _screen_registry[screen_id] = screen
+                            
+                            # Maç aktif olduğunda bir kez active_view'ı "match" olarak ayarla
+                            match_key_for_update = f"{active_match.get('id')}_{current_state}"
+                            if last_active_view_update != match_key_for_update:
+                                last_active_view_update = match_key_for_update
+                                
+                                event_id_for_view = datastore.get_active_event_id()
+                                if event_id_for_view:
+                                    event_data = datastore.load_event(event_id_for_view)
+                                    if event_data:
+                                        current_active_view = event_data.get("screens", {}).get("active_view", "match")
+                                        # Sadece match view değilse güncelle
+                                        if current_active_view != "match":
+                                            event_data.setdefault("screens", {})["active_view"] = "match"
+                                            datastore.save_event(event_data)
+                                            logger.info(f"Match active - auto set global active_view to match")
+                                
+                                # View_change event gönder (ekranların maç view'a geçmesi için)
+                                global_settings = _get_global_screen_settings(datastore)
+                                socketio.emit("view_change", {
+                                    "active_view": "match",
+                                    "overlay_enabled": global_settings.get("overlay_enabled", False),
+                                    "overlay_text": global_settings.get("overlay_text", ""),
+                                    "overlay_chroma_enabled": global_settings.get("overlay_chroma_enabled", False),
+                                    "overlay_chroma_color": global_settings.get("overlay_chroma_color", "#00ff00")
+                                }, room=screen_id, namespace="/audience")
+                                logger.info(f"Match started - view_change to match for screen {screen_id}")
+                        else:
+                            # Maç aktif değilse, flag'i sıfırla (yeni maç için hazırlan)
+                            last_active_view_update = None
                         
                         # Preview kontrolü
                         screen = _screen_registry.get(screen_id, {})

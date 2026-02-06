@@ -21,8 +21,12 @@ Robot hazırlık (team_statuses) senkron mantığı:
 from typing import Dict, Set, Callable, Optional
 from datetime import datetime
 import json
+import logging
 from .calculator import ScoreCalculator
 from .ranking_points import RankingPointsCalculator
+
+# Logger oluştur
+logger = logging.getLogger(__name__)
 
 
 class RealtimeScoreManager:
@@ -84,6 +88,25 @@ class RealtimeScoreManager:
                 "updated_by": None
             }
             self._connected_clients[match_key] = set()
+    
+    def initialize_match(self, match_key: str) -> None:
+        """
+        Bir maç için skorları sıfırlar (yeni maç yüklendiğinde).
+        
+        Mevcut skorları temizler ve yeni bir sıfır durumundan başlatır.
+        Bu metod 'Sıradaki Maçı Yükle' gibi işlemler için kullanılır.
+        
+        Args:
+            match_key: Maç anahtarı (örn: "event_id_match_id")
+        """
+        # Eğer maç zaten kayıtlıysa, sil ve yeniden oluştur
+        if match_key in self._active_scores:
+            del self._active_scores[match_key]
+            logger.info(f"Maç skorları temizlendi: {match_key}")
+        
+        # Maçı yeniden kaydet (temiz skor durumu ile)
+        self.register_match(match_key)
+        logger.info(f"Maç yeniden başlatıldı: {match_key}")
     
     def update_score(
         self,
@@ -345,6 +368,23 @@ class RealtimeScoreManager:
             del self._connected_clients[match_key]
         if match_key in self._update_callbacks:
             del self._update_callbacks[match_key]
+    
+    def cleanup_all_matches(self, event_id: int) -> None:
+        """
+        Belirtilen etkinlik için tüm maç verilerini temizler.
+        Reset-active işleminde kullanılır.
+        
+        Args:
+            event_id: Etkinlik ID'si
+        """
+        # event_id ile başlayan tüm match_key'leri bul ve temizle
+        keys_to_remove = [k for k in self._active_scores.keys() if k.startswith(f"{event_id}_")]
+        for k in keys_to_remove:
+            self.cleanup_match(k)
+        
+        if keys_to_remove:
+            import logging
+            logging.getLogger(__name__).info(f"Realtime veriler temizlendi: event_id={event_id}, temizlenen={keys_to_remove}")
 
 
 # Global instance (her etkinlik için ayrı instance oluşturulabilir)

@@ -1,0 +1,54 @@
+{
+  "passed": [
+    "API returns active_view",
+    "API returns preview_payload",
+    "Match Control page loads",
+    "Start Match button exists",
+    "Audience Display page loads",
+    "View container exists",
+    "Initial view retrieved",
+    "API view change request",
+    "View change works",
+    "Red Referee panel loads",
+    "Score inputs exist",
+    "Blue Referee panel loads",
+    "Blue referee score inputs",
+    "Head Referee panel loads",
+    "Approve button exists",
+    "Ceremony tab exists",
+    "Award buttons exist",
+    "Set initial view to awards",
+    "Audience shows awards view",
+    "Show Match API call",
+    "View changed to match after Show Match",
+    "Active match API accessible",
+    "Match schedule API",
+    "Match schedule retrieved",
+    "Timer API returns data",
+    "Screens page loads",
+    "Screens list visible",
+    "Referee panel opened",
+    "Audience page opened",
+    "Control page ready",
+    "Audience page ready",
+    "Sync verified - audience shows match"
+  ],
+  "failed": [
+    {
+      "name": "WebSocket connection established",
+      "message": "No WebSocket connection detected (may use polling fallback)"
+    },
+    {
+      "name": "Match details retrieved",
+      "message": "Status: 404"
+    },
+    {
+      "name": "Score input fields found",
+      "message": "No inputs"
+    },
+    {
+      "name": "View set to match",
+      "message": ""
+    }
+  ]
+}

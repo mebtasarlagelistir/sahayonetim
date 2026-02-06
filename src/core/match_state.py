@@ -295,6 +295,22 @@ class MatchStateManager:
         self._broadcast_update(event_id, match_key, "stopped")
         logger.info(f"Maç durduruldu: event_id={event_id}, match_id={match_id}, match_source={match_source}")
     
+    def clear_all_matches(self, event_id: int) -> None:
+        """
+        Belirtilen etkinlik için tüm maç cache'ini temizler (preview dahil).
+        Reset-active işleminde kullanılır.
+        
+        Args:
+            event_id: Etkinlik ID'si
+        """
+        with self._lock:
+            if event_id in self._match_cache:
+                match_keys = list(self._match_cache[event_id].keys())
+                del self._match_cache[event_id]
+                logger.info(f"Tüm maç cache'i temizlendi: event_id={event_id}, temizlenen_maclar={match_keys}")
+            else:
+                logger.info(f"Temizlenecek maç cache'i yok: event_id={event_id}")
+    
     # SSE client tracking metodları kaldırıldı (WebSocket kullanılıyor)
     # WebSocket için room-based tracking kullanılıyor (routes/match_control.py ve routes/screens.py'de)
     # 
