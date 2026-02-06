@@ -148,6 +148,69 @@ async function resetActiveMatch() {
 }
 
 /**
+ * Yüklü olan maçı sıfırlar (skorları temizler, yeniden başlatılabilir hale getirir)
+ * 
+ * Tamamlanmış bir maçı yeniden oynamak için kullanılır.
+ */
+async function resetLoadedMatch() {
+  if (!currentMatch || !currentMatch.id) {
+    showToast("Önce bir maç yükleyin", "warning");
+    return;
+  }
+  
+  // Onay iste
+  if (!confirm(`"Maç ${currentMatch.match_number}" skorlarını sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+    return;
+  }
+  
+  const btnReset = qs("btn_reset_loaded_match");
+  if (btnReset && typeof setButtonLoading === "function") {
+    setButtonLoading(btnReset, true);
+  }
+  
+  try {
+    const matchSource = currentMatch.source || currentMatch.match_source || "schedule";
+    const data = await apiPost("/api/match-control/reset-match", {
+      match_id: currentMatch.id,
+      match_source: matchSource
+    });
+    
+    if (data && data.ok) {
+      showToast(data.message || "Maç sıfırlandı. Artık yeniden başlatabilirsiniz.", "success");
+      
+      // Maçı yeniden yükle
+      if (typeof loadMatchList === "function") {
+        await loadMatchList();
+      }
+      
+      // Mevcut maç UI'ını güncelle
+      currentMatch.red_score = 0;
+      currentMatch.blue_score = 0;
+      currentMatch.scoring_data = {};
+      currentMatch.status = "scheduled";
+      
+      // Skorları sıfırla
+      if (typeof applyScoringData === "function") {
+        applyScoringData({});
+      }
+      if (typeof calculateScoreBreakdown === "function") {
+        calculateScoreBreakdown();
+      }
+      if (typeof renderMatchDisplay === "function") {
+        renderMatchDisplay();
+      }
+    }
+  } catch (err) {
+    console.error("Reset loaded match error:", err);
+    showToast((err && err.message) || "Maç sıfırlanırken hata oluştu", "error");
+  } finally {
+    if (btnReset && typeof setButtonLoading === "function") {
+      setButtonLoading(btnReset, false);
+    }
+  }
+}
+
+/**
  * Sonraki maç durumuna geçer
  * 
  * Timer süre dolduğunda otomatik olarak çağrılır veya manuel olarak "Sonraki Aşama" butonu ile çağrılabilir

@@ -630,6 +630,77 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             logger.error("Aktif maç sıfırlama hatası: %s", e, exc_info=True)
             return jsonify({"error": "Aktif maç sıfırlanırken bir hata oluştu"}), 500
     
+    @bp.route("/api/match-control/reset-match", methods=["POST"])
+    @require_login
+    @require_event_manager
+    def reset_specific_match():
+        """
+        Belirli bir maçı skorlarını sıfırlayarak yeniden başlatılabilir hale getirir.
+        
+        Tamamlanmış bir maçı yeniden oynamak için kullanılır.
+        
+        Body:
+            match_id: Maç ID
+            match_source: "schedule" veya "practice" (varsayılan: schedule)
+        """
+        try:
+            event_id = datastore.get_active_event_id()
+            if not event_id:
+                return jsonify({"error": "Aktif etkinlik yok"}), 400
+            
+            data = request.get_json() or {}
+            match_id = data.get("match_id")
+            match_source = data.get("match_source", "schedule")
+            
+            if not match_id:
+                return jsonify({"error": "match_id parametresi gerekli"}), 400
+            
+            # Maçı veritabanından al
+            if match_source == "practice":
+                # Deneme maçları için ID ile arama (filtreleme ile)
+                all_practice = datastore.get_practice_matches(event_id=event_id)
+                match = next((m for m in all_practice if m.get("id") == match_id), None)
+            else:
+                match = datastore.get_match(match_id)
+            
+            if not match:
+                return jsonify({"error": "Maç bulunamadı"}), 404
+            
+            # Maç skorlarını sıfırla
+            update_data = {
+                "red_score": 0,
+                "blue_score": 0,
+                "scoring_data": {},
+                "status": "scheduled"
+            }
+            
+            if match_source == "practice":
+                datastore.update_practice_match(match_id=match_id, **update_data)
+            else:
+                datastore.update_match(match_id=match_id, **update_data)
+            
+            # Cache'deki maç durumunu temizle
+            match_key = _build_match_key(event_id, match_id, match_source)
+            realtime_manager = get_realtime_manager()
+            realtime_manager.initialize_match(match_key)
+            
+            # Match state manager'da da temizle
+            match_state_manager.stop_match(event_id=event_id, match_id=match_id, match_source=match_source)
+            
+            logger.info("Maç sıfırlandı (yeniden başlatılabilir): match_id=%s, source=%s (kullanıcı: %s)", 
+                       match_id, match_source, session.get("user", "?"))
+            
+            return jsonify({
+                "ok": True, 
+                "match_id": match_id,
+                "match_source": match_source,
+                "message": "Maç sıfırlandı. Artık yeniden başlatabilirsiniz."
+            })
+            
+        except Exception as e:
+            logger.error("Maç sıfırlama hatası: %s", e, exc_info=True)
+            return jsonify({"error": "Maç sıfırlanırken bir hata oluştu"}), 500
+    
     @bp.route("/api/match-control/state", methods=["POST"])
     @require_login
     @require_event_manager
