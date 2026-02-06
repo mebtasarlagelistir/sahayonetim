@@ -506,15 +506,157 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
         # Maç sayısını belirle
         if matches_per_team:
-            num_matches = max(
-                1,
-                (matches_per_team * len(team_numbers) + (teams_per_alliance * 2 - 1)) // (teams_per_alliance * 2),
-            )
+            # Kullanıcının beklediği formül:
+            # (takım_sayısı * maç_sayısı) / (ittifak_başı_takım * 2)
+            num_matches = (matches_per_team * len(team_numbers)) // (teams_per_alliance * 2)
+            if num_matches < 1:
+                return jsonify({"error": "Geçerli maç sayısı hesaplanamadı"}), 400
         elif num_matches is None:
             num_matches = max(len(team_numbers) // (teams_per_alliance * 2), 1)
 
         # Eğer temizleme yapılmadıysa maç numarasını devam ettir
         next_number = _get_next_match_number(event_id, match_type)
+# Eğer takım başına maç sayısı verilmişse, partner tekrarını önleyen
+        # özel algoritmayı (kullanıcının paylaştığına benzer) kullan
+        if matches_per_team:
+
+            def _generate_partner_balanced_schedule():
+                """
+                Takım başına sabit maç sayısı ve aynı ittifakta tekrar
+                partner olmamayı hedefleyen fikstür üretir.
+                """
+                match_counts = {team: 0 for team in team_numbers}
+                partner_history = {team: set() for team in team_numbers}
+                schedule_pairs = []
+
+                for _match_index in range(1, num_matches + 1):
+                    available_teams = [
+                        t for t, count in match_counts.items() if count < matches_per_team
+                    ]
+                    if len(available_teams) < teams_per_alliance * 2:
+                        return None
+
+                    match_found = False
+
+                    for _ in range(2000):
+                        random.shuffle(available_teams)
+                        candidates = available_teams[: teams_per_alliance * 2]
+
+                        blue_alliance = candidates[:teams_per_alliance]
+                        red_alliance = candidates[teams_per_alliance : teams_per_alliance * 2]
+
+                        # Mavi ittifak partner kontrolü
+                        valid = True
+                        for i in range(len(blue_alliance)):
+                            for j in range(i + 1, len(blue_alliance)):
+                                if blue_alliance[j] in partner_history[blue_alliance[i]]:
+                                    valid = False
+                                    break
+                            if not valid:
+                                break
+                        if not valid:
+                            continue
+
+                        # Kırmızı ittifak partner kontrolü
+                        for i in range(len(red_alliance)):
+                            for j in range(i + 1, len(red_alliance)):
+                                if red_alliance[j] in partner_history[red_alliance[i]]:
+                                    valid = False
+                                    break
+                            if not valid:
+                                break
+                        if not valid:
+                            continue
+
+                        # Geçerli eşleşme bulundu
+                        match_found = True
+
+                        # Partner geçmişini güncelle
+                        for alliance in (blue_alliance, red_alliance):
+                            for i in range(len(alliance)):
+                                for j in range(i + 1, len(alliance)):
+                                    a = alliance[i]
+                                    b = alliance[j]
+                                    partner_history[a].add(b)
+                                    partner_history[b].add(a)
+
+                        for team in candidates:
+                            match_counts[team] += 1
+
+                        schedule_pairs.append(
+                            {
+                                "blue_alliance": blue_alliance[:],
+                                "red_alliance": red_alliance[:],
+                            }
+                        )
+                        break
+
+                    if not match_found:
+                        # Bu denemede geçerli çözüm bulunamadı
+                        return None
+
+                return schedule_pairs
+
+            max_global_attempts = 100
+            schedule_pairs = None
+            for _ in range(max_global_attempts):
+                result = _generate_partner_balanced_schedule()
+                if result is not None:
+                    schedule_pairs = result
+                    break
+
+            if schedule_pairs is None:
+                return jsonify(
+                    {
+                        "error": "Maç takvimi oluşturulamadı, lütfen parametreleri ve takım sayısını gözden geçirin"
+                    }
+                ), 400
+
+            created_count = 0
+            current_time = initial_datetime
+
+            for match_data in schedule_pairs:
+                current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
+
+                # Var olan maçlarla çakışma kontrolü
+                conflict = False
+                for team in match_data["blue_alliance"] + match_data["red_alliance"]:
+                    if datastore.check_match_schedule_conflict(
+                        team_number=team,
+                        match_date=current_time.strftime("%Y-%m-%d"),
+                        match_time=current_time.strftime("%H:%M"),
+                        duration_minutes=match_duration,
+                        event_id=event_id,
+                    ):
+                        conflict = True
+                        break
+
+                if conflict:
+                    # Çakışma varsa bir sonraki zaman slotunda dene
+                    current_time += timedelta(minutes=match_duration)
+                    continue
+
+                field_number = (created_count % max(1, field_count)) + 1
+                datastore.create_match(
+                    match_number=next_number,
+                    match_type=match_type,
+                    field_number=field_number,
+                    match_date=current_time.strftime("%Y-%m-%d"),
+                    match_time=current_time.strftime("%H:%M"),
+                    red_alliance=match_data["red_alliance"],
+                    blue_alliance=match_data["blue_alliance"],
+                    status="scheduled",
+                    surrogate_teams=[],
+                    event_id=event_id,
+                )
+
+                created_count += 1
+                next_number += 1
+                current_time += timedelta(minutes=match_duration)
+
+            return jsonify({"ok": True, "created_count": created_count})
+
+        # matches_per_team belirtilmediyse, mevcut dengeleyici algoritmaya geri dön
 
         # Matchmaker istatistikleri
         team_stats = {
