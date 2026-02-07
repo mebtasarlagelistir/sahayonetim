@@ -491,6 +491,18 @@ async function completeMatch() {
     
     currentState = "completed";
     timeRemaining = 0;
+
+    if (data.playoff_advance && data.playoff_advance.message) {
+      const status = data.playoff_advance.status || "skipped";
+      const message = data.playoff_advance.message;
+      if (status === "advanced") {
+        showToast(message, "success");
+      } else if (status === "error") {
+        showToast(message, "error");
+      } else {
+        showToast(message, "warning");
+      }
+    }
     
     // Timer'ı durdur
     if (typeof stopMatchTimer === "function") {

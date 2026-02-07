@@ -131,12 +131,6 @@ async function loadConnectedScreens() {
             </div>
             
             <div class="control-row">
-              <label class="follow-toggle">
-                <input type="checkbox" class="screen-follow-toggle" data-screen-id="${screen.screen_id}" ${followGlobal ? "checked" : ""} />
-                <span class="checkbox-custom"></span>
-                <span>Global Takip</span>
-              </label>
-              
               <button class="btn-action btn-primary-gradient screen-apply-btn" data-screen-id="${screen.screen_id}" style="padding: 8px 16px; font-size: 13px;">
                 <span class="btn-icon">✔</span>
                 Uygula
@@ -157,7 +151,6 @@ async function loadConnectedScreens() {
       btn.addEventListener("click", async () => {
         const screenId = btn.dataset.screenId;
         const viewSelect = list.querySelector(`.screen-view-select[data-screen-id="${screenId}"]`);
-        const followToggle = list.querySelector(`.screen-follow-toggle[data-screen-id="${screenId}"]`);
         
         btn.disabled = true;
         btn.innerHTML = '<span class="btn-icon">⏳</span> Kaydediliyor...';
@@ -166,7 +159,7 @@ async function loadConnectedScreens() {
           await apiPost("/api/screens/control", {
             screen_id: screenId,
             desired_view: viewSelect?.value || "match",
-            follow_global: !!followToggle?.checked
+            follow_global: false
           });
           showToast("Ekran ayarı güncellendi", "success");
           btn.innerHTML = '<span class="btn-icon">✔</span> Uygula';

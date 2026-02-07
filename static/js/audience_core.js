@@ -206,6 +206,8 @@ class AudienceCoreManager {
       const data = await apiGet(`/api/screens/view?screen_id=${encodeURIComponent(this.screenId)}&_t=${Date.now()}`);
       
       const newView = data.active_view || "match";
+      this.followGlobal = data.follow_global !== undefined ? !!data.follow_global : true;
+      this.desiredView = data.desired_view || "match";
       const newOverlayEnabled = !!data.overlay_enabled;
       const newOverlayText = data.overlay_text || "";
       const newChromaEnabled = !!data.overlay_chroma_enabled;
@@ -431,6 +433,12 @@ class AudienceCoreManager {
           this.overlayChromaEnabled = newChromaEnabled;
           this.overlayChromaColor = newChromaColor;
           
+          // Global view_change ise ve bu ekran global takip etmiyorsa yok say
+          if (!data.screen_id && this.followGlobal === false) {
+            this.notify();
+            return;
+          }
+
           // Eğer maç view'a geçiliyorsa, preview'ı da temizle (server tarafında temizlenmiş demektir)
           if (newView === "match" && this.previewState !== "none") {
             console.log("AudienceCore: Maç view'a geçiliyor, preview temizleniyor");

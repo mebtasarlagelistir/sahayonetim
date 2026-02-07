@@ -89,6 +89,71 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 breaks.append((start_dt, end_dt))
         return sorted(breaks, key=lambda x: x[0])
 
+    def _collect_qualification_matches(event_id):
+        """
+        Tamamlanmış sıralama maçlarını ve özet listesini hazırlar.
+        
+        Not: Bazı kayıtlarda match_type boş olabilir, qualification kabul edilir.
+        Eksik SP verisi varsa scoring_data üzerinden hesaplanır.
+        """
+        completed_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            status="completed",
+        )
+        qualification_matches = [
+            m for m in completed_matches
+            if (m.get("match_type") or "qualification").strip() == "qualification"
+        ]
+        from src.core.scoring.ranking_points import RankingPointsCalculator
+        def _normalize_rp(rp: dict) -> dict:
+            if not isinstance(rp, dict):
+                return {}
+            normalized = {}
+            for side in ("red", "blue"):
+                side_rp = rp.get(side, {}) or {}
+                result = int(side_rp.get("result") or 0)
+                climb = int(side_rp.get("climb") or 0)
+                auto = int(side_rp.get("auto") or 0)
+                total = int(side_rp.get("total") or 0)
+                computed_total = result + climb + auto
+                if total != computed_total:
+                    total = computed_total
+                normalized[side] = {
+                    "result": result,
+                    "climb": climb,
+                    "auto": auto,
+                    "total": total,
+                }
+            return normalized
+        for m in qualification_matches:
+            scoring_data = m.get("scoring_data") if isinstance(m.get("scoring_data"), dict) else {}
+            rp = scoring_data.get("ranking_points")
+            if not rp:
+                rp = RankingPointsCalculator.calculate_ranking_points(
+                    match_type=m.get("match_type", "qualification"),
+                    red_score=int(m.get("red_score") or 0),
+                    blue_score=int(m.get("blue_score") or 0),
+                    scoring_data=scoring_data,
+                    red_alliance=m.get("red_alliance") or [],
+                    blue_alliance=m.get("blue_alliance") or [],
+                )
+            scoring_data["ranking_points"] = _normalize_rp(rp)
+            m["scoring_data"] = scoring_data
+        completed_list = [
+            {
+                "match_number": m.get("match_number"),
+                "red_alliance": m.get("red_alliance") or [],
+                "blue_alliance": m.get("blue_alliance") or [],
+                "red_score": m.get("red_score"),
+                "blue_score": m.get("blue_score"),
+                "match_date": m.get("match_date"),
+                "match_time": m.get("match_time"),
+                "ranking_points": (m.get("scoring_data") or {}).get("ranking_points", {}),
+            }
+            for m in qualification_matches
+        ]
+        return qualification_matches, completed_list
+
     def _next_valid_time(current, duration_minutes, windows, breaks):
         """
         Verilen süre için uygun bir zaman bulur (zaman pencereleri ve molaları dikkate alarak).
@@ -178,6 +243,46 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         )
 
         return jsonify(matches)
+
+    @bp.get("/match-schedule/rankings")
+    @require_login
+    def get_qualification_rankings():
+        """
+        Sıralama maçları sonuçları ve SP sıralaması.
+
+        Tamamlanmış sıralama maçlarından anlık SP hesaplanır; maçlar ilerledikçe
+        bu endpoint yeniden çağrıldığında güncel sıralama döner.
+
+        Returns:
+            JSON: {
+                "rankings": [{"team", "rank", "total_sp", "wins", "ties", "losses", ...}, ...],
+                "completed_matches": [{"match_number", "red_alliance", "blue_alliance", "red_score", "blue_score"}, ...],
+                "completed_count": int
+            }
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"rankings": [], "completed_matches": [], "completed_count": 0})
+
+        qualification_matches, completed_list = _collect_qualification_matches(event_id)
+
+        if not qualification_matches:
+            return jsonify({
+                "rankings": [],
+                "completed_matches": completed_list,
+                "completed_count": 0,
+            })
+
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        calculator = TeamRankingsCalculator()
+        rankings = calculator.calculate_team_rankings(qualification_matches)
+
+        return jsonify({
+            "rankings": rankings,
+            "completed_matches": completed_list,
+            "completed_count": len(qualification_matches),
+        })
+
 
     @bp.post("/match-schedule")
     @require_login
@@ -503,6 +608,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         # Maç süresini al (istek > etkinlik)
         event_cycle = int(event_data.get("schedule", {}).get("match_cycle_seconds", 150))
         match_duration = max(1, (match_cycle_minutes or (event_cycle // 60)))
+        # Takımın ardışık maçlarını engellemek için minimum maç aralığı
+        # 1 = arka arkaya maç yok (en az 1 maç ara)
+        min_gap_matches = 1
 
         # Maç sayısını belirle
         if matches_per_team:
@@ -524,9 +632,14 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 """
                 Takım başına sabit maç sayısı ve aynı ittifakta tekrar
                 partner olmamayı hedefleyen fikstür üretir.
+                
+                Ek optimizasyon:
+                - Ardışık maç cezası
+                - Maçlar arası boşluk (dinlenme) puanı
                 """
                 match_counts = {team: 0 for team in team_numbers}
                 partner_history = {team: set() for team in team_numbers}
+                last_match_index = {team: None for team in team_numbers}
                 schedule_pairs = []
 
                 for _match_index in range(1, num_matches + 1):
@@ -537,6 +650,8 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                         return None
 
                     match_found = False
+                    best_candidates = None
+                    best_score = float("-inf")
 
                     for _ in range(2000):
                         random.shuffle(available_teams)
@@ -568,32 +683,73 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                         if not valid:
                             continue
 
-                        # Geçerli eşleşme bulundu
-                        match_found = True
-
-                        # Partner geçmişini güncelle
-                        for alliance in (blue_alliance, red_alliance):
-                            for i in range(len(alliance)):
-                                for j in range(i + 1, len(alliance)):
-                                    a = alliance[i]
-                                    b = alliance[j]
-                                    partner_history[a].add(b)
-                                    partner_history[b].add(a)
-
+                        # Minimum maç aralığı kontrolü
+                        valid_gap = True
                         for team in candidates:
-                            match_counts[team] += 1
+                            last_idx = last_match_index.get(team)
+                            if last_idx is None:
+                                continue
+                            gap_matches = _match_index - last_idx - 1
+                            if gap_matches < min_gap_matches:
+                                valid_gap = False
+                                break
+                        if not valid_gap:
+                            continue
 
-                        schedule_pairs.append(
-                            {
+                        # Dinlenme ve ardışık maç skoru hesapla
+                        rest_score = 0
+                        consecutive_penalty = 0
+                        for team in candidates:
+                            last_idx = last_match_index.get(team)
+                            if last_idx is None:
+                                rest_score += 10
+                                continue
+                            gap_matches = _match_index - last_idx - 1
+                            if gap_matches < min_gap_matches:
+                                consecutive_penalty += 200
+                            elif gap_matches == 1:
+                                consecutive_penalty += 80
+                            else:
+                                rest_score += min(60, gap_matches * 10)
+                        total_score = rest_score - consecutive_penalty
+
+                        if total_score > best_score:
+                            best_score = total_score
+                            best_candidates = {
                                 "blue_alliance": blue_alliance[:],
                                 "red_alliance": red_alliance[:],
+                                "candidates": candidates[:],
                             }
-                        )
-                        break
+                            match_found = True
 
                     if not match_found:
                         # Bu denemede geçerli çözüm bulunamadı
                         return None
+
+                    # En iyi eşleşmeyi kaydet ve geçmişi güncelle
+                    chosen = best_candidates
+                    blue_alliance = chosen["blue_alliance"]
+                    red_alliance = chosen["red_alliance"]
+                    candidates = chosen["candidates"]
+
+                    for alliance in (blue_alliance, red_alliance):
+                        for i in range(len(alliance)):
+                            for j in range(i + 1, len(alliance)):
+                                a = alliance[i]
+                                b = alliance[j]
+                                partner_history[a].add(b)
+                                partner_history[b].add(a)
+
+                    for team in candidates:
+                        match_counts[team] += 1
+                        last_match_index[team] = _match_index
+
+                    schedule_pairs.append(
+                        {
+                            "blue_alliance": blue_alliance[:],
+                            "red_alliance": red_alliance[:],
+                        }
+                    )
 
                 return schedule_pairs
 
@@ -667,11 +823,12 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 "opponents": set(),
                 "last_color": None,
                 "last_match_time": None,
+                "last_match_index": None,
             }
             for team in team_numbers
         }
 
-        def calculate_team_score(team, current_time):
+        def calculate_team_score(team, current_time, match_index):
             """
             Takım skoru hesaplar (az oynayan ve dinlenmiş takımları önceliklendirir).
             """
@@ -691,24 +848,47 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     rest_score -= 80
                 else:
                     rest_score += min(120, gap_minutes)
+            # Maç sayısı bazlı dinlenme/ardışık ceza
+            last_idx = stats.get("last_match_index")
+            if last_idx is None:
+                rest_score += 20
+            else:
+                gap_matches = match_index - last_idx - 1
+                if gap_matches < min_gap_matches:
+                    rest_score -= 240
+                elif gap_matches == 1:
+                    rest_score -= 120
+                else:
+                    rest_score += min(80, gap_matches * 10)
             return base_score + balance_score + rest_score
 
-        def pick_balanced_teams(available_teams, required_count, current_time):
+        def pick_balanced_teams(available_teams, required_count, current_time, match_index):
             if len(available_teams) < required_count:
                 return None
-            shuffled = list(available_teams)
+            eligible = []
+            for team in available_teams:
+                last_idx = team_stats[team].get("last_match_index")
+                if last_idx is None:
+                    eligible.append(team)
+                    continue
+                gap_matches = match_index - last_idx - 1
+                if gap_matches >= min_gap_matches:
+                    eligible.append(team)
+            if len(eligible) < required_count:
+                return None
+            shuffled = list(eligible)
             random.shuffle(shuffled)
             sorted_teams = sorted(
                 shuffled,
-                key=lambda t: calculate_team_score(t, current_time) + random.random(),
+                key=lambda t: calculate_team_score(t, current_time, match_index) + random.random(),
                 reverse=True,
             )
             selected = []
             selected_set = set()
             if sorted_teams:
-                top_score = calculate_team_score(sorted_teams[0], current_time)
+                top_score = calculate_team_score(sorted_teams[0], current_time, match_index)
                 top_candidates = [
-                    t for t in sorted_teams if calculate_team_score(t, current_time) >= top_score - 0.01
+                    t for t in sorted_teams if calculate_team_score(t, current_time, match_index) >= top_score - 0.01
                 ]
                 first_team = random.choice(top_candidates) if top_candidates else sorted_teams[0]
                 selected.append(first_team)
@@ -721,7 +901,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 for team in remaining:
                     if team in selected_set:
                         continue
-                    team_score = calculate_team_score(team, current_time)
+                    team_score = calculate_team_score(team, current_time, match_index)
                     overlap = sum(
                         1
                         for sel in selected
@@ -772,6 +952,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     available_teams,
                     teams_per_alliance * 2,
                     current_time,
+                    created_count + 1,
                 )
 
             if not selected or len(selected) < teams_per_alliance * 2:
@@ -847,17 +1028,24 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 team_stats[team]["red_count"] += 1
                 team_stats[team]["last_color"] = "red"
                 team_stats[team]["last_match_time"] = current_time
+                team_stats[team]["last_match_index"] = created_count + 1
                 team_stats[team]["opponents"].update(blue_alliance)
             for team in blue_alliance:
                 team_stats[team]["match_count"] += 1
                 team_stats[team]["blue_count"] += 1
                 team_stats[team]["last_color"] = "blue"
                 team_stats[team]["last_match_time"] = current_time
+                team_stats[team]["last_match_index"] = created_count + 1
                 team_stats[team]["opponents"].update(red_alliance)
 
             # Zamanı ilerlet
             current_time += timedelta(minutes=match_duration)
 
+        if created_count < num_matches:
+            return jsonify({
+                "error": "Dinlenme kuralı nedeniyle yeterli maç oluşturulamadı. "
+                         "Lütfen maç sayısını azaltın veya takım sayısını artırın."
+            }), 400
         return jsonify({"ok": True, "created_count": created_count})
 
     @bp.post("/match-schedule/generate-finals")
@@ -929,9 +1117,15 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         
         # Etkinlik formatından varsayılan değerleri al
         format_data = event_data.get("format", {})
+        playoff_data = event_data.get("playoff", {}) if isinstance(event_data, dict) else {}
         event_teams_per_alliance = _parse_int(format_data.get("teams_per_alliance"), 2)
-        if event_teams_per_alliance:
+        playoff_teams_per_alliance = _parse_int(playoff_data.get("teams_per_alliance"))
+        if playoff_teams_per_alliance:
+            teams_per_alliance = playoff_teams_per_alliance
+        elif event_teams_per_alliance:
             teams_per_alliance = event_teams_per_alliance
+        if max_teams is None:
+            max_teams = _parse_int(playoff_data.get("max_teams"))
         
         # Maç süresini al
         event_cycle = int(event_data.get("schedule", {}).get("match_cycle_seconds", 150))
@@ -963,11 +1157,12 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 teams_per_alliance * 2
             )}), 400
         
-        final_matches = bracket_generator.generate_final_matches(
+        playoff_rounds = bracket_generator.generate_playoff_rounds(
             rankings=rankings,
             teams_per_alliance=teams_per_alliance,
             max_teams=max_teams
         )
+        final_matches = [m for r in playoff_rounds for m in r.get("matches", [])]
         
         if not final_matches:
             return jsonify({"error": "Final maçları oluşturulamadı"}), 400
@@ -985,6 +1180,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         created_count = 0
         current_time = initial_datetime
         next_number = _get_next_match_number(event_id, "final")
+        bracket_id = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         
         for match_data in final_matches:
             try:
@@ -997,6 +1193,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     red_alliance=match_data["red_alliance"],
                     blue_alliance=match_data["blue_alliance"],
                     status="scheduled",
+                    notes=f"[playoff] bracket_id={bracket_id};round={match_data.get('round')};label={match_data.get('label')}",
                     event_id=event_id,
                 )
                 created_count += 1
@@ -1008,9 +1205,47 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                 # Hata durumunda devam et (loglama yapılabilir)
                 continue
         
+        teams = datastore.get_teams()
+        team_name_map = {
+            (t.get("number") or "").strip(): (t.get("name") or "").strip()
+            for t in teams
+            if (t.get("number") or "").strip()
+        }
+        rank_map = {item.get("team"): item.get("rank") for item in rankings}
+
+        def _build_alliance_info(team_numbers):
+            items = []
+            for team_num in team_numbers:
+                items.append({
+                    "team": team_num,
+                    "rank": rank_map.get(team_num),
+                    "name": team_name_map.get(team_num, ""),
+                })
+            return items
+
+        bracket_rounds = []
+        for round_item in playoff_rounds:
+            matches = round_item.get("matches", []) or []
+            enriched_matches = []
+            for match in matches:
+                enriched_matches.append({
+                    "match_number": match.get("match_number"),
+                    "round": match.get("round"),
+                    "label": match.get("label"),
+                    "red_alliance": match.get("red_alliance") or [],
+                    "blue_alliance": match.get("blue_alliance") or [],
+                    "red_alliance_info": _build_alliance_info(match.get("red_alliance") or []),
+                    "blue_alliance_info": _build_alliance_info(match.get("blue_alliance") or []),
+                })
+            bracket_rounds.append({
+                "name": round_item.get("name"),
+                "matches": enriched_matches,
+            })
+
         return jsonify({
             "ok": True,
             "created_count": created_count,
             "rankings": rankings,
-            "bracket_info": bracket_info
+            "bracket_info": bracket_info,
+            "bracket_rounds": bracket_rounds
         })

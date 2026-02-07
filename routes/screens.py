@@ -43,6 +43,29 @@ def _get_global_screen_settings(datastore) -> Dict[str, Any]:
     }
 
 
+def _get_screen_prefs(datastore, screen_id: str) -> Dict[str, Any]:
+    """Kalıcı ekran tercihlerini getirir (follow_global/desired_view)."""
+    event_data = datastore.get_event()
+    screens_cfg = event_data.get("screens", {}) if isinstance(event_data, dict) else {}
+    per_screen = screens_cfg.get("per_screen", {}) if isinstance(screens_cfg, dict) else {}
+    prefs = per_screen.get(screen_id, {}) if isinstance(per_screen, dict) else {}
+    if not isinstance(prefs, dict):
+        return {}
+    return prefs
+
+
+def _set_screen_prefs(datastore, screen_id: str, prefs: Dict[str, Any]) -> None:
+    """Kalıcı ekran tercihlerini kaydeder."""
+    event_data = datastore.get_event()
+    if not isinstance(event_data, dict):
+        event_data = {}
+    event_data.setdefault("screens", {})
+    screens_cfg = event_data["screens"]
+    screens_cfg.setdefault("per_screen", {})
+    screens_cfg["per_screen"][screen_id] = prefs
+    datastore.save_event(event_data)
+
+
 def _cleanup_screens(timeout_seconds: int = 60) -> None:
     now = time.time()
     expired = [key for key, item in _screen_registry.items() if now - item.get("last_seen", 0) > timeout_seconds]
@@ -89,6 +112,15 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
     @bp.get("/audience")
     def audience_display_page():
         return render_template("audience_display.html")
+
+    @bp.get("/playoff-report")
+    def playoff_report_page():
+        """
+        Playoff eşleşme raporu (public).
+        
+        Seyirciler ve takımlar için final eşleşmelerini görselleştirir.
+        """
+        return render_template("playoff_report.html")
 
     @bp.get("/api/screens/settings")
     def get_screen_settings():
@@ -155,9 +187,16 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         if not screen_id:
             return jsonify({"error": "screen_id gerekli"}), 400
         existing = _screen_registry.get(screen_id, {})
-        desired_view = existing.get("desired_view") or (data.get("desired_view") or "").strip() or "match"
-        # Yeni ekranlar varsayılan olarak global ayarları takip etsin
-        follow_global = existing.get("follow_global", True) if existing else True
+        # Kalıcı tercihleri çek (ekran yeniden bağlandıysa ayarları koru)
+        prefs = _get_screen_prefs(datastore, screen_id)
+        desired_view = (
+            existing.get("desired_view")
+            or prefs.get("desired_view")
+            or (data.get("desired_view") or "").strip()
+            or "match"
+        )
+        # Global takip özelliği kapalı: her zaman False
+        follow_global = False
         ip = request.remote_addr or ""
         screen_name = (data.get("screen_name") or "").strip() or existing.get("screen_name") or _assign_screen_name(ip)
         _screen_registry[screen_id] = {
@@ -188,8 +227,9 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         global_settings = _get_global_screen_settings(datastore)
         screen = _screen_registry.get(screen_id, {})
         # Varsayılan olarak global ayarları takip et (yeni ekranlar için)
-        follow_global = screen.get("follow_global", True) if screen else True
-        desired_view = screen.get("desired_view") or "match"
+        prefs = _get_screen_prefs(datastore, screen_id) if screen_id else {}
+        follow_global = False
+        desired_view = screen.get("desired_view") or prefs.get("desired_view") or "match"
         override_view = screen.get("override_view")
         override_until = screen.get("override_until")
         override_payload = screen.get("override_payload")
@@ -239,6 +279,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         return jsonify(
             {
                 "active_view": active_view,
+                "desired_view": desired_view,
+                "follow_global": follow_global,
                 "overlay_enabled": global_settings.get("overlay_enabled", False),
                 "overlay_text": global_settings.get("overlay_text", ""),
                 "overlay_chroma_enabled": global_settings.get("overlay_chroma_enabled", False),
@@ -259,10 +301,16 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         if not screen:
             return jsonify({"error": "Ekran bulunamadı"}), 404
         desired_view = (data.get("desired_view") or screen.get("desired_view") or "match").strip()
-        follow_global = bool(data.get("follow_global", False))
+        follow_global = False
         screen["desired_view"] = desired_view
         screen["follow_global"] = follow_global
         _screen_registry[screen_id] = screen
+        
+        # Kalıcı tercihleri kaydet (global takip kapalı)
+        _set_screen_prefs(datastore, screen_id, {
+            "desired_view": desired_view,
+            "follow_global": False
+        })
         
         # WebSocket ile view değişikliğini bildir (her zaman, follow_global fark etmeksizin)
         if socketio:

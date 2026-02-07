@@ -96,7 +96,7 @@ async function loadMatchSchedule() {
         .join(", ");
 
       tr.innerHTML = `
-        <td><input type="checkbox" class="match-select" data-match-id="${match.id}" /></td>
+        <td class="no-print"><input type="checkbox" class="match-select" data-match-id="${match.id}" /></td>
         <td>${escapeHtml(String(match.match_number || ""))}</td>
         <td>${escapeHtml(match.match_date)}</td>
         <td>${escapeHtml(match.match_time)}</td>
@@ -695,6 +695,9 @@ async function generateFinalMatches() {
       
       // Maç listesini yenile
       await loadMatchSchedule();
+      if (typeof loadPlayoffMatchSchedule === "function") {
+        await loadPlayoffMatchSchedule();
+      }
       
       // Adım durumunu güncelle
       if (typeof checkAllStepStatuses === "function") {
@@ -709,6 +712,71 @@ async function generateFinalMatches() {
     showToast(errorMsg, "error");
   } finally {
     setButtonLoading(btn, false);
+  }
+}
+
+/**
+ * Playoff maçlarını yükler ve tabloya ekler (setup -> playoff).
+ */
+async function loadPlayoffMatchSchedule() {
+  const tbody = qs("playoff_match_tbody");
+  if (!tbody) return;
+  try {
+    const [matches, bracketData] = await Promise.all([
+      apiGet("/api/match-schedule", { type: "final" }),
+      apiGet("/api/public/playoff-bracket").catch(() => ({})),
+    ]);
+    if (!matches || matches.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" style="padding: 20px; text-align: center; color: #666;">Playoff maçı bulunamadı.</td></tr>`;
+      return;
+    }
+    const roundMap = {};
+    (bracketData.bracket_rounds || []).forEach((round) => {
+      (round.matches || []).forEach((match) => {
+        if (!match || match.match_number == null) return;
+        roundMap[String(match.match_number)] = {
+          roundName: round.name || "",
+          label: match.label || "",
+          redAllianceInfo: match.red_alliance_info || [],
+          blueAllianceInfo: match.blue_alliance_info || [],
+        };
+      });
+    });
+
+    const buildAllianceNumber = (infoList) => {
+      const ranks = (infoList || [])
+        .map((item) => item?.rank)
+        .filter((rank) => Number.isFinite(Number(rank)))
+        .map((rank) => String(rank));
+      return ranks.length ? ranks.join("-") : "-";
+    };
+
+    tbody.innerHTML = matches.map((match) => {
+      const extra = roundMap[String(match.match_number || "")] || {};
+      const roundName = extra.roundName || "-";
+      const label = extra.label || "-";
+      const redAllianceNo = buildAllianceNumber(extra.redAllianceInfo);
+      const blueAllianceNo = buildAllianceNumber(extra.blueAllianceInfo);
+      const redTeams = (match.red_alliance || []).join(", ");
+      const blueTeams = (match.blue_alliance || []).join(", ");
+      return `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(roundName)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(label)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(String(match.match_number || ""))}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(match.match_date || "")}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(match.match_time || "")}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(`Saha ${match.field_number || "-"}`)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(redAllianceNo)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(redTeams)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(blueAllianceNo)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(blueTeams)}</td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Load playoff match schedule error:", err);
+    tbody.innerHTML = `<tr><td colspan="10" style="padding: 20px; text-align: center; color: #c00;">Playoff maçları yüklenemedi.</td></tr>`;
   }
 }
 

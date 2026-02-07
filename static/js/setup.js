@@ -14,6 +14,7 @@ const steps = [
   { id: "step-inspection-schedule", title: "İnceleme Programı", status: "Not Started" },
   { id: "step-practice-matches", title: "Deneme Maçları", status: "Not Started" },
   { id: "step-match-schedule", title: "Sıralama Maç Takvimi", status: "Not Started" },
+  { id: "step-playoff", title: "Playoff Ayarları", status: "Not Started" },
   { id: "step-wifi", title: "WiFi Kanal Atama", status: "Not Started" },
   { id: "step-awards", title: "Ödül Yönetimi", status: "Not Started" },
   { id: "step-archive", title: "Arşiv İndir", status: "Not Started" },
@@ -93,6 +94,13 @@ async function initializeStep(step) {
       if (typeof loadMatchScheduleSettings === "function") await loadMatchScheduleSettings();
       if (typeof loadMatchSchedule === "function") await loadMatchSchedule();
       setupMatchScheduleListeners();
+      break;
+    case "playoff":
+      if (typeof loadEvent === "function") await loadEvent();
+      setupPlayoffListeners();
+      if (typeof loadPlayoffMatchSchedule === "function") {
+        await loadPlayoffMatchSchedule();
+      }
       break;
     case "wifi":
       if (typeof loadWifiSettings === "function") await loadWifiSettings();
@@ -237,6 +245,11 @@ async function saveCurrentSetupStep() {
     case "match-schedule":
       if (typeof saveMatchScheduleSettings === "function" && qs("save_match_settings")) {
         await saveMatchScheduleSettings();
+      }
+      break;
+    case "playoff":
+      if (typeof saveEvent === "function") {
+        await saveEvent();
       }
       break;
     case "wifi":
@@ -432,13 +445,6 @@ function setupMatchScheduleListeners() {
   if (qs("add_match_schedule")) {
     qs("add_match_schedule").addEventListener("click", createMatchSchedule);
   }
-  // Final maçları için event listener'lar
-  if (qs("generate_final_matches")) {
-    qs("generate_final_matches").addEventListener("click", generateFinalMatches);
-  }
-  if (qs("view_final_rankings")) {
-    qs("view_final_rankings").addEventListener("click", viewFinalRankings);
-  }
   if (qs("apply_match_filters")) {
     qs("apply_match_filters").addEventListener("click", loadMatchSchedule);
   }
@@ -529,6 +535,18 @@ function setupMatchScheduleListeners() {
         e.target.closest(".break-group")?.remove();
       }
     });
+  }
+}
+
+/**
+ * Playoff adımı için event listener'ları kurar
+ */
+function setupPlayoffListeners() {
+  if (qs("generate_final_matches")) {
+    qs("generate_final_matches").addEventListener("click", generateFinalMatches);
+  }
+  if (qs("view_final_rankings")) {
+    qs("view_final_rankings").addEventListener("click", viewFinalRankings);
   }
 }
 

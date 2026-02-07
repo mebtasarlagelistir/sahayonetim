@@ -388,6 +388,7 @@ def create_app() -> Flask:
             "inspection-schedule": "step_inspection_schedule.html",
             "practice-matches": "step_practice_matches.html",
             "match-schedule": "step_match_schedule.html",
+            "playoff": "step_playoff.html",
             "wifi": "step_wifi.html",
             "awards": "step_awards.html",
             "archive": "step_archive.html",
@@ -699,6 +700,50 @@ def create_app() -> Flask:
             "name": event_data.get("name") or "",
             "code": event_data.get("code") or "",
         })
+
+    @app.get("/api/public/rankings")
+    def get_rankings_public():
+        """
+        Seyirci ekranı için sıralama verisini döndürür (giriş gerektirmez).
+        Tamamlanan sıralama maçlarından SP sıralamasını hesaplar.
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"rankings": [], "completed_count": 0})
+
+        completed_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            status="completed",
+        )
+        qualification_matches = [
+            m for m in completed_matches
+            if (m.get("match_type") or "qualification").strip() == "qualification"
+        ]
+
+        # Eksik SP verisini mevcut scoring_data'dan hesapla
+        from src.core.scoring.ranking_points import RankingPointsCalculator
+        for m in qualification_matches:
+            scoring_data = m.get("scoring_data") if isinstance(m.get("scoring_data"), dict) else {}
+            rp = scoring_data.get("ranking_points")
+            if not rp:
+                rp = RankingPointsCalculator.calculate_ranking_points(
+                    match_type=m.get("match_type", "qualification"),
+                    red_score=int(m.get("red_score") or 0),
+                    blue_score=int(m.get("blue_score") or 0),
+                    scoring_data=scoring_data,
+                    red_alliance=m.get("red_alliance") or [],
+                    blue_alliance=m.get("blue_alliance") or [],
+                )
+                scoring_data["ranking_points"] = rp
+                m["scoring_data"] = scoring_data
+
+        if not qualification_matches:
+            return jsonify({"rankings": [], "completed_count": 0})
+
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        calculator = TeamRankingsCalculator()
+        rankings = calculator.calculate_team_rankings(qualification_matches)
+        return jsonify({"rankings": rankings, "completed_count": len(qualification_matches)})
 
     @app.get("/api/public/inspection-status")
     def get_inspection_status_public():
@@ -1276,6 +1321,13 @@ def create_app() -> Flask:
     screens_bp = Blueprint("screens", __name__, url_prefix="")
     register_screen_routes(screens_bp, datastore, require_login, require_event_manager, socketio)
     app.register_blueprint(screens_bp)
+
+    # Sıralama sonuçları sayfası (blueprint'lerden sonra kayıt - 404 önlemek için)
+    @app.route("/rankings", methods=["GET"])
+    @require_login
+    def rankings_page():
+        """Sıralama maçları sonuçları sayfası. SP sıralaması ve tamamlanan maçlar listesi."""
+        return render_template("rankings.html")
 
     # Eski route'lar kaldırıldı - Blueprint kullanılıyor (routes/inspection.py, routes/practice_matches.py)
 

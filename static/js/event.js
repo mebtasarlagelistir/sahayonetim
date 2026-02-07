@@ -27,6 +27,8 @@ const eventFields = [
   "teleop_seconds",
   "endgame_seconds",
   "match_cycle_seconds",
+  "playoff_max_teams",
+  "playoff_teams_per_alliance",
 ];
 
 let originalEventCode = "";
@@ -76,6 +78,18 @@ async function loadEvent() {
     if (qs("teleop_seconds")) qs("teleop_seconds").value = data.schedule?.teleop_seconds ?? 120;
     if (qs("endgame_seconds")) qs("endgame_seconds").value = data.schedule?.endgame_seconds ?? 30;
     if (qs("match_cycle_seconds")) qs("match_cycle_seconds").value = data.schedule?.match_cycle_seconds ?? 150;
+  if (qs("playoff_max_teams")) qs("playoff_max_teams").value = data.playoff?.max_teams ?? 16;
+  if (qs("playoff_teams_per_alliance")) {
+    qs("playoff_teams_per_alliance").value = data.playoff?.teams_per_alliance ?? data.format?.teams_per_alliance ?? 2;
+  }
+  if (qs("final_max_teams")) qs("final_max_teams").value = data.playoff?.max_teams ?? 16;
+  if (qs("final_teams_per_alliance")) {
+    qs("final_teams_per_alliance").value = data.playoff?.teams_per_alliance ?? data.format?.teams_per_alliance ?? 2;
+  }
+  if (qs("final_cycle_minutes")) {
+    const cycleSeconds = data.schedule?.match_cycle_seconds ?? 150;
+    qs("final_cycle_minutes").value = Math.max(1, Math.round(Number(cycleSeconds) / 60));
+  }
 
     if (typeof updateStepStatuses === "function") {
       updateStepStatuses(data);
@@ -161,6 +175,10 @@ function collectEvent() {
       teleop_seconds: Number(qs("teleop_seconds")?.value || 120),
       endgame_seconds: Number(qs("endgame_seconds")?.value || 30),
       match_cycle_seconds: Number(qs("match_cycle_seconds")?.value || 150),
+    },
+    playoff: {
+      max_teams: qs("playoff_max_teams")?.value ? Number(qs("playoff_max_teams").value) : null,
+      teams_per_alliance: Number(qs("playoff_teams_per_alliance")?.value || (qs("teams_per_alliance")?.value || 2)),
     },
     scoring: {},
   };

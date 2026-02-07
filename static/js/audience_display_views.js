@@ -392,9 +392,8 @@ async function loadAwardsView() {
  */
 async function loadRankingsView() {
   try {
-    const data = await apiGet("/api/event");
+    const data = await apiGet("/api/public/rankings");
     const rankings = data.rankings || [];
-    const teams = data.teams || [];
     
     const container = qs("audience_rankings_view");
     const table = qs("audience_rankings_table");
@@ -405,15 +404,23 @@ async function loadRankingsView() {
       return;
     }
     
-    // Takım adlarını eşleştir
-    const teamNames = {};
-    teams.forEach(t => {
-      teamNames[String(t.number)] = t.name || "";
-    });
-    
     // Sıralamaya göre sırala
     const sortedRankings = [...rankings].sort((a, b) => (a.rank || 999) - (b.rank || 999));
     
+    const rowsHtml = sortedRankings.map((r) => {
+      const teamNumber = r.team_number || r.team;
+      return `<div class="rankings-row">
+        <span class="rank-col">${r.rank || '-'}</span>
+        <span class="team-col">
+          <strong>${teamNumber}</strong>
+        </span>
+        <span class="wins-col">${r.wins || 0}</span>
+        <span class="losses-col">${r.losses || 0}</span>
+        <span class="ties-col">${r.ties || 0}</span>
+        <span class="sp-col">${r.total_sp != null ? r.total_sp : 0}</span>
+      </div>`;
+    }).join("");
+
     table.innerHTML = `
       <div class="rankings-header">
         <span class="rank-col">Sıra</span>
@@ -421,29 +428,37 @@ async function loadRankingsView() {
         <span class="wins-col">G</span>
         <span class="losses-col">M</span>
         <span class="ties-col">B</span>
-        <span class="rp-col">RP</span>
         <span class="sp-col">SP</span>
       </div>
-      ${sortedRankings.map((r) => {
-        const teamNumber = r.team_number || r.team;
-        const teamName = teamNames[String(teamNumber)] || "";
-        return `<div class="rankings-row">
-          <span class="rank-col">${r.rank || '-'}</span>
-          <span class="team-col">
-            <strong>${teamNumber}</strong>
-            ${teamName ? `<small>${escapeHtml(teamName)}</small>` : ""}
-          </span>
-          <span class="wins-col">${r.wins || 0}</span>
-          <span class="losses-col">${r.losses || 0}</span>
-          <span class="ties-col">${r.ties || 0}</span>
-          <span class="rp-col">${r.ranking_points || r.rp || 0}</span>
-          <span class="sp-col">${r.sort_order_1 || r.sp || 0}</span>
-        </div>`;
-      }).join("")}
+      <div class="rankings-scroll" id="audience_rankings_scroll">
+        <div class="rankings-scroll-inner" id="audience_rankings_inner">
+          ${rowsHtml}
+          ${rowsHtml}
+        </div>
+      </div>
     `;
+    
+    startRankingsAutoScroll();
   } catch (err) {
     console.error("Rankings view error:", err);
   }
+}
+
+// Rankings auto-scroll (audience) - CSS animasyon
+function startRankingsAutoScroll() {
+  const scrollEl = qs("audience_rankings_scroll");
+  const innerEl = qs("audience_rankings_inner");
+  if (!scrollEl || !innerEl) return;
+  // İçerik sığmıyorsa animasyon uygulama
+  if (scrollEl.scrollHeight <= scrollEl.clientHeight) {
+    innerEl.style.animation = "none";
+    return;
+  }
+  // Satır sayısına göre süreyi ayarla (daha çok takım = daha yavaş)
+  const rowCount = innerEl.querySelectorAll(".rankings-row").length / 2;
+  const duration = Math.max(12, rowCount * 1.2);
+  innerEl.style.setProperty("--scroll-duration", `${duration}s`);
+  innerEl.classList.add("is-scrolling");
 }
 
 /**

@@ -72,6 +72,280 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     
     # Merkezi maç durumu yöneticisi
     match_state_manager = get_match_state_manager(datastore)
+    def _parse_playoff_meta(notes: str) -> dict:
+        """
+        Playoff meta bilgisini notes alanından parse eder.
+        Format: [playoff] bracket_id=...;round=...;label=...
+        """
+        if not notes or "[playoff]" not in notes:
+            return {}
+        try:
+            payload = notes.split("[playoff]", 1)[-1].strip()
+            parts = [p.strip() for p in payload.split(";") if p.strip()]
+            data = {}
+            for part in parts:
+                if "=" in part:
+                    key, value = part.split("=", 1)
+                    data[key.strip()] = value.strip()
+            return data
+        except Exception:
+            return {}
+    def _get_playoff_rankings(event_id: int):
+        """
+        Playoff için sıralama listesi oluşturur (qualification maçlarından).
+        
+        Not: Eksik ranking_points varsa hesaplanır.
+        """
+        completed_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            status="completed",
+        )
+        qualification_matches = [
+            m for m in completed_matches
+            if (m.get("match_type") or "qualification").strip() == "qualification"
+        ]
+        if not qualification_matches:
+            return []
+        from src.core.scoring.ranking_points import RankingPointsCalculator
+        for m in qualification_matches:
+            scoring_data = m.get("scoring_data") if isinstance(m.get("scoring_data"), dict) else {}
+            rp = scoring_data.get("ranking_points")
+            if not rp:
+                rp = RankingPointsCalculator.calculate_ranking_points(
+                    match_type=m.get("match_type", "qualification"),
+                    red_score=int(m.get("red_score") or 0),
+                    blue_score=int(m.get("blue_score") or 0),
+                    scoring_data=scoring_data,
+                    red_alliance=m.get("red_alliance") or [],
+                    blue_alliance=m.get("blue_alliance") or [],
+                )
+                scoring_data["ranking_points"] = rp
+                m["scoring_data"] = scoring_data
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        rankings_calculator = TeamRankingsCalculator()
+        return rankings_calculator.calculate_team_rankings(qualification_matches)
+
+    def _get_playoff_structure(event_data: dict, total_teams: int):
+        """
+        Playoff yapı bilgisini (çeyrek/yari/final) hesaplar.
+        """
+        def _parse_int(value, default=None):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+        format_data = event_data.get("format", {}) if isinstance(event_data, dict) else {}
+        playoff_data = event_data.get("playoff", {}) if isinstance(event_data, dict) else {}
+        teams_per_alliance = _parse_int(playoff_data.get("teams_per_alliance")) or _parse_int(format_data.get("teams_per_alliance"), 2)
+        max_teams = _parse_int(playoff_data.get("max_teams"))
+        if max_teams is None:
+            max_teams = total_teams
+        effective_teams = min(total_teams, max_teams)
+        teams_per_match = max(1, teams_per_alliance * 2)
+        quarter_count = effective_teams // teams_per_match
+        semifinal_count = quarter_count // 2
+        return {
+            "teams_per_alliance": teams_per_alliance,
+            "quarter_count": quarter_count,
+            "semifinal_count": semifinal_count,
+            "has_finals": semifinal_count >= 2,
+        }
+
+    def _determine_winner(match):
+        red_score = match.get("red_score")
+        blue_score = match.get("blue_score")
+        if red_score is None or blue_score is None:
+            return None, None
+        try:
+            red_score = int(red_score)
+            blue_score = int(blue_score)
+        except (TypeError, ValueError):
+            return None, None
+        if red_score == blue_score:
+            return None, None
+        if red_score > blue_score:
+            return match.get("red_alliance") or [], match.get("blue_alliance") or []
+        return match.get("blue_alliance") or [], match.get("red_alliance") or []
+
+    def _update_playoff_match_alliance(match_obj, slot: str, teams: list):
+        """
+        Playoff maçında ittifakı günceller (slot: red|blue).
+        """
+        if not match_obj or slot not in ("red", "blue"):
+            return False, "invalid_target"
+        existing = match_obj.get("red_alliance") if slot == "red" else match_obj.get("blue_alliance")
+        if existing:
+            # Dolu ise aynıysa geç, farklıysa dokunma
+            if existing == teams:
+                return False, "already_filled"
+            logger.warning("Playoff auto-advance: slot already filled, skipping (match_id=%s)", match_obj.get("id"))
+            return False, "slot_full"
+        update_data = {"red_alliance": teams} if slot == "red" else {"blue_alliance": teams}
+        datastore.update_match(match_id=match_obj.get("id"), **update_data)
+        return True, "updated"
+
+    def _advance_playoff_match(event_id: int, match_id: int) -> dict | None:
+        """
+        Playoff maçları tamamlandıkça kazananları bir sonraki maça taşır.
+        """
+        try:
+            playoff_matches = datastore.get_match_schedule(event_id=event_id, match_type="final")
+            if not playoff_matches:
+                return None
+            playoff_matches = sorted(
+                playoff_matches,
+                key=lambda m: (m.get("match_number") or 0, m.get("match_date") or "", m.get("match_time") or "")
+            )
+            match = next((m for m in playoff_matches if m.get("id") == match_id), None)
+            if not match:
+                return None
+            # Sadece final/playoff maçları için ilerlet
+            if (match.get("match_type") or "").strip() != "final":
+                return None
+
+            # Aynı bracket_id içindeki maçlara bak (eski playoff'lar karışmasın)
+            match_meta = _parse_playoff_meta(match.get("notes") or "")
+            bracket_id = match_meta.get("bracket_id")
+            if bracket_id:
+                playoff_matches = [
+                    m for m in playoff_matches
+                    if _parse_playoff_meta(m.get("notes") or "").get("bracket_id") == bracket_id
+                ]
+                playoff_matches = sorted(
+                    playoff_matches,
+                    key=lambda m: (m.get("match_number") or 0, m.get("match_date") or "", m.get("match_time") or "")
+                )
+                match = next((m for m in playoff_matches if m.get("id") == match_id), None)
+                if not match:
+                    return None
+
+            # Round bilgisi varsa önce onu kullan
+            round_meta = _parse_playoff_meta(match.get("notes") or "")
+            round_key = round_meta.get("round")
+            label = round_meta.get("label")
+            meta_by_round = {}
+            for m in playoff_matches:
+                meta = _parse_playoff_meta(m.get("notes") or "")
+                rkey = meta.get("round")
+                if not rkey:
+                    continue
+                meta_by_round.setdefault(rkey, []).append((m, meta))
+
+            if round_key and round_key in ("quarterfinal", "semifinal"):
+                if round_key == "quarterfinal":
+                    winner, _loser = _determine_winner(match)
+                    if not winner:
+                        return {"status": "skipped", "message": "Playoff ilerlemedi: skorlar eşit veya eksik."}
+                    semifinal_matches = meta_by_round.get("semifinal", [])
+                    if not semifinal_matches:
+                        return {"status": "skipped", "message": "Playoff ilerlemedi: yarı final maçları bulunamadı."}
+                    if label in ("A", "B"):
+                        target_label = "YF-1"
+                        slot = "red" if label == "A" else "blue"
+                    elif label in ("C", "D"):
+                        target_label = "YF-2"
+                        slot = "red" if label == "C" else "blue"
+                    else:
+                        # Label yoksa sıraya göre
+                        qf_list = meta_by_round.get("quarterfinal", [])
+                        idx = next((i for i, (m, _meta) in enumerate(qf_list) if m.get("id") == match_id), None)
+                        if idx is None:
+                            return {"status": "skipped", "message": "Playoff ilerlemedi: çeyrek eşleştirmesi bulunamadı."}
+                        sf_index = idx // 2
+                        slot = "red" if idx % 2 == 0 else "blue"
+                        if sf_index >= len(semifinal_matches):
+                            return {"status": "skipped", "message": "Playoff ilerlemedi: yarı final eşleşmesi bulunamadı."}
+                        target_match = semifinal_matches[sf_index][0]
+                        updated, reason = _update_playoff_match_alliance(target_match, slot, winner)
+                        if updated:
+                            return {"status": "advanced", "message": f"Playoff ilerledi: Yarı Final ({target_match.get('notes') or 'YF'}) {slot.capitalize()} ittifaka yazıldı."}
+                        return {"status": "skipped", "message": "Playoff ilerlemedi: hedef maç dolu."}
+                    target_match = next((m for m, meta in semifinal_matches if meta.get("label") == target_label), None)
+                    if not target_match:
+                        return {"status": "skipped", "message": "Playoff ilerlemedi: hedef yarı final bulunamadı."}
+                    updated, reason = _update_playoff_match_alliance(target_match, slot, winner)
+                    if updated:
+                        return {"status": "advanced", "message": f"Playoff ilerledi: Yarı Final ({target_label}) {('Kırmızı' if slot == 'red' else 'Mavi')} ittifaka yazıldı."}
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: hedef maç dolu."}
+
+                # semifinal -> final/third
+                winner, loser = _determine_winner(match)
+                if not winner or not loser:
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: skorlar eşit veya eksik."}
+                final_matches = meta_by_round.get("final", [])
+                third_matches = meta_by_round.get("third_place", [])
+                if not final_matches or not third_matches:
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: final/üçüncülük maçları bulunamadı."}
+                if label == "YF-1":
+                    slot = "red"
+                elif label == "YF-2":
+                    slot = "blue"
+                else:
+                    # Label yoksa sıraya göre
+                    sf_list = meta_by_round.get("semifinal", [])
+                    idx = next((i for i, (m, _meta) in enumerate(sf_list) if m.get("id") == match_id), None)
+                    if idx is None:
+                        return {"status": "skipped", "message": "Playoff ilerlemedi: yarı final eşleştirmesi bulunamadı."}
+                    slot = "red" if idx % 2 == 0 else "blue"
+                final_match = final_matches[0][0]
+                third_match = third_matches[0][0]
+                updated_final, _ = _update_playoff_match_alliance(final_match, slot, winner)
+                updated_third, _ = _update_playoff_match_alliance(third_match, slot, loser)
+                if updated_final or updated_third:
+                    return {"status": "advanced", "message": "Playoff ilerledi: Final ve Üçüncülük maçları güncellendi."}
+                return {"status": "skipped", "message": "Playoff ilerlemedi: hedef maçlar dolu."}
+
+            # Fallback: meta yoksa mevcut maçlardan çeyrek/yari sayısını çıkar
+            quarter_matches = [
+                m for m in playoff_matches
+                if (m.get("red_alliance") or []) and (m.get("blue_alliance") or [])
+            ]
+            quarter_count = len(quarter_matches)
+            semifinal_count = quarter_count // 2
+            has_finals = semifinal_count >= 2
+            if quarter_count <= 0:
+                return {"status": "skipped", "message": "Playoff ilerlemedi: çeyrek final eşleşmesi bulunamadı."}
+
+            index = next((i for i, m in enumerate(playoff_matches) if m.get("id") == match_id), None)
+            if index is None:
+                return {"status": "skipped", "message": "Playoff ilerlemedi: eşleşme bulunamadı."}
+
+            if index < quarter_count:
+                winner, _loser = _determine_winner(match)
+                if not winner:
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: skorlar eşit veya eksik."}
+                sf_index = index // 2
+                target_index = quarter_count + sf_index
+                if target_index >= len(playoff_matches):
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: hedef yarı final bulunamadı."}
+                target_match = playoff_matches[target_index]
+                slot = "red" if index % 2 == 0 else "blue"
+                updated, _ = _update_playoff_match_alliance(target_match, slot, winner)
+                if updated:
+                    return {"status": "advanced", "message": "Playoff ilerledi: Yarı final güncellendi."}
+                return {"status": "skipped", "message": "Playoff ilerlemedi: hedef maç dolu."}
+
+            if index < quarter_count + semifinal_count and has_finals:
+                winner, loser = _determine_winner(match)
+                if not winner or not loser:
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: skorlar eşit veya eksik."}
+                sf_index = index - quarter_count
+                third_index = quarter_count + semifinal_count
+                final_index = third_index + 1
+                if final_index >= len(playoff_matches):
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: final/üçüncülük bulunamadı."}
+                third_match = playoff_matches[third_index]
+                final_match = playoff_matches[final_index]
+                slot = "red" if sf_index % 2 == 0 else "blue"
+                updated_final, _ = _update_playoff_match_alliance(final_match, slot, winner)
+                updated_third, _ = _update_playoff_match_alliance(third_match, slot, loser)
+                if updated_final or updated_third:
+                    return {"status": "advanced", "message": "Playoff ilerledi: Final ve Üçüncülük güncellendi."}
+                return {"status": "skipped", "message": "Playoff ilerlemedi: hedef maçlar dolu."}
+        except Exception as e:
+            logger.error("Playoff auto-advance error: %s", str(e), exc_info=True)
+            return {"status": "error", "message": "Playoff ilerlemedi: beklenmeyen hata."}
+
     def _finalize_completed_match(event_id: int, match_id: int, match_source: str) -> None:
         """
         Süresi biten maçı tamamlandı olarak işaretler ve canlı durumu temizler.
@@ -678,6 +952,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 datastore.update_practice_match(match_id=match_id, **update_data)
             else:
                 datastore.update_match(match_id=match_id, **update_data)
+                advance_result = _advance_playoff_match(event_id, match_id)
             
             # Cache'deki maç durumunu temizle
             match_key = _build_match_key(event_id, match_id, match_source)
@@ -1281,6 +1556,7 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             red_score = data.get("red_score")
             blue_score = data.get("blue_score")
             match_source = _normalize_match_source(data.get("match_source"))
+            advance_result = None
             
             if not match_id:
                 logger.warning(f"Maç tamamlama hatası: match_id eksik (kullanıcı: {session.get('username', 'unknown')})")
@@ -1375,7 +1651,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             
             return jsonify({
                 "ok": True,
-                "match": match
+                "match": match,
+                "playoff_advance": advance_result if match_source != "practice" else None,
             })
         except (ValueError, TypeError) as e:
             logger.warning(f"Maç tamamlama hatası: Geçersiz skor değeri - {str(e)} (match_id: {data.get('match_id')}, kullanıcı: {session.get('username', 'unknown')})")
@@ -1528,3 +1805,152 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             return jsonify({"match": next_practice})
         next_schedule["match_source"] = "schedule"
         return jsonify({"match": next_schedule})
+
+    @bp.get("/api/public/playoff-bracket")
+    def get_playoff_bracket_public():
+        """
+        Playoff eşleşme raporu için public veri döner.
+        
+        Bu endpoint:
+        - Tamamlanmış sıralama maçlarından SP sıralaması çıkarır
+        - Bracket formatına göre eşleşme listesi üretir
+        - Takım isimleri ile birlikte döndürür
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"ok": False, "error": "Aktif etkinlik bulunamadı"}), 400
+
+        def _parse_int(value, default=None):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        # Tamamlanmış sıralama maçlarını topla
+        completed_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            status="completed",
+        )
+        qualification_matches = [
+            m for m in completed_matches
+            if (m.get("match_type") or "qualification").strip() == "qualification"
+        ]
+
+        if not qualification_matches:
+            return jsonify({
+                "ok": False,
+                "error": "Tamamlanmış sıralama maçı bulunamadı",
+                "completed_count": 0,
+            })
+
+        # Eksik SP verisini mevcut scoring_data'dan hesapla (raporun doğru görünmesi için)
+        from src.core.scoring.ranking_points import RankingPointsCalculator
+        for m in qualification_matches:
+            scoring_data = m.get("scoring_data") if isinstance(m.get("scoring_data"), dict) else {}
+            rp = scoring_data.get("ranking_points")
+            if not rp:
+                rp = RankingPointsCalculator.calculate_ranking_points(
+                    match_type=m.get("match_type", "qualification"),
+                    red_score=int(m.get("red_score") or 0),
+                    blue_score=int(m.get("blue_score") or 0),
+                    scoring_data=scoring_data,
+                    red_alliance=m.get("red_alliance") or [],
+                    blue_alliance=m.get("blue_alliance") or [],
+                )
+                scoring_data["ranking_points"] = rp
+                m["scoring_data"] = scoring_data
+
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        from src.core.tournament.bracket_generator import BracketGenerator
+
+        rankings_calculator = TeamRankingsCalculator()
+        rankings = rankings_calculator.calculate_team_rankings(qualification_matches)
+        if not rankings:
+            return jsonify({
+                "ok": False,
+                "error": "Takım sıralaması hesaplanamadı",
+                "completed_count": len(qualification_matches),
+            })
+
+        event_data = datastore.get_event() or {}
+        format_data = event_data.get("format", {}) if isinstance(event_data, dict) else {}
+        playoff_data = event_data.get("playoff", {}) if isinstance(event_data, dict) else {}
+        teams_per_alliance = _parse_int(playoff_data.get("teams_per_alliance")) or _parse_int(format_data.get("teams_per_alliance"), 2)
+        max_teams = _parse_int(request.args.get("max_teams"))
+        if max_teams is None:
+            max_teams = _parse_int(playoff_data.get("max_teams"))
+
+        bracket_generator = BracketGenerator()
+        bracket_info = bracket_generator.get_bracket_info(rankings, teams_per_alliance)
+        playoff_rounds = bracket_generator.generate_playoff_rounds(
+            rankings=rankings,
+            teams_per_alliance=teams_per_alliance,
+            max_teams=max_teams,
+        )
+        final_matches = [m for r in playoff_rounds for m in r.get("matches", [])]
+
+        teams = datastore.get_teams()
+        team_name_map = {
+            (t.get("number") or "").strip(): (t.get("name") or "").strip()
+            for t in teams
+            if (t.get("number") or "").strip()
+        }
+        rank_map = {item.get("team"): item.get("rank") for item in rankings}
+
+        def _build_alliance_info(team_numbers):
+            items = []
+            for team_num in team_numbers:
+                items.append({
+                    "team": team_num,
+                    "rank": rank_map.get(team_num),
+                    "name": team_name_map.get(team_num, ""),
+                })
+            return items
+
+        bracket_matches = [
+            {
+                "match_number": m.get("match_number"),
+                "red_alliance": m.get("red_alliance") or [],
+                "blue_alliance": m.get("blue_alliance") or [],
+                "round": m.get("round"),
+                "label": m.get("label"),
+                "red_alliance_info": _build_alliance_info(m.get("red_alliance") or []),
+                "blue_alliance_info": _build_alliance_info(m.get("blue_alliance") or []),
+            }
+            for m in final_matches
+        ]
+        
+        bracket_rounds = []
+        for round_item in playoff_rounds:
+            matches = round_item.get("matches", []) or []
+            enriched_matches = []
+            for match in matches:
+                enriched_matches.append({
+                    "match_number": match.get("match_number"),
+                    "round": match.get("round"),
+                    "label": match.get("label"),
+                    "red_alliance": match.get("red_alliance") or [],
+                    "blue_alliance": match.get("blue_alliance") or [],
+                    "red_alliance_info": _build_alliance_info(match.get("red_alliance") or []),
+                    "blue_alliance_info": _build_alliance_info(match.get("blue_alliance") or []),
+                })
+            bracket_rounds.append({
+                "name": round_item.get("name"),
+                "matches": enriched_matches,
+            })
+
+        return jsonify({
+            "ok": True,
+            "event": {
+                "name": event_data.get("name", ""),
+                "code": event_data.get("code", ""),
+            },
+            "completed_count": len(qualification_matches),
+            "teams_per_alliance": teams_per_alliance,
+            "bracket_info": bracket_info,
+            "rankings": rankings,
+            "bracket_matches": bracket_matches,
+            "bracket_rounds": bracket_rounds,
+            "max_teams": max_teams,
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })

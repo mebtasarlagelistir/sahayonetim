@@ -19,9 +19,12 @@ SINGLE_ELIMINATION = "single_elimination"
 DEFAULT_BRACKET_FORMAT = SINGLE_ELIMINATION
 
 # Eşleştirme açıklaması (dokümantasyon ve ileride alternatif stiller için)
-# single_elimination: En yüksek SP'li takımlar (kırmızı) vs en düşük SP'li (mavi)
-#   Maç 1: [1, 2] vs [8, 7]
-#   Maç 2: [3, 4] vs [6, 5]
+# single_elimination: İttifak içi eşleşme üst sıra vs alt sıra (tek eleme + 3.lük)
+#   İttifaklar: [1, 16], [2, 15], [3, 14], [4, 13], ...
+#   Çeyrek Final: A:[1,16] vs [2,15], B:[3,14] vs [4,13], C:[5,12] vs [6,11], D:[7,10] vs [8,9]
+#   Yarı Final: A/B kazananı vs C/D kazananı (placeholder)
+#   3.lük: Yarı final kaybedenleri (placeholder)
+#   Final: Yarı final kazananları (placeholder)
 PAIRING_STYLE = "top_vs_bottom"
 
 

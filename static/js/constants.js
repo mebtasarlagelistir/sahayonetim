@@ -12,7 +12,7 @@
 const MATCH_CONSTANTS = {
   // Maç zamanlayıcı süreleri (saniye) - OKS 30 sn, SKS 120 sn
   AUTONOMOUS_DURATION: 30,      // OKS - Otonom
-  PREPARE_TELEOP_DURATION: 5,
+  PREPARE_TELEOP_DURATION: 10,
   DRIVER_CONTROLLED_DURATION: 120,  // SKS - Sürücü kontrollü
   END_GAME_DURATION: 30,
   POST_MATCH_DURATION: 10,

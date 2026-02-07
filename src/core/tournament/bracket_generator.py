@@ -38,16 +38,21 @@ class BracketGenerator:
         max_teams: int = None
     ) -> List[Dict[str, Any]]:
         """
-        SP puanlarına göre final maçları için bracket oluşturur.
+        SP puanlarına göre playoff maçları için bracket oluşturur.
         
-        Eşleştirme kuralı (Single Elimination):
-        - 1. sıradaki takım ile son sıradaki takım
-        - 2. sıradaki takım ile sondan 2. takım
-        - ... (ortadan eşleştirme)
+        Eşleştirme kuralı (Single Elimination + 3.lük maçı):
+        - İttifak içi eşleşme: 1–son, 2–sondan 2, 3–sondan 3...
+        - Çeyrek Final: 4 maç (A/B/C/D grupları)
+        - Yarı Final: 2 maç
+        - Final: 1 maç
+        - 3.lük: 1 maç
         
-        Örnek (8 takım, 2 takım/ittifak):
-        - Maç 1: [1, 2] vs [8, 7]
-        - Maç 2: [3, 4] vs [6, 5]
+        Örnek (16 takım, 2 takım/ittifak):
+        - İttifaklar: [1, 16], [2, 15], [3, 14], [4, 13], [5, 12], [6, 11], [7, 10], [8, 9]
+        - Çeyrek: A:[1,16] vs [2,15], B:[3,14] vs [4,13], C:[5,12] vs [6,11], D:[7,10] vs [8,9]
+        - Yarı: A/B kazananı vs C/D kazananı (placeholder)
+        - 3.lük: Yarı final kaybedenleri (placeholder)
+        - Final: Yarı final kazananları (placeholder)
         
         Args:
             rankings: Takım sıralaması listesi (TeamRankingsCalculator'dan)
@@ -92,10 +97,119 @@ class BracketGenerator:
         
         # Bracket formatına göre maçları oluştur (config: bracket_config.py)
         if self.bracket_format == SINGLE_ELIMINATION:
-            return self._generate_single_elimination_bracket(
-                rankings, teams_per_alliance
+            rounds = self.generate_playoff_rounds(
+                rankings, teams_per_alliance, max_teams=max_teams
             )
+            return [m for r in rounds for m in r.get("matches", [])]
         raise ValueError(f"Desteklenmeyen bracket formatı: {self.bracket_format}")
+
+    def generate_playoff_rounds(
+        self,
+        rankings: List[Dict[str, Any]],
+        teams_per_alliance: int = 2,
+        max_teams: int = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Playoff round'larını (Çeyrek/Yarı/Final/3.lük) döndürür.
+        
+        Returns:
+            [
+                {
+                    "name": "Çeyrek Final",
+                    "matches": [{...}, ...]
+                },
+                ...
+            ]
+        """
+        if not rankings:
+            return []
+        if max_teams is not None:
+            rankings = rankings[:max_teams]
+        
+        total_teams = len(rankings)
+        teams_per_match = teams_per_alliance * 2
+        if total_teams < teams_per_match:
+            return []
+
+        # İttifakları sırala: 1-son, 2-sondan 2...
+        paired_order = []
+        left = 0
+        right = total_teams - 1
+        while left <= right:
+            if left == right:
+                paired_order.append(rankings[left]["team"])
+            else:
+                paired_order.append(rankings[left]["team"])
+                paired_order.append(rankings[right]["team"])
+            left += 1
+            right -= 1
+
+        alliances = []
+        for i in range(0, len(paired_order), teams_per_alliance):
+            alliance = paired_order[i:i + teams_per_alliance]
+            if len(alliance) < teams_per_alliance:
+                break
+            alliances.append(alliance)
+
+        # Çeyrek Final (round 1)
+        round1_matches = []
+        match_number = 1
+        for i in range(0, len(alliances), 2):
+            if i + 1 >= len(alliances):
+                break
+            label = chr(65 + (i // 2))  # A, B, C, D...
+            round1_matches.append({
+                "match_number": match_number,
+                "round": "quarterfinal",
+                "label": label,
+                "red_alliance": alliances[i],
+                "blue_alliance": alliances[i + 1],
+            })
+            match_number += 1
+
+        if not round1_matches:
+            return []
+
+        rounds = [
+            {"name": "Çeyrek Final", "matches": round1_matches},
+        ]
+
+        # Yarı Final (round 2) - placeholder
+        semifinal_count = len(round1_matches) // 2
+        if semifinal_count > 0:
+            semifinal_matches = []
+            for i in range(semifinal_count):
+                semifinal_matches.append({
+                    "match_number": match_number,
+                    "round": "semifinal",
+                    "label": f"YF-{i + 1}",
+                    "red_alliance": [],
+                    "blue_alliance": [],
+                })
+                match_number += 1
+            rounds.append({"name": "Yarı Final", "matches": semifinal_matches})
+
+        # 3.lük ve Final sadece 2 yarı final varsa anlamlı
+        if semifinal_count >= 2:
+            third_place = [{
+                "match_number": match_number,
+                "round": "third_place",
+                "label": "Üçüncülük",
+                "red_alliance": [],
+                "blue_alliance": [],
+            }]
+            match_number += 1
+            final_match = [{
+                "match_number": match_number,
+                "round": "final",
+                "label": "Final",
+                "red_alliance": [],
+                "blue_alliance": [],
+            }]
+            rounds.append({"name": "Üçüncülük Maçı", "matches": third_place})
+            rounds.append({"name": "Büyük Final", "matches": final_match})
+
+        return rounds
     
     def _generate_single_elimination_bracket(
         self,
@@ -105,7 +219,7 @@ class BracketGenerator:
         """
         Single elimination (tek eleme) bracket oluşturur.
         
-        Eşleştirme: En yüksek SP'li takımlar en düşük SP'li takımlarla eşleşir.
+        Eşleştirme: İttifak içi eşleşme üst sıra vs alt sıra şeklindedir.
         
         Args:
             rankings: Takım sıralaması listesi (rank 1 = en yüksek SP)
@@ -114,44 +228,9 @@ class BracketGenerator:
         Returns:
             List[Dict]: Final maçları listesi
         """
-        matches = []
-        total_teams = len(rankings)
-        teams_per_match = teams_per_alliance * 2
-        
-        # Kaç maç oluşturulacak?
-        num_matches = total_teams // teams_per_match
-        
-        for match_num in range(1, num_matches + 1):
-            # Kırmızı ittifak: En yüksek SP'li takımlar
-            # Mavi ittifak: En düşük SP'li takımlar
-            
-            # Kırmızı ittifak için takımları al (baştan)
-            red_start = (match_num - 1) * teams_per_alliance
-            red_end = red_start + teams_per_alliance
-            red_alliance = [
-                rankings[i]["team"] 
-                for i in range(red_start, min(red_end, total_teams))
-            ]
-            
-            # Mavi ittifak için takımları al (sondan)
-            blue_end = total_teams - (match_num - 1) * teams_per_alliance
-            blue_start = blue_end - teams_per_alliance
-            blue_alliance = [
-                rankings[i]["team"] 
-                for i in range(max(0, blue_start), blue_end)
-            ]
-            
-            # Eğer yeterli takım yoksa bu maçı atla
-            if len(red_alliance) < teams_per_alliance or len(blue_alliance) < teams_per_alliance:
-                continue
-            
-            matches.append({
-                "red_alliance": red_alliance,
-                "blue_alliance": blue_alliance,
-                "match_number": match_num
-            })
-        
-        return matches
+        # Tek eleme için temel mantık generate_playoff_rounds içine taşındı.
+        rounds = self.generate_playoff_rounds(rankings, teams_per_alliance)
+        return [m for r in rounds for m in r.get("matches", [])]
     
     def get_bracket_info(
         self,
@@ -183,5 +262,11 @@ class BracketGenerator:
             "teams_per_alliance": teams_per_alliance,
             "teams_per_match": teams_per_match,
             "num_matches": num_matches,
-            "format": self.bracket_format
+            "format": self.bracket_format,
+            "rounds": [
+                {"name": "Çeyrek Final", "match_count": max(0, num_matches)},
+                {"name": "Yarı Final", "match_count": max(0, num_matches // 2)},
+                {"name": "Üçüncülük Maçı", "match_count": 1 if num_matches >= 2 else 0},
+                {"name": "Büyük Final", "match_count": 1 if num_matches >= 2 else 0},
+            ],
         }
