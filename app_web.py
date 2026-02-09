@@ -1329,6 +1329,22 @@ def create_app() -> Flask:
         """Sıralama maçları sonuçları sayfası. SP sıralaması ve tamamlanan maçlar listesi."""
         return render_template("rankings.html")
 
+    @app.route("/ranking-details", methods=["GET"])
+    @require_login
+    def ranking_details_page():
+        """SP eşitlik bozma kriterlerini detaylı gösteren sayfa."""
+        return render_template("ranking_details.html")
+
+    @app.route("/match-results-report", methods=["GET"])
+    @require_login
+    def match_results_report_page():
+        """
+        Maç sonuçları raporu sayfası.
+
+        Tamamlanan maçların filtrelenmesi, CSV çıktısı ve yazdırma için UI sağlar.
+        """
+        return render_template("match_results_report.html")
+
     # Eski route'lar kaldırıldı - Blueprint kullanılıyor (routes/inspection.py, routes/practice_matches.py)
 
     @app.get("/api/users/qr")

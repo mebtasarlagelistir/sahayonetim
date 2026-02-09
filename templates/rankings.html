@@ -46,8 +46,10 @@
         <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
           Sıralamalar, tamamlanan sıralama maçlarına göre hesaplanır. Maçlar ilerledikçe bu sayfa otomatik güncellenir (yaklaşık 30 saniyede bir yenilenir).
         </p>
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
           <button type="button" id="refresh_rankings" class="btn-secondary">Yenile</button>
+          <a href="/ranking-details" class="btn-secondary" style="text-decoration: none;">Ranking Detayları</a>
+          <a href="/match-results-report" class="btn-secondary" style="text-decoration: none;">Maç Sonuç Raporu</a>
           <span id="last_update" style="font-size: 13px; color: #888;"></span>
           <span style="font-size: 13px; color: #888;">Tamamlanan sıralama maçı: <strong id="completed_count">0</strong></span>
         </div>
