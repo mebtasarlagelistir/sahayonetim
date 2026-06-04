@@ -45,7 +45,7 @@
       <section class="card">
         <h2>Maç Sonuçları Raporu</h2>
         <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
-          Tamamlanan maçların sonuçlarını filtreleyebilir, CSV olarak indirebilir veya yazdırabilirsiniz.
+          Tüm kademelerdeki (Deneme, Sıralama, Elimination, Final) maçların skorlarını tek listede görebilir, filtreleyebilir, CSV olarak indirebilir veya yazdırabilirsiniz.
         </p>
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
@@ -57,9 +57,10 @@
             </select>
           </label>
           <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
-            Maç Tipi
+            Kademe / Maç tipi
             <select id="filter_type" class="btn-small" style="min-width: 160px;">
-              <option value="">Tümü</option>
+              <option value="">Tüm kademeler</option>
+              <option value="practice">Deneme</option>
               <option value="qualification">Sıralama</option>
               <option value="elimination">Elimination</option>
               <option value="final">Final</option>
@@ -83,6 +84,10 @@
           </label>
           <button id="apply_filters" class="btn-secondary">Filtrele</button>
           <button id="clear_filters" class="btn-secondary">Temizle</button>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
+            <input type="checkbox" id="csv_include_breakdown" />
+            CSV'ye puan kırılımı dahil et
+          </label>
           <button id="export_csv" class="btn-secondary">CSV İndir</button>
           <button id="print_report" class="btn-secondary">Yazdır</button>
           <span id="last_update" style="font-size: 12px; color: #888;"></span>
@@ -100,8 +105,8 @@
           <table class="table" style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Kademe</th>
                 <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Maç No</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Tip</th>
                 <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Saha</th>
                 <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Tarih</th>
                 <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Saat</th>
@@ -111,10 +116,11 @@
                 <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Mavi İttifak</th>
                 <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Kazanan</th>
                 <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Not</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Puan kırılımı</th>
               </tr>
             </thead>
             <tbody id="results_tbody">
-              <tr><td colspan="11" style="padding: 24px; text-align: center; color: #888;">Yükleniyor...</td></tr>
+              <tr><td colspan="12" style="padding: 24px; text-align: center; color: #888;">Yükleniyor...</td></tr>
             </tbody>
           </table>
         </div>

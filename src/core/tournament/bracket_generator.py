@@ -123,6 +123,11 @@ class BracketGenerator:
         """
         if not rankings:
             return []
+        # Rank alanı varsa mutlaka sıralı olsun (kaynak listesi karışık gelebilir)
+        rankings = sorted(
+            rankings,
+            key=lambda item: (item.get("rank") is None, item.get("rank", 0))
+        )
         if max_teams is not None:
             rankings = rankings[:max_teams]
         

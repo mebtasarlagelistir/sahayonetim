@@ -409,6 +409,9 @@ async function loadRankingsView() {
     
     const rowsHtml = sortedRankings.map((r) => {
       const teamNumber = r.team_number || r.team;
+      const avgScore = (typeof r.average_score === "number")
+        ? r.average_score.toFixed(2)
+        : (r.average_score != null ? String(r.average_score) : "0.00");
       return `<div class="rankings-row">
         <span class="rank-col">${r.rank || '-'}</span>
         <span class="team-col">
@@ -417,6 +420,7 @@ async function loadRankingsView() {
         <span class="wins-col">${r.wins || 0}</span>
         <span class="losses-col">${r.losses || 0}</span>
         <span class="ties-col">${r.ties || 0}</span>
+        <span class="avg-col">${avgScore}</span>
         <span class="sp-col">${r.total_sp != null ? r.total_sp : 0}</span>
       </div>`;
     }).join("");
@@ -428,6 +432,7 @@ async function loadRankingsView() {
         <span class="wins-col">G</span>
         <span class="losses-col">M</span>
         <span class="ties-col">B</span>
+        <span class="avg-col">Ort</span>
         <span class="sp-col">SP</span>
       </div>
       <div class="rankings-scroll" id="audience_rankings_scroll">

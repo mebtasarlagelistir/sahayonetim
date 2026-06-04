@@ -375,6 +375,13 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "reason": "match_completed"
                 }, namespace="/audience")
                 logger.info(f"Match completed broadcast: match_id={match_id}")
+
+            # Playoff otomatik ilerletme (sadece schedule + final maçları için)
+            if match_source != "practice":
+                try:
+                    _advance_playoff_match(event_id, match_id)
+                except Exception as advance_err:
+                    logger.warning("Playoff auto-advance (finalize) hatası: %s", str(advance_err))
         except Exception as e:
             logger.error(
                 f"Maç otomatik tamamlama hatası: {str(e)} (match_id: {match_id})",
@@ -1574,19 +1581,19 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             if blue_score is not None:
                 update_data["blue_score"] = int(blue_score)
             
+            # Maç bilgisini al (match_type için)
+            if match_source == "practice":
+                matches = datastore.get_practice_matches(event_id=event_id)
+            else:
+                matches = datastore.get_match_schedule(event_id=event_id)
+            match_info = next((m for m in matches if m["id"] == match_id), None)
+
             # Detaylı skorlama verilerini ekle
             scoring_data = data.get("scoring_data")
             if isinstance(scoring_data, dict):
                 update_data["scoring_data"] = scoring_data
                 
                 # Sıralama Puanları (SP) hesapla (sadece sıralama maçları için)
-                # Maç bilgisini al (match_type için)
-                if match_source == "practice":
-                    matches = datastore.get_practice_matches(event_id=event_id)
-                else:
-                    matches = datastore.get_match_schedule(event_id=event_id)
-                match_info = next((m for m in matches if m["id"] == match_id), None)
-                
                 if match_info:
                     match_type = match_info.get("match_type", "qualification")
                     match_key = _build_match_key(event_id, match_id, match_source)
@@ -1625,6 +1632,12 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 datastore.update_practice_match(match_id=match_id, **update_data)
             else:
                 datastore.update_match(match_id=match_id, **update_data)
+
+            # Playoff otomatik ilerletme (sadece schedule + final maçları için)
+            if match_source != "practice":
+                match_type = (match_info or {}).get("match_type", "")
+                if (match_type or "").strip() == "final":
+                    advance_result = _advance_playoff_match(event_id, match_id)
             
             # Merkezi MatchStateManager ile maçı tamamla (cache'den kaldırır)
             match_state_manager.complete_match(
@@ -1907,37 +1920,83 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 })
             return items
 
-        bracket_matches = [
-            {
-                "match_number": m.get("match_number"),
-                "red_alliance": m.get("red_alliance") or [],
-                "blue_alliance": m.get("blue_alliance") or [],
-                "round": m.get("round"),
-                "label": m.get("label"),
-                "red_alliance_info": _build_alliance_info(m.get("red_alliance") or []),
-                "blue_alliance_info": _build_alliance_info(m.get("blue_alliance") or []),
-            }
-            for m in final_matches
-        ]
-        
         bracket_rounds = []
-        for round_item in playoff_rounds:
-            matches = round_item.get("matches", []) or []
-            enriched_matches = []
-            for match in matches:
-                enriched_matches.append({
-                    "match_number": match.get("match_number"),
-                    "round": match.get("round"),
-                    "label": match.get("label"),
-                    "red_alliance": match.get("red_alliance") or [],
-                    "blue_alliance": match.get("blue_alliance") or [],
-                    "red_alliance_info": _build_alliance_info(match.get("red_alliance") or []),
-                    "blue_alliance_info": _build_alliance_info(match.get("blue_alliance") or []),
+        bracket_matches = []
+
+        # Öncelik: Mevcut playoff maçları varsa onları göster (otomatik ilerleme dahil)
+        playoff_matches = datastore.get_match_schedule(event_id=event_id, match_type="final")
+        if playoff_matches:
+            meta_items = []
+            bracket_counts = {}
+            for m in playoff_matches:
+                meta = _parse_playoff_meta(m.get("notes") or "")
+                meta_items.append((m, meta))
+                bracket_id = meta.get("bracket_id")
+                if bracket_id:
+                    bracket_counts[bracket_id] = bracket_counts.get(bracket_id, 0) + 1
+            if bracket_counts:
+                latest_bracket = max(bracket_counts, key=bracket_counts.get)
+                meta_items = [(m, meta) for m, meta in meta_items if meta.get("bracket_id") == latest_bracket]
+
+            round_map = {}
+            for match_obj, meta in meta_items:
+                round_key = meta.get("round")
+                if not round_key:
+                    continue
+                round_map.setdefault(round_key, []).append({
+                    "match_number": match_obj.get("match_number"),
+                    "round": round_key,
+                    "label": meta.get("label"),
+                    "red_alliance": match_obj.get("red_alliance") or [],
+                    "blue_alliance": match_obj.get("blue_alliance") or [],
+                    "red_alliance_info": _build_alliance_info(match_obj.get("red_alliance") or []),
+                    "blue_alliance_info": _build_alliance_info(match_obj.get("blue_alliance") or []),
                 })
-            bracket_rounds.append({
-                "name": round_item.get("name"),
-                "matches": enriched_matches,
-            })
+
+            round_order = [
+                ("quarterfinal", "Çeyrek Final"),
+                ("semifinal", "Yarı Final"),
+                ("third_place", "Üçüncülük Maçı"),
+                ("final", "Büyük Final"),
+            ]
+            for key, title in round_order:
+                matches = round_map.get(key) or []
+                if matches:
+                    matches.sort(key=lambda item: item.get("match_number") or 0)
+                    bracket_rounds.append({"name": title, "matches": matches})
+            bracket_matches = [m for r in bracket_rounds for m in r.get("matches", [])]
+
+        # Fallback: Playoff maçları yoksa sıralamadan bracket üret
+        if not bracket_rounds:
+            bracket_matches = [
+                {
+                    "match_number": m.get("match_number"),
+                    "red_alliance": m.get("red_alliance") or [],
+                    "blue_alliance": m.get("blue_alliance") or [],
+                    "round": m.get("round"),
+                    "label": m.get("label"),
+                    "red_alliance_info": _build_alliance_info(m.get("red_alliance") or []),
+                    "blue_alliance_info": _build_alliance_info(m.get("blue_alliance") or []),
+                }
+                for m in final_matches
+            ]
+            for round_item in playoff_rounds:
+                matches = round_item.get("matches", []) or []
+                enriched_matches = []
+                for match in matches:
+                    enriched_matches.append({
+                        "match_number": match.get("match_number"),
+                        "round": match.get("round"),
+                        "label": match.get("label"),
+                        "red_alliance": match.get("red_alliance") or [],
+                        "blue_alliance": match.get("blue_alliance") or [],
+                        "red_alliance_info": _build_alliance_info(match.get("red_alliance") or []),
+                        "blue_alliance_info": _build_alliance_info(match.get("blue_alliance") or []),
+                    })
+                bracket_rounds.append({
+                    "name": round_item.get("name"),
+                    "matches": enriched_matches,
+                })
 
         return jsonify({
             "ok": True,

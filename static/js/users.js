@@ -128,6 +128,11 @@ function updateUIForRole() {
   if (deleteEventBtn) {
     deleteEventBtn.style.display = isAdmin ? "" : "none";
   }
+  // Yeni yarışmaya sıfırla butonu yalnızca admin için görünür
+  const resetEventBtn = qs("reset_event_btn");
+  if (resetEventBtn) {
+    resetEventBtn.style.display = isAdmin ? "" : "none";
+  }
   
   // Etkinlik yöneticisi sadece kendi etkinliğini görebilir
   if (isEventManager && !isAdmin && currentUserEventId !== null) {

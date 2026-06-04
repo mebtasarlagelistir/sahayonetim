@@ -36,7 +36,7 @@ import os
 import secrets
 import socket
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 import qrcode
 from qrcode.image.svg import SvgImage
 from flask_limiter import Limiter
@@ -269,9 +269,40 @@ def create_app() -> Flask:
 
 
     # ============================================================================
+    # PUANLAMA SABİTLERİ (Tek kaynak: backend → frontend)
+    # ============================================================================
+
+    @app.get("/js/scoring_constants.js")
+    def scoring_constants_js():
+        """
+        Puanlama sabitlerini backend'den üretilen bir JavaScript dosyası olarak servis eder.
+
+        window.SCORING_CONSTANTS değişkenini ScoringConfig.to_frontend_constants()
+        ile doldurur. Böylece puan değerleri YALNIZCA src/core/scoring/config.py'de
+        tanımlanır; frontend (constants.js) elle senkron tutulmak zorunda kalmaz.
+
+        Bu dosya, puanlama JS'lerinden (match_control_scoring.js,
+        referee_panel_scoring.js) ÖNCE <script src> ile senkron yüklenmelidir.
+        """
+        from src.core.scoring.config import ScoringConfig
+        import json as _json
+
+        constants = ScoringConfig.to_frontend_constants()
+        body = (
+            "/* OTOMATİK ÜRETİLDİ — düzenlemeyin.\n"
+            "   Kaynak: src/core/scoring/config.py (ScoringConfig.to_frontend_constants).\n"
+            "   Puan değerlerini değiştirmek için config.py'yi düzenleyin. */\n"
+            "window.SCORING_CONSTANTS = " + _json.dumps(constants, indent=2) + ";\n"
+        )
+        resp = Response(body, mimetype="application/javascript")
+        # Puanlar değişince eski değerin önbellekten gelmemesi için cache kapalı.
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    # ============================================================================
     # SAYFA ROUTE'LARI (HTML Sayfaları)
     # ============================================================================
-    
+
     @app.get("/")
     @require_login
     def index():
@@ -1163,8 +1194,39 @@ def create_app() -> Flask:
         datastore.save_teams_for_event(event_id, teams)
         return jsonify({"ok": True, "event_id": event_id, "count": len(teams)})
 
+    # --- YENİ YARIŞMA İÇİN SIFIRLAMA (ADMIN) ---
+
+    @app.post("/api/admin/reset-event")
+    @require_login
+    @require_admin
+    def reset_event_data():
+        """
+        Yeni bir yarışma için veritabanını yedekler ve etkinlik verilerini sıfırlar.
+
+        Adımlar:
+            1. Mevcut veritabanı backups/ altına zaman damgalı yedeklenir.
+            2. Etkinlik/takım/maç/skor/inceleme/ödül verileri ve admin dışı
+               kullanıcılar silinir (şema ve admin korunur).
+            3. Varsayılan admin garanti edilir.
+
+        Sadece admin erişebilir (require_admin). Geri alınamaz; ama önce yedek alınır.
+        """
+        try:
+            backup_path = datastore.backup_database()
+            summary = datastore.reset_event_data()
+            datastore.ensure_default_admin()
+            logging.info("Yeni yarışma için veritabanı sıfırlandı. Yedek: %s", backup_path)
+            return jsonify({
+                "ok": True,
+                "backup": str(backup_path),
+                "deleted": summary,
+            })
+        except Exception as exc:  # noqa: BLE001
+            logging.exception("Veritabanı sıfırlama başarısız")
+            return jsonify({"error": str(exc)}), 500
+
     # --- KULLANICI YÖNETİMİ ---
-    
+
     @app.get("/api/users")
     @require_login
     def list_users():
@@ -1173,12 +1235,19 @@ def create_app() -> Flask:
         
         Query Parameters:
             include_password=1: Şifreleri de dahil et (varsayılan: false)
-            
+                                SADECE admin kullanıcılar için geçerlidir; admin
+                                değilse parametre yok sayılır (şifreler döndürülmez).
+
         Returns:
             JSON: Kullanıcı listesi
             [{"username": "...", "role": "...", "password": "..."}, ...]
         """
         include_password = request.args.get("include_password") == "1"
+        # Güvenlik: Düz şifreler yalnızca admin kullanıcılara döndürülür.
+        if include_password:
+            current_role = datastore.get_user_role(session.get("user"))
+            if not current_role or current_role.lower() != "admin":
+                include_password = False
         return jsonify(datastore.list_users(include_password=include_password))
 
     @app.post("/api/users")

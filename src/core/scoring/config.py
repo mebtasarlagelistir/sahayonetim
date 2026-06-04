@@ -14,7 +14,9 @@ Modülerlik:
 - OKS (Otonom): Başlangıç alanını terk (3), Bent 1 (4), Bent 2 doğru (6), 
   Bent 2 yanlış (3), Bent 3 doğru (8), Bent 3 yanlış (4), Sarnıç (7)
 - SKS (Sürücü Kontrollü): Bent 1 (2), Bent 2 doğru (4), Bent 2 yanlış (3),
-  Bent 3 doğru (6), Bent 3 yanlış (4), Sarnıç (5), Kaynak giriş (2), Tırmanma (15)
+  Bent 3 doğru (6), Bent 3 yanlış (4), Sarnıç (5), Kaynak giriş (2), Tırmanma (25)
+
+Güncel: Tırmanma puanı oyun kılavuzu Rev. 11.05.2026 ile 15 → 25 yapıldı.
 """
 
 from typing import Dict, List, Optional
@@ -108,7 +110,7 @@ class ScoringConfig:
             "description": "Kaynaktan Rastgele Giriş"
         },
         "climb": {
-            "points_per_robot": 15,
+            "points_per_robot": 25,
             "description": "Su Kemerine Tırmanma",
             "max_robots": 2
         }
@@ -152,4 +154,46 @@ class ScoringConfig:
             "autonomous": list(cls.AUTONOMOUS_RULES.keys()),
             "teleop": list(cls.TELEOP_RULES.keys()),
             "penalties": list(cls.PENALTIES.keys())
+        }
+
+    @classmethod
+    def to_frontend_constants(cls) -> Dict[str, int]:
+        """
+        Frontend'in beklediği düz anahtarlı puan sabitlerini üretir.
+
+        Bu sözlük, eskiden static/js/constants.js içindeki SCORING_CONSTANTS
+        bloğunu birebir karşılar. Frontend bu değerleri backend'den
+        (/js/scoring_constants.js) alır; böylece puanlar TEK kaynakta
+        (bu dosyada) tutulur ve senkron-kayma riski ortadan kalkar.
+
+        Anahtar isimleri değiştirilmemelidir: match_control_scoring.js ve
+        referee_panel_scoring.js bu adlara bağımlıdır.
+
+        Returns:
+            Dict[str, int]: window.SCORING_CONSTANTS olarak servis edilen sabitler.
+        """
+        auto = cls.AUTONOMOUS_RULES
+        teleop = cls.TELEOP_RULES
+        penalties = cls.PENALTIES
+        return {
+            # Otonom (OKS) Puanları
+            "AUTO_LEAVE_POINTS": auto["leave_start_area"]["points_per_robot"],
+            "AUTO_BENT1_POINTS": auto["bent_level_1"]["points_per_ball"],
+            "AUTO_BENT2_CORRECT_POINTS": auto["bent_level_2"]["correct_color_number"]["points"],
+            "AUTO_BENT2_WRONG_POINTS": auto["bent_level_2"]["wrong_number"]["points"],
+            "AUTO_BENT3_CORRECT_POINTS": auto["bent_level_3"]["correct_color_number"]["points"],
+            "AUTO_BENT3_WRONG_POINTS": auto["bent_level_3"]["wrong_number"]["points"],
+            "AUTO_TANK_POINTS": auto["tanks"]["points_per_ball"],
+            # Sürücü Kontrollü (SKS) Puanları
+            "TELEOP_BENT1_POINTS": teleop["bent_level_1"]["points_per_ball"],
+            "TELEOP_BENT2_CORRECT_POINTS": teleop["bent_level_2"]["correct_color_number"]["points"],
+            "TELEOP_BENT2_WRONG_POINTS": teleop["bent_level_2"]["wrong_number"]["points"],
+            "TELEOP_BENT3_CORRECT_POINTS": teleop["bent_level_3"]["correct_color_number"]["points"],
+            "TELEOP_BENT3_WRONG_POINTS": teleop["bent_level_3"]["wrong_number"]["points"],
+            "TELEOP_TANK_POINTS": teleop["tanks"]["points_per_ball"],
+            "TELEOP_SOURCE_ENTRY_POINTS": teleop["source_entry"]["points_per_entry"],
+            "TELEOP_CLIMB_POINTS": teleop["climb"]["points_per_robot"],
+            # Ceza Puanları
+            "YELLOW_CARD_POINTS_TO_OPPONENT": penalties["yellow_card"]["points_to_opponent"],
+            "MAJOR_PENALTY_POINTS_TO_OPPONENT": penalties["major_penalty"]["points_to_opponent"],
         }

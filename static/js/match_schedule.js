@@ -791,29 +791,15 @@ async function viewFinalRankings() {
   try {
     setButtonLoading(btn, true);
     
-    // Tamamlanmış sıralama maçlarını al
-    const matches = await apiGet("/api/match-schedule?type=qualification&status=completed");
-    
-    if (!matches || matches.length === 0) {
-      content.innerHTML = `
-        <div style="padding: 16px; text-align: center; color: #666;">
-          <p>Henüz tamamlanmış sıralama maçı bulunamadı.</p>
-          <p style="font-size: 12px; margin-top: 8px;">SP sıralaması için en az bir tamamlanmış sıralama maçı gerekli.</p>
-        </div>
-      `;
-      display.style.display = "block";
-      return;
-    }
-    
-    // SP puanlarını hesapla (geçici olarak frontend'de)
-    // Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için
-    const rankings = calculateRankingsPreview(matches);
+    // Backend sıralama algoritmasını kullan
+    const rankingPayload = await apiGet("/api/match-schedule/rankings");
+    const rankings = rankingPayload?.rankings || [];
     
     if (!rankings || rankings.length === 0) {
       content.innerHTML = `
         <div style="padding: 16px; text-align: center; color: #666;">
-          <p>SP puanları hesaplanamadı.</p>
-          <p style="font-size: 12px; margin-top: 8px;">Maçların tamamlanmış ve SP puanlarının hesaplanmış olması gerekir.</p>
+          <p>Henüz tamamlanmış sıralama maçı bulunamadı.</p>
+          <p style="font-size: 12px; margin-top: 8px;">SP sıralaması için en az bir tamamlanmış sıralama maçı gerekli.</p>
         </div>
       `;
       display.style.display = "block";
@@ -829,6 +815,7 @@ async function viewFinalRankings() {
             <th style="padding: 8px; text-align: left; border: 1px solid #d0d5e0;">Takım</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Toplam SP</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">G</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Ort</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">B</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">M</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Maç</th>
@@ -839,6 +826,9 @@ async function viewFinalRankings() {
     
     rankings.forEach((team, index) => {
       const isTop = index < 4; // İlk 4 takım vurgulanır
+      const avgScore = (typeof team.average_score === "number")
+        ? team.average_score.toFixed(2)
+        : (team.average_score != null ? String(team.average_score) : "0.00");
       html += `
         <tr style="${isTop ? 'background: #fff8e1;' : ''}">
           <td style="padding: 8px; border: 1px solid #e1e4ee; font-weight: ${isTop ? '600' : '400'};">
@@ -851,6 +841,7 @@ async function viewFinalRankings() {
             ${team.total_sp}
           </td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.wins}</td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${avgScore}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.ties}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.losses}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.matches_played}</td>
@@ -862,8 +853,7 @@ async function viewFinalRankings() {
         </tbody>
       </table>
       <div style="margin-top: 12px; padding: 8px; background: #e8f4f8; border-radius: 4px; font-size: 12px; color: #2c5f7c;">
-        <strong>Not:</strong> Bu önizleme, tamamlanmış sıralama maçlarından hesaplanmıştır. 
-        Final maçları oluşturulurken backend'de tekrar hesaplanır.
+        <strong>Not:</strong> Bu önizleme, backend'deki güncel sıralama algoritması ile hesaplanır.
       </div>
     `;
     
@@ -877,68 +867,3 @@ async function viewFinalRankings() {
   }
 }
 
-/**
- * SP sıralaması önizlemesi (frontend'de basit hesaplama).
- * Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için.
- */
-function calculateRankingsPreview(matches) {
-  const teamStats = {};
-  
-  matches.forEach(match => {
-    if (match.status !== "completed" || !match.scoring_data?.ranking_points) {
-      return;
-    }
-    
-    const rp = match.scoring_data.ranking_points;
-    const redAlliance = match.red_alliance || [];
-    const blueAlliance = match.blue_alliance || [];
-    const redScore = match.red_score || 0;
-    const blueScore = match.blue_score || 0;
-    
-    // Kırmızı ittifak
-    const redSP = rp.red?.total || 0;
-    redAlliance.forEach(team => {
-      if (!teamStats[team]) {
-        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
-      }
-      teamStats[team].total_sp += redSP;
-      teamStats[team].matches_played += 1;
-      if (redScore > blueScore) teamStats[team].wins += 1;
-      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
-      else if (blueScore > redScore) teamStats[team].losses += 1;
-    });
-    
-    // Mavi ittifak
-    const blueSP = rp.blue?.total || 0;
-    blueAlliance.forEach(team => {
-      if (!teamStats[team]) {
-        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
-      }
-      teamStats[team].total_sp += blueSP;
-      teamStats[team].matches_played += 1;
-      if (blueScore > redScore) teamStats[team].wins += 1;
-      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
-      else if (redScore > blueScore) teamStats[team].losses += 1;
-    });
-  });
-  
-  // Sırala
-  const rankings = Object.entries(teamStats).map(([team, stats]) => ({
-    team,
-    ...stats
-  }));
-  
-  rankings.sort((a, b) => {
-    if (b.total_sp !== a.total_sp) return b.total_sp - a.total_sp;
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.ties !== a.ties) return b.ties - a.ties;
-    return b.matches_played - a.matches_played;
-  });
-  
-  // Rank ekle
-  rankings.forEach((team, index) => {
-    team.rank = index + 1;
-  });
-  
-  return rankings;
-}

@@ -1160,6 +1160,44 @@ async function initializeSetup() {
       }
     });
   }
+
+  // Yeni yarışmaya sıfırla (admin) — önce yedek alır, sonra tüm veriyi temizler
+  const resetEventBtn = qs("reset_event_btn");
+  if (resetEventBtn) {
+    resetEventBtn.addEventListener("click", async () => {
+      const confirmed = window.confirm(
+        "YENİ YARIŞMA İÇİN SIFIRLAMA\n\n" +
+        "Tüm etkinlikler, takımlar, maçlar, skorlar, inceleme ve ödül verileri " +
+        "SİLİNECEK. (Önce otomatik yedek alınır, admin kullanıcısı korunur.)\n\n" +
+        "Devam etmek istediğinizden emin misiniz?"
+      );
+      if (!confirmed) return;
+      // İkinci güvenlik adımı: kullanıcı 'SIFIRLA' yazmalı
+      const typed = window.prompt(
+        "Onaylamak için büyük harflerle SIFIRLA yazın:"
+      );
+      if (typed !== "SIFIRLA") {
+        showToast("Sıfırlama iptal edildi", "warning");
+        return;
+      }
+      try {
+        const result = await apiPost("/api/admin/reset-event", {});
+        showToast(
+          `Sıfırlandı. Yedek: ${result.backup || "alındı"}`,
+          "success"
+        );
+        // Arayüzü yenile
+        if (typeof loadEvents === "function") await loadEvents();
+        if (typeof loadEvent === "function") await loadEvent();
+        if (typeof loadTeams === "function") await loadTeams();
+        if (typeof loadUsers === "function") await loadUsers();
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        console.error("Reset event error:", err);
+        showToast(`Hata: ${err.message}`, "error");
+      }
+    });
+  }
 }
 
 /**
