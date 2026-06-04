@@ -17,7 +17,7 @@ Kullanım:
 
 from typing import List, Dict, Any
 
-from .bracket_config import get_bracket_format, SINGLE_ELIMINATION
+from .bracket_config import get_bracket_format, SINGLE_ELIMINATION, DOUBLE_ELIMINATION_6
 
 
 class BracketGenerator:
@@ -216,6 +216,91 @@ class BracketGenerator:
 
         return rounds
     
+    def generate_double_elimination_6(
+        self,
+        alliances: List[List[str]],
+    ) -> List[Dict[str, Any]]:
+        """
+        6 ittifak için çift eleme (double elimination) bracket'ı üretir.
+
+        Onaylanmış şema (seed sırası: alliances[0] = 1. sıra ... alliances[5] = 6. sıra):
+
+            ÜST KADEME (Winners)          ALT KADEME (Losers)
+             M1: A3 vs A6                  M5: L(M3) vs L(M2)
+             M2: A4 vs A5                  M6: L(M4) vs L(M1)
+             M3: A1 vs W(M1)               M8: W(M5) vs W(M6)
+             M4: A2 vs W(M2)               M9: L(M7) vs W(M8)  -> Alt şampiyonu
+             M7: W(M3) vs W(M4) -> Üst şampiyonu
+            BÜYÜK FINAL
+             M10: Üst şampiyonu (kırmızı) vs Alt şampiyonu (mavi)
+             M11: yalnızca alt şampiyonu M10'u kazanırsa rövanş (bracket reset)
+
+        Her maç, sonuç ilerletmesi için yönlendirme bilgisi taşır:
+            win_to / lose_to = "<label>:<slot>"  (slot: red|blue)
+        M10 için gf="1" ve reset_to="M11" (alt şampiyonu kazanırsa M11 doldurulur).
+
+        Args:
+            alliances: 6 ittifak; her biri 2 takım numarası içeren liste.
+                       Sıra önemlidir (seed sırası).
+
+        Returns:
+            Round grupları listesi (single elim ile aynı yapı):
+            [{"name": "Üst Kademe", "matches": [...]}, ...]
+
+        Raises:
+            ValueError: İttifak sayısı 6 değilse.
+        """
+        if not alliances or len(alliances) != 6:
+            raise ValueError("Çift eleme için tam olarak 6 ittifak gereklidir")
+        a = [list(alli) for alli in alliances]  # a[0]=seed1 ... a[5]=seed6
+
+        empty: List[str] = []
+        # (label, round_key, round_name, red, blue, win_to, lose_to, extra)
+        spec = [
+            ("M1", "upper", "Üst Kademe", a[2], a[5], "M3:blue", "M6:blue", {}),
+            ("M2", "upper", "Üst Kademe", a[3], a[4], "M4:blue", "M5:blue", {}),
+            ("M3", "upper", "Üst Kademe", a[0], empty, "M7:red", "M5:red", {}),
+            ("M4", "upper", "Üst Kademe", a[1], empty, "M7:blue", "M6:red", {}),
+            ("M7", "upper", "Üst Kademe", empty, empty, "M10:red", "M9:red", {}),
+            ("M5", "lower", "Alt Kademe", empty, empty, "M8:red", None, {}),
+            ("M6", "lower", "Alt Kademe", empty, empty, "M8:blue", None, {}),
+            ("M8", "lower", "Alt Kademe", empty, empty, "M9:blue", None, {}),
+            # M9 kaybedeni turnuva 3.sü olur (ayrı maç yok)
+            ("M9", "lower", "Alt Kademe", empty, empty, "M10:blue", None, {}),
+            ("M10", "final", "Büyük Final", empty, empty, None, None, {"gf": "1", "reset_to": "M11"}),
+            ("M11", "final", "Büyük Final", empty, empty, None, None, {"gf": "reset"}),
+        ]
+
+        matches_by_round: Dict[str, List[Dict[str, Any]]] = {}
+        round_order = ["upper", "lower", "final"]
+        round_names = {"upper": "Üst Kademe", "lower": "Alt Kademe", "final": "Büyük Final"}
+
+        for label, round_key, _round_name, red, blue, win_to, lose_to, extra in spec:
+            match_number = int(label[1:])  # "M7" -> 7 (oynanış sırası)
+            match = {
+                "match_number": match_number,
+                "round": round_key,
+                "label": label,
+                "red_alliance": list(red),
+                "blue_alliance": list(blue),
+            }
+            if win_to:
+                match["win_to"] = win_to
+            if lose_to:
+                match["lose_to"] = lose_to
+            match.update(extra)
+            matches_by_round.setdefault(round_key, []).append(match)
+
+        rounds = []
+        for round_key in round_order:
+            matches = sorted(
+                matches_by_round.get(round_key, []),
+                key=lambda m: m["match_number"],
+            )
+            if matches:
+                rounds.append({"name": round_names[round_key], "matches": matches})
+        return rounds
+
     def _generate_single_elimination_bracket(
         self,
         rankings: List[Dict[str, Any]],

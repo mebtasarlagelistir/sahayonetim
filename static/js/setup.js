@@ -548,6 +548,13 @@ function setupPlayoffListeners() {
   if (qs("view_final_rankings")) {
     qs("view_final_rankings").addEventListener("click", viewFinalRankings);
   }
+  // Çift eleme — kaptan seçimi
+  if (qs("load_alliance_captains")) {
+    qs("load_alliance_captains").addEventListener("click", loadAllianceCaptains);
+  }
+  if (qs("generate_double_elim")) {
+    qs("generate_double_elim").addEventListener("click", generateDoubleElimPlayoff);
+  }
 }
 
 /**

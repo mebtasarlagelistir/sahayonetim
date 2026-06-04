@@ -223,6 +223,64 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             round_meta = _parse_playoff_meta(match.get("notes") or "")
             round_key = round_meta.get("round")
             label = round_meta.get("label")
+
+            # === GENEL YÖNLENDİRME (çift eleme vb.: win_to / lose_to / gf) ===
+            # Maç meta'sında win_to/gf varsa, kazanan/kaybeden hedef etiket:slot'a
+            # yönlendirilir. Bu yol single-elim'i etkilemez (onlarda win_to yoktur).
+            win_to = round_meta.get("win_to")
+            lose_to = round_meta.get("lose_to")
+            gf = round_meta.get("gf")
+            if win_to or gf:
+                winner, loser = _determine_winner(match)
+                if not winner:
+                    return {"status": "skipped", "message": "Playoff ilerlemedi: skorlar eşit veya eksik."}
+
+                def _find_by_label(lbl):
+                    return next(
+                        (m for m in playoff_matches
+                         if _parse_playoff_meta(m.get("notes") or "").get("label") == lbl),
+                        None,
+                    )
+
+                # Büyük Final rövanşı (M11): yalnızca tamamlanır, ilerletme yok
+                if gf == "reset":
+                    return {"status": "advanced", "message": "Büyük Final (rövanş) tamamlandı: şampiyon belirlendi."}
+
+                # Büyük Final (M10)
+                if gf == "1":
+                    red_alliance = match.get("red_alliance") or []
+                    # Kırmızı = üst kademe şampiyonu. Kırmızı kazanırsa turnuva biter.
+                    if winner == red_alliance:
+                        return {"status": "advanced", "message": "Büyük Final tamamlandı: Üst kademe şampiyonu kazandı."}
+                    # Mavi (alt kademe şampiyonu) kazandı -> bracket reset (rövanş)
+                    reset_label = round_meta.get("reset_to")
+                    target = _find_by_label(reset_label) if reset_label else None
+                    if target:
+                        _update_playoff_match_alliance(target, "red", match.get("red_alliance") or [])
+                        _update_playoff_match_alliance(target, "blue", match.get("blue_alliance") or [])
+                        return {"status": "advanced", "message": f"Büyük Final eşitlendi: rövanş ({reset_label}) oluşturuldu."}
+                    return {"status": "advanced", "message": "Büyük Final tamamlandı."}
+
+                # Normal win_to / lose_to yönlendirmesi
+                messages = []
+                if win_to and ":" in win_to:
+                    lbl, slot = win_to.split(":", 1)
+                    target = _find_by_label(lbl)
+                    if target:
+                        updated, _ = _update_playoff_match_alliance(target, slot, winner)
+                        if updated:
+                            messages.append(f"Kazanan -> {lbl} ({slot})")
+                if lose_to and ":" in lose_to and loser:
+                    lbl, slot = lose_to.split(":", 1)
+                    target = _find_by_label(lbl)
+                    if target:
+                        updated, _ = _update_playoff_match_alliance(target, slot, loser)
+                        if updated:
+                            messages.append(f"Kaybeden -> {lbl} ({slot})")
+                if messages:
+                    return {"status": "advanced", "message": "Playoff ilerledi: " + ", ".join(messages)}
+                return {"status": "skipped", "message": "Playoff ilerlemedi: hedef slotlar dolu/bulunamadı."}
+
             meta_by_round = {}
             for m in playoff_matches:
                 meta = _parse_playoff_meta(m.get("notes") or "")
@@ -1954,9 +2012,14 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 })
 
             round_order = [
+                # Çift eleme (6 ittifak)
+                ("upper", "Üst Kademe"),
+                ("lower", "Alt Kademe"),
+                # Tekli eleme
                 ("quarterfinal", "Çeyrek Final"),
                 ("semifinal", "Yarı Final"),
                 ("third_place", "Üçüncülük Maçı"),
+                # Her iki format için final
                 ("final", "Büyük Final"),
             ]
             for key, title in round_order:

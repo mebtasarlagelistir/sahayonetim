@@ -60,8 +60,10 @@
 
     const buildMatchCard = (match, index, isPlaceholder = false) => {
       if (isPlaceholder) {
+        const phLabel = (match && match.label) ? `<div class="bracket-match-label">${escapeHtml(match.label)}</div>` : "";
         return `
           <div class="bracket-match is-placeholder">
+            ${phLabel}
             <div class="bracket-team muted">Kazanan Bekleniyor</div>
             <div class="bracket-vs">VS</div>
             <div class="bracket-team muted">Kazanan Bekleniyor</div>

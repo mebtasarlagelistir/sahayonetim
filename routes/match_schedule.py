@@ -1371,7 +1371,130 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         # Maç süresini al
         event_cycle = int(event_data.get("schedule", {}).get("match_cycle_seconds", 150))
         match_duration = max(1, (match_cycle_minutes or (event_cycle // 60)))
-        
+
+        # === 6 İTTİFAK ÇİFT ELEME (manuel kaptan seçimi ile) ===
+        bracket_format = (data.get("format") or "").strip()
+        raw_alliances = data.get("alliances")
+        if bracket_format == "double_elimination_6" or raw_alliances:
+            # Doğrula: tam 6 ittifak, her biri 2 takım, hepsi geçerli ve tekil
+            if not isinstance(raw_alliances, list) or len(raw_alliances) != 6:
+                return jsonify({"error": "Çift eleme için tam olarak 6 ittifak gerekli (12 takım)"}), 400
+            valid_team_numbers = {
+                (t.get("number") or "").strip()
+                for t in datastore.get_teams()
+                if (t.get("number") or "").strip()
+            }
+            alliances = []
+            seen_teams = set()
+            for idx, alli in enumerate(raw_alliances, start=1):
+                if not isinstance(alli, list) or len(alli) != 2:
+                    return jsonify({"error": f"{idx}. ittifak tam 2 takımdan oluşmalı"}), 400
+                pair = [str(x).strip() for x in alli]
+                for tn in pair:
+                    if not tn:
+                        return jsonify({"error": f"{idx}. ittifakta eksik takım var"}), 400
+                    if tn not in valid_team_numbers:
+                        return jsonify({"error": f"Geçersiz takım numarası: {tn}"}), 400
+                    if tn in seen_teams:
+                        return jsonify({"error": f"Bir takım birden fazla ittifakta olamaz: {tn}"}), 400
+                    seen_teams.add(tn)
+                alliances.append(pair)
+
+            # İttifakları event_data.playoff.alliances altına kaydet (UI yeniden açabilsin)
+            playoff_cfg = dict(playoff_data) if isinstance(playoff_data, dict) else {}
+            playoff_cfg["alliances"] = alliances
+            playoff_cfg["format"] = "double_elimination_6"
+            new_event_data = dict(event_data)
+            new_event_data["playoff"] = playoff_cfg
+            try:
+                datastore.save_event(new_event_data)
+            except Exception:
+                pass
+
+            de_generator = BracketGenerator()
+            de_rounds = de_generator.generate_double_elimination_6(alliances)
+
+            if clear_existing:
+                for match in datastore.get_match_schedule(event_id=event_id, match_type="final"):
+                    datastore.delete_match(match["id"])
+
+            created_count = 0
+            current_time = initial_datetime
+            next_number = _get_next_match_number(event_id, "final")
+            bracket_id = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            for match_data in [m for r in de_rounds for m in r.get("matches", [])]:
+                notes = (
+                    f"[playoff] bracket_id={bracket_id};"
+                    f"round={match_data.get('round')};label={match_data.get('label')}"
+                )
+                if match_data.get("win_to"):
+                    notes += f";win_to={match_data['win_to']}"
+                if match_data.get("lose_to"):
+                    notes += f";lose_to={match_data['lose_to']}"
+                if match_data.get("gf"):
+                    notes += f";gf={match_data['gf']}"
+                if match_data.get("reset_to"):
+                    notes += f";reset_to={match_data['reset_to']}"
+                try:
+                    datastore.create_match(
+                        match_number=next_number,
+                        match_type="final",
+                        field_number=field_number,
+                        match_date=current_time.strftime("%Y-%m-%d"),
+                        match_time=current_time.strftime("%H:%M"),
+                        red_alliance=match_data["red_alliance"],
+                        blue_alliance=match_data["blue_alliance"],
+                        status="scheduled",
+                        notes=notes,
+                        event_id=event_id,
+                    )
+                    created_count += 1
+                    next_number += 1
+                    current_time += timedelta(minutes=match_duration)
+                except Exception:
+                    continue
+
+            # Yanıt: ittifak/seed bilgisini zenginleştir
+            teams = datastore.get_teams()
+            team_name_map = {
+                (t.get("number") or "").strip(): (t.get("name") or "").strip()
+                for t in teams
+                if (t.get("number") or "").strip()
+            }
+            seed_map = {}
+            for i, pair in enumerate(alliances, start=1):
+                for tn in pair:
+                    seed_map[tn] = i
+
+            def _de_info(team_numbers):
+                return [
+                    {"team": tn, "rank": seed_map.get(tn), "name": team_name_map.get(tn, "")}
+                    for tn in team_numbers
+                ]
+
+            bracket_rounds = []
+            for r in de_rounds:
+                ems = []
+                for m in r.get("matches", []):
+                    ems.append({
+                        "match_number": m.get("match_number"),
+                        "round": m.get("round"),
+                        "label": m.get("label"),
+                        "red_alliance": m.get("red_alliance") or [],
+                        "blue_alliance": m.get("blue_alliance") or [],
+                        "red_alliance_info": _de_info(m.get("red_alliance") or []),
+                        "blue_alliance_info": _de_info(m.get("blue_alliance") or []),
+                    })
+                bracket_rounds.append({"name": r.get("name"), "matches": ems})
+
+            return jsonify({
+                "ok": True,
+                "created_count": created_count,
+                "format": "double_elimination_6",
+                "alliances": alliances,
+                "bracket_rounds": bracket_rounds,
+            })
+
         # Tamamlanmış sıralama maçlarını al
         completed_matches = datastore.get_match_schedule(
             event_id=event_id,

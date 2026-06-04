@@ -716,6 +716,161 @@ async function generateFinalMatches() {
 }
 
 /**
+ * Çift eleme için kaptanları (ilk 6 sıra) belirler ve partner seçim satırlarını çizer.
+ */
+async function loadAllianceCaptains() {
+  const container = qs("alliance_selection_rows");
+  if (!container) return;
+  try {
+    const [rankingPayload, teams, eventData] = await Promise.all([
+      apiGet("/api/match-schedule/rankings").catch(() => ({})),
+      apiGet("/api/teams").catch(() => []),
+      apiGet("/api/event").catch(() => ({})),
+    ]);
+    const rankings = rankingPayload?.rankings || [];
+    if (rankings.length < 6) {
+      showToast(`Çift eleme için en az 6 sıralanmış takım gerekli (şu an ${rankings.length}).`, "warning");
+      return;
+    }
+    const captains = rankings.slice(0, 6).map((r, i) => ({
+      seed: i + 1, team: String(r.team), rank: r.rank,
+    }));
+    const savedAlliances = (eventData && eventData.playoff && eventData.playoff.alliances) || [];
+    renderAllianceSelectionRows(captains, teams || [], savedAlliances);
+  } catch (err) {
+    console.error("loadAllianceCaptains error:", err);
+    showToast("Kaptanlar yüklenemedi", "error");
+  }
+}
+
+/**
+ * 6 ittifak için kaptan + partner seçim satırlarını çizer.
+ */
+function renderAllianceSelectionRows(captains, teams, savedAlliances) {
+  const container = qs("alliance_selection_rows");
+  if (!container) return;
+  const captainSet = new Set(captains.map((c) => c.team));
+  const nameOf = (num) => {
+    const t = (teams || []).find((x) => String(x.number) === String(num));
+    return t && t.name ? t.name : "";
+  };
+  const savedPartnerByCaptain = {};
+  (savedAlliances || []).forEach((pair) => {
+    if (Array.isArray(pair) && pair.length === 2) {
+      savedPartnerByCaptain[String(pair[0])] = String(pair[1]);
+    }
+  });
+  // Partner havuzu: kaptan olmayan tüm takımlar
+  const partnerTeams = (teams || []).filter(
+    (t) => t.number && !captainSet.has(String(t.number))
+  );
+
+  let html = `
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">İttifak</th>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Kaptan (otomatik)</th>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Partner</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  captains.forEach((c) => {
+    const cName = nameOf(c.team);
+    const selected = savedPartnerByCaptain[c.team] || "";
+    const options = partnerTeams.map((t) => {
+      const num = String(t.number);
+      const lbl = t.name ? `${num} - ${escapeHtml(t.name)}` : num;
+      return `<option value="${escapeHtml(num)}" ${num === selected ? "selected" : ""}>${escapeHtml(lbl)}</option>`;
+    }).join("");
+    html += `
+      <tr>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">İttifak ${c.seed}</td>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
+          <strong>${escapeHtml(c.team)}</strong>${cName ? " (" + escapeHtml(cName) + ")" : ""}
+          <span style="color:#888; font-size:12px;"> · sıra ${c.rank}</span>
+        </td>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
+          <select class="alliance-partner-select" data-seed="${c.seed}" data-captain="${escapeHtml(c.team)}" style="min-width:200px; padding:6px;">
+            <option value="">— Partner seçin —</option>
+            ${options}
+          </select>
+        </td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+  const genBtn = qs("generate_double_elim");
+  if (genBtn) genBtn.disabled = false;
+}
+
+/**
+ * Seçilen 6 ittifak ile çift eleme playoff maçlarını oluşturur.
+ */
+async function generateDoubleElimPlayoff() {
+  const btn = qs("generate_double_elim");
+  const selects = Array.from(document.querySelectorAll(".alliance-partner-select"));
+  if (selects.length !== 6) {
+    showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
+    return;
+  }
+  const alliances = [];
+  const used = new Set();
+  for (const sel of selects) {
+    const captain = sel.dataset.captain;
+    const partner = sel.value;
+    if (!partner) {
+      showToast("Tüm ittifaklar için partner seçin", "warning");
+      return;
+    }
+    if (captain === partner) {
+      showToast("Bir kaptan kendisiyle ittifak olamaz", "warning");
+      return;
+    }
+    if (used.has(captain) || used.has(partner)) {
+      showToast(`Bir takım birden fazla ittifakta olamaz: ${used.has(captain) ? captain : partner}`, "warning");
+      return;
+    }
+    used.add(captain);
+    used.add(partner);
+    alliances.push([captain, partner]);
+  }
+  const startDate = qs("final_start_date")?.value || "";
+  const startTime = qs("final_start_time")?.value || "";
+  if (!startDate || !startTime) {
+    showToast("Başlangıç tarihi ve saatini 'Playoff Maçları' bölümünden girin", "warning");
+    return;
+  }
+  try {
+    setButtonLoading(btn, true);
+    const data = await apiPost("/api/match-schedule/generate-finals", {
+      start_date: startDate,
+      start_time: startTime,
+      field_number: Number(qs("final_field_number")?.value || 1),
+      match_cycle_minutes: Number(qs("final_cycle_minutes")?.value || 5),
+      clear_existing: qs("final_clear_existing")?.checked || false,
+      format: "double_elimination_6",
+      alliances: alliances,
+    });
+    if (data.ok) {
+      showToast(`${data.created_count} çift-eleme maçı oluşturuldu (M1–M11).`, "success");
+      await loadMatchSchedule();
+      if (typeof loadPlayoffMatchSchedule === "function") await loadPlayoffMatchSchedule();
+      if (typeof checkAllStepStatuses === "function") await checkAllStepStatuses();
+    } else {
+      showToast(data.error || "Playoff oluşturulamadı", "error");
+    }
+  } catch (err) {
+    console.error("generateDoubleElimPlayoff error:", err);
+    showToast(err.response?.data?.error || err.message || "Playoff oluşturulamadı", "error");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+/**
  * Playoff maçlarını yükler ve tabloya ekler (setup -> playoff).
  */
 async function loadPlayoffMatchSchedule() {

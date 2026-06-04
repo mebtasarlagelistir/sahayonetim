@@ -14,6 +14,8 @@ from typing import Any, Dict
 
 # Desteklenen bracket formatları
 SINGLE_ELIMINATION = "single_elimination"
+# 6 ittifak çift eleme (Üst/Alt Kademe + Büyük Final, M1–M11)
+DOUBLE_ELIMINATION_6 = "double_elimination_6"
 
 # Varsayılan format (BracketGenerator BRACKET_FORMAT olarak kullanır)
 DEFAULT_BRACKET_FORMAT = SINGLE_ELIMINATION
