@@ -586,3 +586,69 @@ async function loadPlayoffView() {
     renderAudiencePlayoff();
   }, 5000);
 }
+
+/**
+ * ============================================================================
+ * İTTİFAK SEÇİMİ TÖRENİ GÖRÜNÜMÜ (Seyirci)
+ * ============================================================================
+ */
+
+/**
+ * /api/public/playoff-alliances verisini ittifak kartları olarak çizer.
+ */
+async function renderAudienceAlliances() {
+  const container = qs("audience_alliances_grid");
+  if (!container) return;
+  try {
+    const data = await apiGet("/api/public/playoff-alliances");
+    if (!data || !data.ok) {
+      container.innerHTML = `<div class="audience-empty">${escapeHtml((data && data.error) || "İttifaklar henüz hazır değil.")}</div>`;
+      return;
+    }
+    const alliances = data.alliances || [];
+    if (!alliances.length) {
+      container.innerHTML = `<div class="audience-empty">Henüz ittifak seçimi yapılmadı.</div>`;
+      return;
+    }
+    const teamHtml = (member, roleLabel, roleClass) => {
+      const name = member && member.name ? escapeHtml(member.name) : "";
+      const team = member && member.team ? escapeHtml(String(member.team)) : "-";
+      return `
+        <div class="aa-member ${roleClass}">
+          <div class="aa-role">${roleLabel}</div>
+          <div class="aa-team">${team}</div>
+          ${name ? `<div class="aa-name">${name}</div>` : ""}
+        </div>
+      `;
+    };
+    container.innerHTML = alliances.map((a) => `
+      <div class="aa-card">
+        <div class="aa-seed">İttifak ${escapeHtml(String(a.seed))}</div>
+        ${teamHtml(a.captain, "Kaptan", "aa-captain")}
+        ${teamHtml(a.partner, "Partner", "aa-partner")}
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("renderAudienceAlliances error:", err);
+    container.innerHTML = `<div class="audience-empty">İttifak verisi yüklenemedi.</div>`;
+  }
+}
+
+let _audienceAlliancesTimer = null;
+
+/**
+ * İttifak seçimi görünümünü yükler ve aktifken periyodik (5sn) tazeler.
+ */
+async function loadAlliancesView() {
+  await renderAudienceAlliances();
+  if (_audienceAlliancesTimer) clearInterval(_audienceAlliancesTimer);
+  _audienceAlliancesTimer = setInterval(() => {
+    const el = qs("audience_alliances_view");
+    if (!el || el.style.display === "none") {
+      clearInterval(_audienceAlliancesTimer);
+      _audienceAlliancesTimer = null;
+      return;
+    }
+    renderAudienceAlliances();
+  }, 5000);
+}

@@ -147,7 +147,7 @@ function switchView(viewName) {
     return;
   }
   
-  const views = ["match", "inspection", "rankings", "awards", "playoff"];
+  const views = ["match", "inspection", "rankings", "awards", "playoff", "alliances"];
   views.forEach((view) => {
     const el = qs(`audience_${view}_view`);
     if (el) {
@@ -332,6 +332,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         } else if (state.currentView === "playoff") {
           if (typeof loadPlayoffView === "function") {
             loadPlayoffView();
+          }
+        } else if (state.currentView === "alliances") {
+          if (typeof loadAlliancesView === "function") {
+            loadAlliancesView();
           }
         } else if (state.currentView === "ceremony") {
           if (state.ceremonyState && typeof window.AudienceCeremony !== "undefined" && window.AudienceCeremony.handleUpdate) {

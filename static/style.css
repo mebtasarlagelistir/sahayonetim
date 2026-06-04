@@ -6098,3 +6098,49 @@ body[data-referee-mode="blue"] #active_match_card {
   margin-right: 4px;
 }
 .ap-waiting { color: #aab3c4; font-style: italic; font-weight: 600; }
+
+/* ============================================================================
+   Seyirci Ekranı — İttifak Seçimi Töreni (Kaptan + Partner)
+   ============================================================================ */
+.audience-alliances-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.aa-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+.aa-seed {
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-align: center;
+  color: #ffd54a;
+  letter-spacing: 0.5px;
+}
+.aa-member {
+  border-radius: 10px;
+  padding: 10px 14px;
+  text-align: center;
+}
+.aa-member.aa-captain { background: rgba(255, 213, 74, 0.16); border: 1px solid rgba(255, 213, 74, 0.5); }
+.aa-member.aa-partner { background: rgba(159, 208, 255, 0.12); border: 1px solid rgba(159, 208, 255, 0.4); }
+.aa-role {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #cfd6e4;
+  opacity: 0.85;
+}
+.aa-team { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
+.aa-name { font-size: 1rem; color: #e3e8f2; opacity: 0.9; }

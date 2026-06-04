@@ -1877,6 +1877,43 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         next_schedule["match_source"] = "schedule"
         return jsonify({"match": next_schedule})
 
+    @bp.get("/api/public/playoff-alliances")
+    def get_playoff_alliances_public():
+        """
+        Seçilen playoff ittifaklarını (kaptan + partner) public olarak döner.
+
+        Kaynak: event_data.playoff.alliances (manuel kaptan seçimiyle kaydedilir).
+        Seyirci ekranındaki "İttifak Seçimi" töreni görünümü bu veriyi kullanır.
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"ok": False, "error": "Aktif etkinlik bulunamadı"}), 400
+        event_data = datastore.get_event() or {}
+        playoff = event_data.get("playoff", {}) if isinstance(event_data, dict) else {}
+        alliances = playoff.get("alliances") or []
+        teams = datastore.get_teams()
+        name_map = {
+            (t.get("number") or "").strip(): (t.get("name") or "").strip()
+            for t in teams
+            if (t.get("number") or "").strip()
+        }
+        result = []
+        for idx, pair in enumerate(alliances, start=1):
+            if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                continue
+            captain = str(pair[0])
+            partner = str(pair[1])
+            result.append({
+                "seed": idx,
+                "captain": {"team": captain, "name": name_map.get(captain, "")},
+                "partner": {"team": partner, "name": name_map.get(partner, "")},
+            })
+        return jsonify({
+            "ok": True,
+            "alliances": result,
+            "event": {"name": event_data.get("name", "")},
+        })
+
     @bp.get("/api/public/playoff-bracket")
     def get_playoff_bracket_public():
         """
