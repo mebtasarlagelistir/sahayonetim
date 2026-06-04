@@ -503,3 +503,86 @@ function showCeremonyView() {
   // State'i yükle
   loadCeremonyView();
 }
+
+/**
+ * ============================================================================
+ * PLAYOFF BRACKET GÖRÜNÜMÜ (Seyirci) — 6 ittifak çift eleme
+ * ============================================================================
+ */
+
+/**
+ * /api/public/playoff-bracket verisini seyirci ekranında bracket olarak çizer.
+ */
+async function renderAudiencePlayoff() {
+  const container = qs("audience_playoff_bracket");
+  if (!container) return;
+  try {
+    const data = await apiGet("/api/public/playoff-bracket");
+    if (!data || !data.ok) {
+      container.innerHTML = `<div class="audience-empty">${escapeHtml((data && data.error) || "Playoff henüz hazır değil.")}</div>`;
+      return;
+    }
+    const rounds = data.bracket_rounds || [];
+    if (!rounds.length) {
+      container.innerHTML = `<div class="audience-empty">Playoff eşleşmesi bulunamadı.</div>`;
+      return;
+    }
+
+    const allianceHtml = (info, fallback) => {
+      const list = (info && info.length) ? info : (fallback || []).map((t) => ({ team: t }));
+      if (!list.length) {
+        return `<span class="ap-team ap-waiting">Bekleniyor</span>`;
+      }
+      return list.map((t) => {
+        const seed = t.rank ? `<span class="ap-seed">#${escapeHtml(String(t.rank))}</span>` : "";
+        const name = t.name ? ` ${escapeHtml(t.name)}` : "";
+        return `<span class="ap-team">${seed}${escapeHtml(String(t.team))}${name}</span>`;
+      }).join("");
+    };
+
+    const columns = rounds.map((round) => {
+      const cards = (round.matches || []).map((m) => {
+        const empty = !(m.red_alliance && m.red_alliance.length) && !(m.blue_alliance && m.blue_alliance.length);
+        return `
+          <div class="ap-match ${empty ? "ap-empty" : ""}">
+            <div class="ap-label">${escapeHtml(m.label || "")}</div>
+            <div class="ap-alliance ap-red">${allianceHtml(m.red_alliance_info, m.red_alliance)}</div>
+            <div class="ap-vs">VS</div>
+            <div class="ap-alliance ap-blue">${allianceHtml(m.blue_alliance_info, m.blue_alliance)}</div>
+          </div>
+        `;
+      }).join("");
+      return `
+        <div class="ap-column">
+          <div class="ap-column-title">${escapeHtml(round.name || "")}</div>
+          ${cards}
+        </div>
+      `;
+    }).join("");
+
+    container.innerHTML = `<div class="ap-shell">${columns}</div>`;
+  } catch (err) {
+    console.error("renderAudiencePlayoff error:", err);
+    container.innerHTML = `<div class="audience-empty">Playoff verisi yüklenemedi.</div>`;
+  }
+}
+
+let _audiencePlayoffTimer = null;
+
+/**
+ * Playoff görünümünü yükler ve aktifken periyodik (5sn) tazeler.
+ * Panel gizlenince timer kendini durdurur.
+ */
+async function loadPlayoffView() {
+  await renderAudiencePlayoff();
+  if (_audiencePlayoffTimer) clearInterval(_audiencePlayoffTimer);
+  _audiencePlayoffTimer = setInterval(() => {
+    const el = qs("audience_playoff_view");
+    if (!el || el.style.display === "none") {
+      clearInterval(_audiencePlayoffTimer);
+      _audiencePlayoffTimer = null;
+      return;
+    }
+    renderAudiencePlayoff();
+  }, 5000);
+}
