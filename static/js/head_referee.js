@@ -931,10 +931,10 @@ function applyScoringDataToHeadRefereeForm(alliance, scoringData) {
   html += `<button class="btn-score-minus" data-field="head_${alliance}_teleop_source_entry" data-points="5">−</button>`;
   html += `<input type="number" id="head_${alliance}_teleop_source_entry" value="${scoringData.teleop_source_entry || 0}" min="0" data-points="5" class="score-field-compact" />`;
   html += `<button class="btn-score-plus" data-field="head_${alliance}_teleop_source_entry" data-points="5">+</button></div>`;
-  html += `<div class="score-control-compact"><span class="score-label-compact">Tırmanış(20)</span>`;
-  html += `<button class="btn-score-minus" data-field="head_${alliance}_teleop_climb" data-points="20">−</button>`;
-  html += `<input type="number" id="head_${alliance}_teleop_climb" value="${scoringData.teleop_climb || 0}" min="0" data-points="20" class="score-field-compact" />`;
-  html += `<button class="btn-score-plus" data-field="head_${alliance}_teleop_climb" data-points="20">+</button></div>`;
+  html += `<div class="score-control-compact"><span class="score-label-compact">Tırmanış(25)</span>`;
+  html += `<button class="btn-score-minus" data-field="head_${alliance}_teleop_climb" data-points="25">−</button>`;
+  html += `<input type="number" id="head_${alliance}_teleop_climb" value="${scoringData.teleop_climb || 0}" min="0" data-points="25" class="score-field-compact" />`;
+  html += `<button class="btn-score-plus" data-field="head_${alliance}_teleop_climb" data-points="25">+</button></div>`;
   html += '</div></div>';
   
   // Cezalar
