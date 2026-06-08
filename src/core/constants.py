@@ -21,7 +21,7 @@ class MatchConstants:
     
     # Maç zamanlayıcı süreleri (saniye) - resmi değerler, timer kararlılığı için tek kaynak
     AUTONOMOUS_DURATION = 30   # OKS (Otonom) - 30 saniye
-    PREPARE_TELEOP_DURATION = 5   # Otonom -> Teleop arası hazırlık
+    PREPARE_TELEOP_DURATION = 10   # Otonom -> Teleop arası hazırlık
     DRIVER_CONTROLLED_DURATION = 120  # SKS (Sürücü kontrollü) - 120 saniye
     END_GAME_DURATION = 30  # Oyun sonu
     POST_MATCH_DURATION = 10  # Maç sonrası

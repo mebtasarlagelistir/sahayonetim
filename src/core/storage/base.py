@@ -448,3 +448,91 @@ class BaseStorage:
             event_row = conn.execute("SELECT 1 FROM events LIMIT 1").fetchone()
             team_row = conn.execute("SELECT 1 FROM teams LIMIT 1").fetchone()
         return not event_row and not team_row
+
+    def backup_database(self, backup_dir: Path | None = None) -> Path:
+        """
+        Veritabanını zaman damgalı, tutarlı bir kopya olarak yedekler.
+
+        SQLite backup API kullanılır; bu sayede WAL dosyasındaki bekleyen değişiklikler
+        de yedeğe dahil edilir. Uygulama çalışırken güvenle çağrılabilir (salt-okunur).
+
+        Args:
+            backup_dir: Yedek dizini. None ise proje kökünde "backups/" kullanılır.
+
+        Returns:
+            Path: Oluşturulan yedek dosyasının yolu.
+        """
+        from datetime import datetime
+
+        if backup_dir is None:
+            backup_dir = self.base_path / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"data_{timestamp}.db"
+
+        source = sqlite3.connect(str(self.db_path))
+        try:
+            dest = sqlite3.connect(str(backup_path))
+            try:
+                source.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            source.close()
+        return backup_path
+
+    def reset_event_data(self) -> Dict[str, int]:
+        """
+        Yeni bir yarışma için tüm etkinlik verilerini siler; şemayı ve varsayılan
+        admin kullanıcısını korur. Uygulama çalışırken güvenle çağrılabilir
+        (dosya silmek yerine satırları temizler).
+
+        Silinenler: etkinlik, takım, maç takvimi, deneme maçı, inceleme, ödül,
+                    tören durumu ve admin DIŞINDAKİ tüm kullanıcılar.
+        Korunanlar: şema yapısı + 'admin' (event_id IS NULL) kullanıcısı.
+
+        Returns:
+            Dict[str, int]: Silme öncesi sayımlar (özet/log için).
+        """
+        # Çocuk tablolar önce, events en son (FK kısıtlarına takılmamak için).
+        ordered_tables = [
+            "award_winners",
+            "ceremony_state",
+            "inspection_checklist_responses",
+            "inspection_checklist_template",
+            "inspection_slots",
+            "match_schedule",
+            "practice_matches",
+            "teams",
+            "events",
+        ]
+        with self._get_connection() as conn:
+            existing = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            summary = {}
+            for table in ordered_tables:
+                if table not in existing:
+                    continue
+                count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                summary[table] = count
+                conn.execute(f"DELETE FROM {table}")
+
+            # Admin dışındaki kullanıcıları sil
+            user_count = conn.execute(
+                "SELECT COUNT(*) FROM users WHERE NOT (LOWER(username) = 'admin' AND event_id IS NULL)"
+            ).fetchone()[0]
+            summary["users"] = user_count
+            conn.execute(
+                "DELETE FROM users WHERE NOT (LOWER(username) = 'admin' AND event_id IS NULL)"
+            )
+
+            # Otomatik artan sayaçları sıfırla (admin kaydı için 'users' hariç)
+            if "sqlite_sequence" in existing:
+                conn.execute("DELETE FROM sqlite_sequence WHERE name != 'users'")
+
+            conn.commit()
+        return summary

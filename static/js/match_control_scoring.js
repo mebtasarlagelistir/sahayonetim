@@ -141,7 +141,16 @@ function calculateScoreBreakdown() {
        parseInt(qs("blue_teleop_tank_opponent")?.value || 0) * SCORING_CONSTANTS.TELEOP_TANK_POINTS);
     
     // Toplam skor = Kendi alanına verilen puanlar + Rakip cezalarından gelen puanlar + Rakip takımın bu alana verdiği puanlar
-    const totalScore = autoTotal + teleopTotal + receivedFromPenalties + opponentAutoPoints + opponentTeleopPoints;
+    let totalScore = autoTotal + teleopTotal + receivedFromPenalties + opponentAutoPoints + opponentTeleopPoints;
+
+    // DİSKALİFİYE (Kırmızı Kart): backend ile aynı kural — ittifaktaki herhangi bir
+    // robotun kırmızı kartı tüm ittifak skorunu 0'a indirir. (calculator.py ile senkron)
+    const redCardR1 = qs(`${alliance}_red_card_r1`)?.checked;
+    const redCardR2 = qs(`${alliance}_red_card_r2`)?.checked;
+    const disqualified = !!(redCardR1 || redCardR2);
+    if (disqualified) {
+      totalScore = 0;
+    }
 
     // Saha özeti (OKS + SKS toplamları)
     const fieldBent1El = qs(`${alliance}_field_bent1`);
@@ -193,16 +202,10 @@ function calculateScoreBreakdown() {
     // Merkezi skorları güncelle
     const centralScoreEl = qs(`central_${alliance === "blue" ? "blue" : "red"}_score`);
     if (centralScoreEl) centralScoreEl.textContent = totalScore;
-    
-    // Eğer kırmızı kart varsa, skor 0 olabilir (kurallara göre)
-    const redCardR1 = qs(`${alliance}_red_card_r1`)?.checked;
-    const redCardR2 = qs(`${alliance}_red_card_r2`)?.checked;
-    if (redCardR1 || redCardR2) {
-      // Kırmızı kart durumunda skor 0 olabilir veya özel işlem yapılabilir
-      // Şimdilik uyarı göster
-      if (totalScore > 0) {
-        console.warn(`${alliance} ittifakında kırmızı kart var, skor kontrol edilmeli`);
-      }
+
+    // Diskalifiye durumunda skor zaten 0'a çekildi (yukarıda); bilgi amaçlı log.
+    if (disqualified) {
+      console.info(`${alliance} ittifakı diskalifiye (kırmızı kart): skor 0`);
     }
 
     rankingData[alliance] = {
@@ -251,11 +254,14 @@ function updateRankingPoints(data) {
   // Deneme maçları SP'ye etki etmez
   if (!isPractice) {
     // Maç Sonucu SP'si
+    // NOT: Backend (ranking_points.py) ile aynı kural — eşit skor 0-0 dahil
+    // beraberliktir ve +1 SP verir. 'redScore > 0' koşulu YOK; aksi halde
+    // canlı gösterim ile kaydedilen SP (1-1) farklı olurdu.
     if (redScore > blueScore) {
       resultPoints.red = 2; // Galibiyet
     } else if (blueScore > redScore) {
       resultPoints.blue = 2; // Galibiyet
-    } else if (redScore === blueScore && redScore > 0) {
+    } else {
       resultPoints.red = 1; // Beraberlik
       resultPoints.blue = 1; // Beraberlik
     }

@@ -56,6 +56,14 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Secrets & oturum
+src/resources/secret.key
+secret.key
+cookies.txt
+
+# Yedekler
+backups/
+
 # Temporary files
 *.tmp
 *.temp

@@ -185,9 +185,12 @@
   <div class="card-section" id="match_list_view">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h3 style="margin: 0;">Maç Takvimi Listesi</h3>
-      <button id="print_match_schedule" class="btn-secondary" style="padding: 8px 16px;">
-        🖨️ Yazdır
-      </button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a href="/rankings" class="btn-secondary" style="padding: 8px 16px; text-decoration: none;">📊 Sıralamalar / Sonuçlar</a>
+        <button id="print_match_schedule" class="btn-secondary" style="padding: 8px 16px;">
+          🖨️ Yazdır
+        </button>
+      </div>
     </div>
     <div class="card-section" id="match_breaks_summary" style="background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
       <h4 style="margin: 0 0 12px 0;">Mola / Yemek Aralıkları</h4>
@@ -219,7 +222,7 @@
       <table id="match_schedule_table" style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr>
-            <th><input type="checkbox" id="match_select_all" /></th>
+            <th class="no-print"><input type="checkbox" id="match_select_all" /></th>
             <th>Maç No</th>
             <th>Tarih</th>
             <th>Saat</th>
@@ -236,70 +239,4 @@
     </div>
   </div>
 
-  <!-- Final Maçları Oluşturma -->
-  <div class="card-section" style="border-top: 2px solid #4a90e2; margin-top: 32px; padding-top: 24px;">
-    <h3 style="color: #4a90e2; margin-bottom: 8px;">🏆 Final Maçları</h3>
-    <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
-      Sıralama maçları tamamlandıktan sonra, SP puanlarına göre final maçlarını otomatik oluşturun.
-      Sistem, takımları SP puanına göre sıralar ve bracket (turnuva ağacı) oluşturur.
-    </p>
-    
-    <div style="background: #fff8e1; border: 1px solid #f0d28c; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
-      <strong>⚠️ Önemli:</strong>
-      <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #8a5a00;">
-        <li>Sıralama maçlarının tamamlanmış olması gerekir</li>
-        <li>SP puanları hesaplanmış olmalı</li>
-        <li>En az 4 takım olmalı (2 takım/ittifak için)</li>
-      </ul>
-    </div>
-
-    <div class="grid">
-      <label>
-        Başlangıç Tarihi
-        <input type="date" id="final_start_date" />
-      </label>
-      <label>
-        Başlangıç Saati
-        <input type="time" id="final_start_time" value="14:00" />
-      </label>
-      <label>
-        Saha Numarası
-        <input type="number" id="final_field_number" value="1" min="1" max="10" />
-      </label>
-      <label>
-        İttifak Başına Takım Sayısı
-        <input type="number" id="final_teams_per_alliance" value="2" min="1" max="4" />
-      </label>
-      <label>
-        Maksimum Takım Sayısı (boş = tüm takımlar)
-        <input type="number" id="final_max_teams" min="4" placeholder="Örn: 8" />
-      </label>
-      <label>
-        Maç Döngü Süresi (dakika)
-        <input type="number" id="final_cycle_minutes" value="5" min="1" max="30" />
-      </label>
-    </div>
-    
-    <label class="checkbox" style="margin-top: 12px;">
-      <input type="checkbox" id="final_clear_existing" />
-      Mevcut final maçlarını temizle
-    </label>
-    
-    <div style="margin-top: 16px;">
-      <button id="generate_final_matches" class="btn-primary" style="padding: 10px 20px;">
-        🏆 Final Maçlarını Oluştur
-      </button>
-      <button id="view_final_rankings" class="btn-secondary" style="padding: 10px 20px; margin-left: 8px;">
-        📊 SP Sıralamasını Görüntüle
-      </button>
-    </div>
-
-    <!-- SP Sıralaması Görüntüleme -->
-    <div id="final_rankings_display" style="display: none; margin-top: 20px; padding: 16px; background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
-      <h4 style="margin: 0 0 12px 0;">SP Sıralaması</h4>
-      <div id="final_rankings_content" style="max-height: 400px; overflow-y: auto;">
-        <!-- JavaScript ile doldurulacak -->
-      </div>
-    </div>
-  </div>
 </section>

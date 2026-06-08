@@ -390,10 +390,10 @@
                       <button class="btn-score-plus" data-field="blue_teleop_source_entry" data-points="2">+</button>
                     </div>
                     <div class="score-control-compact">
-                      <span class="score-label-compact">Tırmanma (15)</span>
-                      <button class="btn-score-minus" data-field="blue_teleop_climb" data-points="15">−</button>
-                      <input type="number" id="blue_teleop_climb" value="0" min="0" max="2" data-points="15" class="score-field-compact" />
-                      <button class="btn-score-plus" data-field="blue_teleop_climb" data-points="15">+</button>
+                      <span class="score-label-compact">Tırmanma (25)</span>
+                      <button class="btn-score-minus" data-field="blue_teleop_climb" data-points="25">−</button>
+                      <input type="number" id="blue_teleop_climb" value="0" min="0" max="2" data-points="25" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="blue_teleop_climb" data-points="25">+</button>
                     </div>
                   </div>
                 </div>
@@ -722,10 +722,10 @@
                       <button class="btn-score-plus" data-field="red_teleop_source_entry" data-points="2">+</button>
                     </div>
                     <div class="score-control-compact">
-                      <span class="score-label-compact">Tırmanma (15)</span>
-                      <button class="btn-score-minus" data-field="red_teleop_climb" data-points="15">−</button>
-                      <input type="number" id="red_teleop_climb" value="0" min="0" max="2" data-points="15" class="score-field-compact" />
-                      <button class="btn-score-plus" data-field="red_teleop_climb" data-points="15">+</button>
+                      <span class="score-label-compact">Tırmanma (25)</span>
+                      <button class="btn-score-minus" data-field="red_teleop_climb" data-points="25">−</button>
+                      <input type="number" id="red_teleop_climb" value="0" min="0" max="2" data-points="25" class="score-field-compact" />
+                      <button class="btn-score-plus" data-field="red_teleop_climb" data-points="25">+</button>
                     </div>
                   </div>
                 </div>
@@ -1025,6 +1025,8 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/constants.js"></script>
+    <!-- Puanlama sabitleri backend'den (tek kaynak) — puanlama JS'lerinden ÖNCE -->
+    <script src="/js/scoring_constants.js"></script>
     <script src="/static/js/network_utils.js"></script>
     <script src="/static/js/event.js"></script>
     <script src="/static/js/users.js"></script>

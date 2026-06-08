@@ -35,6 +35,11 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
     return;
   }
 
+  // Seyirci ekranında maç sonrası (post_match) son 10 sn geri sayımı gösterme.
+  if (currentState === "post_match") {
+    timeRemaining = 0;
+  }
+
   function applyTimerDisplay(displayTime) {
     const formattedTime = formatTime(displayTime);
     if (timerEl.textContent !== formattedTime) {

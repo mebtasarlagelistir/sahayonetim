@@ -82,6 +82,10 @@ def default_config_dict() -> Dict:
                 "endgame_seconds": 30,
                 "match_cycle_seconds": 150,
             },
+            "playoff": {
+                "max_teams": 16,
+                "teams_per_alliance": 2,
+            },
             "scoring": {
                 "allow_remote_scoring": False,
                 "notes": "",

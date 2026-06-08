@@ -12,7 +12,7 @@
 const MATCH_CONSTANTS = {
   // Maç zamanlayıcı süreleri (saniye) - OKS 30 sn, SKS 120 sn
   AUTONOMOUS_DURATION: 30,      // OKS - Otonom
-  PREPARE_TELEOP_DURATION: 5,
+  PREPARE_TELEOP_DURATION: 10,
   DRIVER_CONTROLLED_DURATION: 120,  // SKS - Sürücü kontrollü
   END_GAME_DURATION: 30,
   POST_MATCH_DURATION: 10,
@@ -72,32 +72,16 @@ const UI_CONSTANTS = {
 };
 
 /**
- * Puanlama ile ilgili sabitler
- * 
- * NOT: Bu değerler backend'deki src/core/scoring/config.py ile senkronize tutulmalıdır.
- * Gelecekte bu değerler API'den alınabilir.
+ * Puanlama ile ilgili sabitler (SCORING_CONSTANTS)
+ *
+ * ÖNEMLİ: Bu sabitler artık TEK kaynaktan, backend'den gelir.
+ * window.SCORING_CONSTANTS, /js/scoring_constants.js tarafından doldurulur
+ * (kaynak: src/core/scoring/config.py → ScoringConfig.to_frontend_constants).
+ *
+ * Puanlama JS'lerini (match_control_scoring.js, referee_panel_scoring.js)
+ * kullanan her sayfa, bunlardan ÖNCE şu satırı eklemelidir:
+ *     <script src="/js/scoring_constants.js"></script>
+ *
+ * Puan değerlerini değiştirmek için SADECE config.py düzenlenir; burada
+ * elle senkron tutmaya gerek yoktur.
  */
-const SCORING_CONSTANTS = {
-  // Otonom (OKS) Puanları
-  AUTO_LEAVE_POINTS: 3,
-  AUTO_BENT1_POINTS: 4,
-  AUTO_BENT2_CORRECT_POINTS: 6,
-  AUTO_BENT2_WRONG_POINTS: 3,
-  AUTO_BENT3_CORRECT_POINTS: 8,
-  AUTO_BENT3_WRONG_POINTS: 4,
-  AUTO_TANK_POINTS: 7,
-  
-  // Sürücü Kontrollü (SKS) Puanları
-  TELEOP_BENT1_POINTS: 2,
-  TELEOP_BENT2_CORRECT_POINTS: 4,
-  TELEOP_BENT2_WRONG_POINTS: 3,
-  TELEOP_BENT3_CORRECT_POINTS: 6,
-  TELEOP_BENT3_WRONG_POINTS: 4,
-  TELEOP_TANK_POINTS: 5,
-  TELEOP_SOURCE_ENTRY_POINTS: 2,
-  TELEOP_CLIMB_POINTS: 15,
-  
-  // Ceza Puanları
-  YELLOW_CARD_POINTS_TO_OPPONENT: 2,
-  MAJOR_PENALTY_POINTS_TO_OPPONENT: 5
-};

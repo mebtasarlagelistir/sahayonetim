@@ -36,7 +36,7 @@ import os
 import secrets
 import socket
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 import qrcode
 from qrcode.image.svg import SvgImage
 from flask_limiter import Limiter
@@ -269,9 +269,40 @@ def create_app() -> Flask:
 
 
     # ============================================================================
+    # PUANLAMA SABİTLERİ (Tek kaynak: backend → frontend)
+    # ============================================================================
+
+    @app.get("/js/scoring_constants.js")
+    def scoring_constants_js():
+        """
+        Puanlama sabitlerini backend'den üretilen bir JavaScript dosyası olarak servis eder.
+
+        window.SCORING_CONSTANTS değişkenini ScoringConfig.to_frontend_constants()
+        ile doldurur. Böylece puan değerleri YALNIZCA src/core/scoring/config.py'de
+        tanımlanır; frontend (constants.js) elle senkron tutulmak zorunda kalmaz.
+
+        Bu dosya, puanlama JS'lerinden (match_control_scoring.js,
+        referee_panel_scoring.js) ÖNCE <script src> ile senkron yüklenmelidir.
+        """
+        from src.core.scoring.config import ScoringConfig
+        import json as _json
+
+        constants = ScoringConfig.to_frontend_constants()
+        body = (
+            "/* OTOMATİK ÜRETİLDİ — düzenlemeyin.\n"
+            "   Kaynak: src/core/scoring/config.py (ScoringConfig.to_frontend_constants).\n"
+            "   Puan değerlerini değiştirmek için config.py'yi düzenleyin. */\n"
+            "window.SCORING_CONSTANTS = " + _json.dumps(constants, indent=2) + ";\n"
+        )
+        resp = Response(body, mimetype="application/javascript")
+        # Puanlar değişince eski değerin önbellekten gelmemesi için cache kapalı.
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    # ============================================================================
     # SAYFA ROUTE'LARI (HTML Sayfaları)
     # ============================================================================
-    
+
     @app.get("/")
     @require_login
     def index():
@@ -388,6 +419,7 @@ def create_app() -> Flask:
             "inspection-schedule": "step_inspection_schedule.html",
             "practice-matches": "step_practice_matches.html",
             "match-schedule": "step_match_schedule.html",
+            "playoff": "step_playoff.html",
             "wifi": "step_wifi.html",
             "awards": "step_awards.html",
             "archive": "step_archive.html",
@@ -699,6 +731,50 @@ def create_app() -> Flask:
             "name": event_data.get("name") or "",
             "code": event_data.get("code") or "",
         })
+
+    @app.get("/api/public/rankings")
+    def get_rankings_public():
+        """
+        Seyirci ekranı için sıralama verisini döndürür (giriş gerektirmez).
+        Tamamlanan sıralama maçlarından SP sıralamasını hesaplar.
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"rankings": [], "completed_count": 0})
+
+        completed_matches = datastore.get_match_schedule(
+            event_id=event_id,
+            status="completed",
+        )
+        qualification_matches = [
+            m for m in completed_matches
+            if (m.get("match_type") or "qualification").strip() == "qualification"
+        ]
+
+        # Eksik SP verisini mevcut scoring_data'dan hesapla
+        from src.core.scoring.ranking_points import RankingPointsCalculator
+        for m in qualification_matches:
+            scoring_data = m.get("scoring_data") if isinstance(m.get("scoring_data"), dict) else {}
+            rp = scoring_data.get("ranking_points")
+            if not rp:
+                rp = RankingPointsCalculator.calculate_ranking_points(
+                    match_type=m.get("match_type", "qualification"),
+                    red_score=int(m.get("red_score") or 0),
+                    blue_score=int(m.get("blue_score") or 0),
+                    scoring_data=scoring_data,
+                    red_alliance=m.get("red_alliance") or [],
+                    blue_alliance=m.get("blue_alliance") or [],
+                )
+                scoring_data["ranking_points"] = rp
+                m["scoring_data"] = scoring_data
+
+        if not qualification_matches:
+            return jsonify({"rankings": [], "completed_count": 0})
+
+        from src.core.scoring.team_rankings import TeamRankingsCalculator
+        calculator = TeamRankingsCalculator()
+        rankings = calculator.calculate_team_rankings(qualification_matches)
+        return jsonify({"rankings": rankings, "completed_count": len(qualification_matches)})
 
     @app.get("/api/public/inspection-status")
     def get_inspection_status_public():
@@ -1118,8 +1194,39 @@ def create_app() -> Flask:
         datastore.save_teams_for_event(event_id, teams)
         return jsonify({"ok": True, "event_id": event_id, "count": len(teams)})
 
+    # --- YENİ YARIŞMA İÇİN SIFIRLAMA (ADMIN) ---
+
+    @app.post("/api/admin/reset-event")
+    @require_login
+    @require_admin
+    def reset_event_data():
+        """
+        Yeni bir yarışma için veritabanını yedekler ve etkinlik verilerini sıfırlar.
+
+        Adımlar:
+            1. Mevcut veritabanı backups/ altına zaman damgalı yedeklenir.
+            2. Etkinlik/takım/maç/skor/inceleme/ödül verileri ve admin dışı
+               kullanıcılar silinir (şema ve admin korunur).
+            3. Varsayılan admin garanti edilir.
+
+        Sadece admin erişebilir (require_admin). Geri alınamaz; ama önce yedek alınır.
+        """
+        try:
+            backup_path = datastore.backup_database()
+            summary = datastore.reset_event_data()
+            datastore.ensure_default_admin()
+            logging.info("Yeni yarışma için veritabanı sıfırlandı. Yedek: %s", backup_path)
+            return jsonify({
+                "ok": True,
+                "backup": str(backup_path),
+                "deleted": summary,
+            })
+        except Exception as exc:  # noqa: BLE001
+            logging.exception("Veritabanı sıfırlama başarısız")
+            return jsonify({"error": str(exc)}), 500
+
     # --- KULLANICI YÖNETİMİ ---
-    
+
     @app.get("/api/users")
     @require_login
     def list_users():
@@ -1128,12 +1235,19 @@ def create_app() -> Flask:
         
         Query Parameters:
             include_password=1: Şifreleri de dahil et (varsayılan: false)
-            
+                                SADECE admin kullanıcılar için geçerlidir; admin
+                                değilse parametre yok sayılır (şifreler döndürülmez).
+
         Returns:
             JSON: Kullanıcı listesi
             [{"username": "...", "role": "...", "password": "..."}, ...]
         """
         include_password = request.args.get("include_password") == "1"
+        # Güvenlik: Düz şifreler yalnızca admin kullanıcılara döndürülür.
+        if include_password:
+            current_role = datastore.get_user_role(session.get("user"))
+            if not current_role or current_role.lower() != "admin":
+                include_password = False
         return jsonify(datastore.list_users(include_password=include_password))
 
     @app.post("/api/users")
@@ -1201,14 +1315,24 @@ def create_app() -> Flask:
 
     @app.delete("/api/users")
     @require_login
+    @require_admin
     def delete_all_users():
-        datastore.delete_all_users()
-        session.clear()
+        # Admin kullanıcısını koru (POST karşılığı ile tutarlı)
+        datastore.delete_all_users(keep_admin=True)
+        users = datastore.list_users()
+        admin_exists = any(u.get("username", "").lower() == "admin" for u in users)
+        if not admin_exists:
+            datastore.create_user("admin", "admin123", "admin")
+        if session.get("user", "").lower() != "admin":
+            session.clear()
         return jsonify({"ok": True})
 
     @app.delete("/api/users/<username>")
     @require_login
+    @require_admin
     def delete_user(username: str):
+        if username.lower() == "admin":
+            return jsonify({"error": "Admin kullanıcısı silinemez"}), 403
         datastore.delete_user(username)
         if session.get("user") == username:
             session.clear()
@@ -1259,7 +1383,7 @@ def create_app() -> Flask:
 
     # Arşiv yönetimi route'larını Blueprint'e kaydet
     archive_bp = Blueprint("archive", __name__, url_prefix="/api")
-    register_archive_routes(archive_bp, datastore, require_login, require_event_manager, limiter)
+    register_archive_routes(archive_bp, datastore, require_login, require_event_manager, limiter, require_admin=require_admin)
     app.register_blueprint(archive_bp)
     
     # Maç Kontrol route'larını Blueprint'e kaydet
@@ -1276,6 +1400,29 @@ def create_app() -> Flask:
     screens_bp = Blueprint("screens", __name__, url_prefix="")
     register_screen_routes(screens_bp, datastore, require_login, require_event_manager, socketio)
     app.register_blueprint(screens_bp)
+
+    # Sıralama sonuçları sayfası (blueprint'lerden sonra kayıt - 404 önlemek için)
+    @app.route("/rankings", methods=["GET"])
+    @require_login
+    def rankings_page():
+        """Sıralama maçları sonuçları sayfası. SP sıralaması ve tamamlanan maçlar listesi."""
+        return render_template("rankings.html")
+
+    @app.route("/ranking-details", methods=["GET"])
+    @require_login
+    def ranking_details_page():
+        """SP eşitlik bozma kriterlerini detaylı gösteren sayfa."""
+        return render_template("ranking_details.html")
+
+    @app.route("/match-results-report", methods=["GET"])
+    @require_login
+    def match_results_report_page():
+        """
+        Maç sonuçları raporu sayfası.
+
+        Tamamlanan maçların filtrelenmesi, CSV çıktısı ve yazdırma için UI sağlar.
+        """
+        return render_template("match_results_report.html")
 
     # Eski route'lar kaldırıldı - Blueprint kullanılıyor (routes/inspection.py, routes/practice_matches.py)
 

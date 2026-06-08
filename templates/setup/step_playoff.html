@@ -1,0 +1,138 @@
+<section class="card" id="step-playoff">
+  <h2>Playoff Ayarları</h2>
+  <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+    Playoff eşleşmeleri, sıralama maçlarından hesaplanan SP puanlarına göre otomatik oluşturulur.
+    Bu bölümde playoff'a çıkacak takım sayısını ve ittifak başına takım sayısını belirleyebilirsiniz.
+  </p>
+  <div class="grid">
+    <label>
+      Playoff Takım Sayısı
+      <input type="number" id="playoff_max_teams" min="4" max="64" placeholder="Örn: 16" />
+    </label>
+    <label>
+      Playoff İttifak Başına Takım
+      <input type="number" id="playoff_teams_per_alliance" min="1" max="4" />
+    </label>
+  </div>
+</section>
+
+<section class="card" id="step-playoff-alliances">
+  <h2>İttifak Seçimi (Çift Eleme — 6 İttifak)</h2>
+  <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+    Güncel sistem: <strong>6 ittifak, çift eleme</strong>. Sıralamadaki ilk 6 takım
+    otomatik <strong>kaptan</strong> olur; her kaptana bir <strong>partner</strong> seçin
+    (etkinlikteki herhangi bir takım). Ardından "Çift Eleme Playoff Oluştur" ile M1–M11 maçları üretilir.
+  </p>
+
+  <div style="margin-bottom: 12px;">
+    <button id="load_alliance_captains" class="btn-secondary" style="padding: 8px 16px;">
+      🎖️ Kaptanları Belirle (İlk 6)
+    </button>
+  </div>
+
+  <div id="alliance_selection_rows" style="overflow-x: auto;">
+    <p style="color:#888; font-size: 13px;">Kaptanları belirlemek için yukarıdaki butona tıklayın.</p>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <button id="generate_double_elim" class="btn-primary" style="padding: 10px 20px;" disabled>
+      🏆 Çift Eleme Playoff Oluştur
+    </button>
+    <span style="color:#888; font-size:12px; margin-left:8px;">
+      (Başlangıç tarihi/saati ve saha aşağıdaki "Playoff Maçları" bölümündeki alanlardan alınır.)
+    </span>
+  </div>
+</section>
+
+<section class="card" id="step-playoff-matches">
+  <h2>Playoff Maçları</h2>
+  <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+    Sıralama maçları tamamlandıktan sonra, SP puanlarına göre playoff maçlarını otomatik oluşturun.
+    Sistem, takımları SP puanına göre sıralar ve tek eleme bracket oluşturur.
+  </p>
+  
+  <div style="background: #fff8e1; border: 1px solid #f0d28c; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+    <strong>⚠️ Önemli:</strong>
+    <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #8a5a00;">
+      <li>Sıralama maçlarının tamamlanmış olması gerekir</li>
+      <li>SP puanları hesaplanmış olmalı</li>
+      <li>Yeterli takım yoksa playoff oluşturulmaz</li>
+    </ul>
+  </div>
+
+  <div class="grid">
+    <label>
+      Başlangıç Tarihi
+      <input type="date" id="final_start_date" />
+    </label>
+    <label>
+      Başlangıç Saati
+      <input type="time" id="final_start_time" value="14:00" />
+    </label>
+    <label>
+      Saha Numarası
+      <input type="number" id="final_field_number" value="1" min="1" max="10" />
+    </label>
+    <label>
+      İttifak Başına Takım Sayısı
+      <input type="number" id="final_teams_per_alliance" value="2" min="1" max="4" />
+    </label>
+    <label>
+      Maksimum Takım Sayısı (boş = tüm takımlar)
+      <input type="number" id="final_max_teams" min="4" placeholder="Örn: 16" />
+    </label>
+    <label>
+      Maç Döngü Süresi (dakika)
+      <input type="number" id="final_cycle_minutes" value="5" min="1" max="30" />
+    </label>
+  </div>
+  
+  <label class="checkbox" style="margin-top: 12px;">
+    <input type="checkbox" id="final_clear_existing" />
+    Mevcut playoff maçlarını temizle
+  </label>
+  
+  <div style="margin-top: 16px;">
+    <button id="generate_final_matches" class="btn-primary" style="padding: 10px 20px;">
+      🏆 Playoff Maçlarını Oluştur
+    </button>
+    <button id="view_final_rankings" class="btn-secondary" style="padding: 10px 20px; margin-left: 8px;">
+      📊 SP Sıralamasını Görüntüle
+    </button>
+  </div>
+
+  <!-- SP Sıralaması Görüntüleme -->
+  <div id="final_rankings_display" style="display: none; margin-top: 20px; padding: 16px; background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 6px;">
+    <h4 style="margin: 0 0 12px 0;">SP Sıralaması</h4>
+    <div id="final_rankings_content" style="max-height: 400px; overflow-y: auto;">
+      <!-- JavaScript ile doldurulacak -->
+    </div>
+  </div>
+
+  <div class="card-section" style="margin-top: 24px;">
+    <h3 style="margin: 0 0 12px 0;">Oluşturulan Playoff Maçları</h3>
+    <div id="playoff_match_list" style="overflow-x: auto; border: 1px solid #e1e4ee; border-radius: 6px; background: #ffffff;">
+      <table id="playoff_match_table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Tur</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Etiket</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Maç No</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Tarih</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Saat</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Saha</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Kırmızı İttifak No</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Kırmızı İttifak</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Mavi İttifak No</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e1e4ee;">Mavi İttifak</th>
+          </tr>
+        </thead>
+        <tbody id="playoff_match_tbody">
+          <tr>
+            <td colspan="10" style="padding: 20px; text-align: center; color: #666;">Playoff maçları yükleniyor...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

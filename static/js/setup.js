@@ -14,6 +14,7 @@ const steps = [
   { id: "step-inspection-schedule", title: "İnceleme Programı", status: "Not Started" },
   { id: "step-practice-matches", title: "Deneme Maçları", status: "Not Started" },
   { id: "step-match-schedule", title: "Sıralama Maç Takvimi", status: "Not Started" },
+  { id: "step-playoff", title: "Playoff Ayarları", status: "Not Started" },
   { id: "step-wifi", title: "WiFi Kanal Atama", status: "Not Started" },
   { id: "step-awards", title: "Ödül Yönetimi", status: "Not Started" },
   { id: "step-archive", title: "Arşiv İndir", status: "Not Started" },
@@ -93,6 +94,13 @@ async function initializeStep(step) {
       if (typeof loadMatchScheduleSettings === "function") await loadMatchScheduleSettings();
       if (typeof loadMatchSchedule === "function") await loadMatchSchedule();
       setupMatchScheduleListeners();
+      break;
+    case "playoff":
+      if (typeof loadEvent === "function") await loadEvent();
+      setupPlayoffListeners();
+      if (typeof loadPlayoffMatchSchedule === "function") {
+        await loadPlayoffMatchSchedule();
+      }
       break;
     case "wifi":
       if (typeof loadWifiSettings === "function") await loadWifiSettings();
@@ -237,6 +245,11 @@ async function saveCurrentSetupStep() {
     case "match-schedule":
       if (typeof saveMatchScheduleSettings === "function" && qs("save_match_settings")) {
         await saveMatchScheduleSettings();
+      }
+      break;
+    case "playoff":
+      if (typeof saveEvent === "function") {
+        await saveEvent();
       }
       break;
     case "wifi":
@@ -432,13 +445,6 @@ function setupMatchScheduleListeners() {
   if (qs("add_match_schedule")) {
     qs("add_match_schedule").addEventListener("click", createMatchSchedule);
   }
-  // Final maçları için event listener'lar
-  if (qs("generate_final_matches")) {
-    qs("generate_final_matches").addEventListener("click", generateFinalMatches);
-  }
-  if (qs("view_final_rankings")) {
-    qs("view_final_rankings").addEventListener("click", viewFinalRankings);
-  }
   if (qs("apply_match_filters")) {
     qs("apply_match_filters").addEventListener("click", loadMatchSchedule);
   }
@@ -529,6 +535,25 @@ function setupMatchScheduleListeners() {
         e.target.closest(".break-group")?.remove();
       }
     });
+  }
+}
+
+/**
+ * Playoff adımı için event listener'ları kurar
+ */
+function setupPlayoffListeners() {
+  if (qs("generate_final_matches")) {
+    qs("generate_final_matches").addEventListener("click", generateFinalMatches);
+  }
+  if (qs("view_final_rankings")) {
+    qs("view_final_rankings").addEventListener("click", viewFinalRankings);
+  }
+  // Çift eleme — kaptan seçimi
+  if (qs("load_alliance_captains")) {
+    qs("load_alliance_captains").addEventListener("click", loadAllianceCaptains);
+  }
+  if (qs("generate_double_elim")) {
+    qs("generate_double_elim").addEventListener("click", generateDoubleElimPlayoff);
   }
 }
 
@@ -1138,6 +1163,44 @@ async function initializeSetup() {
         if (typeof loadUsers === "function") await loadUsers();
       } catch (err) {
         console.error("Delete event error:", err);
+        showToast(`Hata: ${err.message}`, "error");
+      }
+    });
+  }
+
+  // Yeni yarışmaya sıfırla (admin) — önce yedek alır, sonra tüm veriyi temizler
+  const resetEventBtn = qs("reset_event_btn");
+  if (resetEventBtn) {
+    resetEventBtn.addEventListener("click", async () => {
+      const confirmed = window.confirm(
+        "YENİ YARIŞMA İÇİN SIFIRLAMA\n\n" +
+        "Tüm etkinlikler, takımlar, maçlar, skorlar, inceleme ve ödül verileri " +
+        "SİLİNECEK. (Önce otomatik yedek alınır, admin kullanıcısı korunur.)\n\n" +
+        "Devam etmek istediğinizden emin misiniz?"
+      );
+      if (!confirmed) return;
+      // İkinci güvenlik adımı: kullanıcı 'SIFIRLA' yazmalı
+      const typed = window.prompt(
+        "Onaylamak için büyük harflerle SIFIRLA yazın:"
+      );
+      if (typed !== "SIFIRLA") {
+        showToast("Sıfırlama iptal edildi", "warning");
+        return;
+      }
+      try {
+        const result = await apiPost("/api/admin/reset-event", {});
+        showToast(
+          `Sıfırlandı. Yedek: ${result.backup || "alındı"}`,
+          "success"
+        );
+        // Arayüzü yenile
+        if (typeof loadEvents === "function") await loadEvents();
+        if (typeof loadEvent === "function") await loadEvent();
+        if (typeof loadTeams === "function") await loadTeams();
+        if (typeof loadUsers === "function") await loadUsers();
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        console.error("Reset event error:", err);
         showToast(`Hata: ${err.message}`, "error");
       }
     });

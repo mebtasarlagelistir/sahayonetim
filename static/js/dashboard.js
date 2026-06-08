@@ -349,18 +349,20 @@ function setupEventSwitcher() {
     console.log("dashboard.js: new_event butonuna click listener ekleniyor...");
     newEventBtn.addEventListener("click", async () => {
       console.log("dashboard.js: new_event butonuna tıklandı");
-      const name = window.prompt("Etkinlik adı", "Yeni Etkinlik");
-      if (!name) return;
+      // Çift tıklamayı engelle
+      if (newEventBtn.disabled) return;
+      newEventBtn.disabled = true;
       try {
-        await apiPost("/api/events", { name });
-        showToast("Yeni etkinlik oluşturuldu", "success");
-        if (typeof loadEvents === "function") await loadEvents();
-        await loadEventSummary();
-        await updateEventStatusFromSelector();
-        await loadEventStatistics();
+        // Etkinliği varsayılan adla oluştur; backend otomatik aktif yapar.
+        // Detaylı kurulum (ad, kod, tarih, konum) Kurulum sayfasında yapılır.
+        await apiPost("/api/events", { name: "Yeni Etkinlik" });
+        showToast("Yeni etkinlik oluşturuldu, kuruluma yönlendiriliyorsunuz...", "success");
+        // Yeni etkinliği kurmak için Kurulum sayfasının Etkinlik adımına git
+        window.location.href = "/setup#step-event";
       } catch (err) {
         console.error("Create event error:", err);
         showToast(`Hata: ${err.message}`, "error");
+        newEventBtn.disabled = false;
       }
     });
   }

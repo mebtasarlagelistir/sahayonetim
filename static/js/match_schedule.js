@@ -96,7 +96,7 @@ async function loadMatchSchedule() {
         .join(", ");
 
       tr.innerHTML = `
-        <td><input type="checkbox" class="match-select" data-match-id="${match.id}" /></td>
+        <td class="no-print"><input type="checkbox" class="match-select" data-match-id="${match.id}" /></td>
         <td>${escapeHtml(String(match.match_number || ""))}</td>
         <td>${escapeHtml(match.match_date)}</td>
         <td>${escapeHtml(match.match_time)}</td>
@@ -695,6 +695,9 @@ async function generateFinalMatches() {
       
       // Maç listesini yenile
       await loadMatchSchedule();
+      if (typeof loadPlayoffMatchSchedule === "function") {
+        await loadPlayoffMatchSchedule();
+      }
       
       // Adım durumunu güncelle
       if (typeof checkAllStepStatuses === "function") {
@@ -713,6 +716,226 @@ async function generateFinalMatches() {
 }
 
 /**
+ * Çift eleme için kaptanları (ilk 6 sıra) belirler ve partner seçim satırlarını çizer.
+ */
+async function loadAllianceCaptains() {
+  const container = qs("alliance_selection_rows");
+  if (!container) return;
+  try {
+    const [rankingPayload, teams, eventData] = await Promise.all([
+      apiGet("/api/match-schedule/rankings").catch(() => ({})),
+      apiGet("/api/teams").catch(() => []),
+      apiGet("/api/event").catch(() => ({})),
+    ]);
+    const rankings = rankingPayload?.rankings || [];
+    if (rankings.length < 6) {
+      showToast(`Çift eleme için en az 6 sıralanmış takım gerekli (şu an ${rankings.length}).`, "warning");
+      return;
+    }
+    const captains = rankings.slice(0, 6).map((r, i) => ({
+      seed: i + 1, team: String(r.team), rank: r.rank,
+    }));
+    const savedAlliances = (eventData && eventData.playoff && eventData.playoff.alliances) || [];
+    renderAllianceSelectionRows(captains, teams || [], savedAlliances);
+  } catch (err) {
+    console.error("loadAllianceCaptains error:", err);
+    showToast("Kaptanlar yüklenemedi", "error");
+  }
+}
+
+/**
+ * 6 ittifak için kaptan + partner seçim satırlarını çizer.
+ */
+function renderAllianceSelectionRows(captains, teams, savedAlliances) {
+  const container = qs("alliance_selection_rows");
+  if (!container) return;
+  const captainSet = new Set(captains.map((c) => c.team));
+  const nameOf = (num) => {
+    const t = (teams || []).find((x) => String(x.number) === String(num));
+    return t && t.name ? t.name : "";
+  };
+  const savedPartnerByCaptain = {};
+  (savedAlliances || []).forEach((pair) => {
+    if (Array.isArray(pair) && pair.length === 2) {
+      savedPartnerByCaptain[String(pair[0])] = String(pair[1]);
+    }
+  });
+  // Partner havuzu: kaptan olmayan tüm takımlar
+  const partnerTeams = (teams || []).filter(
+    (t) => t.number && !captainSet.has(String(t.number))
+  );
+
+  let html = `
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">İttifak</th>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Kaptan (otomatik)</th>
+          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Partner</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  captains.forEach((c) => {
+    const cName = nameOf(c.team);
+    const selected = savedPartnerByCaptain[c.team] || "";
+    const options = partnerTeams.map((t) => {
+      const num = String(t.number);
+      const lbl = t.name ? `${num} - ${escapeHtml(t.name)}` : num;
+      return `<option value="${escapeHtml(num)}" ${num === selected ? "selected" : ""}>${escapeHtml(lbl)}</option>`;
+    }).join("");
+    html += `
+      <tr>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">İttifak ${c.seed}</td>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
+          <strong>${escapeHtml(c.team)}</strong>${cName ? " (" + escapeHtml(cName) + ")" : ""}
+          <span style="color:#888; font-size:12px;"> · sıra ${c.rank}</span>
+        </td>
+        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
+          <select class="alliance-partner-select" data-seed="${c.seed}" data-captain="${escapeHtml(c.team)}" style="min-width:200px; padding:6px;">
+            <option value="">— Partner seçin —</option>
+            ${options}
+          </select>
+        </td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+  const genBtn = qs("generate_double_elim");
+  if (genBtn) genBtn.disabled = false;
+}
+
+/**
+ * Seçilen 6 ittifak ile çift eleme playoff maçlarını oluşturur.
+ */
+async function generateDoubleElimPlayoff() {
+  const btn = qs("generate_double_elim");
+  const selects = Array.from(document.querySelectorAll(".alliance-partner-select"));
+  if (selects.length !== 6) {
+    showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
+    return;
+  }
+  const alliances = [];
+  const used = new Set();
+  for (const sel of selects) {
+    const captain = sel.dataset.captain;
+    const partner = sel.value;
+    if (!partner) {
+      showToast("Tüm ittifaklar için partner seçin", "warning");
+      return;
+    }
+    if (captain === partner) {
+      showToast("Bir kaptan kendisiyle ittifak olamaz", "warning");
+      return;
+    }
+    if (used.has(captain) || used.has(partner)) {
+      showToast(`Bir takım birden fazla ittifakta olamaz: ${used.has(captain) ? captain : partner}`, "warning");
+      return;
+    }
+    used.add(captain);
+    used.add(partner);
+    alliances.push([captain, partner]);
+  }
+  const startDate = qs("final_start_date")?.value || "";
+  const startTime = qs("final_start_time")?.value || "";
+  if (!startDate || !startTime) {
+    showToast("Başlangıç tarihi ve saatini 'Playoff Maçları' bölümünden girin", "warning");
+    return;
+  }
+  try {
+    setButtonLoading(btn, true);
+    const data = await apiPost("/api/match-schedule/generate-finals", {
+      start_date: startDate,
+      start_time: startTime,
+      field_number: Number(qs("final_field_number")?.value || 1),
+      match_cycle_minutes: Number(qs("final_cycle_minutes")?.value || 5),
+      clear_existing: qs("final_clear_existing")?.checked || false,
+      format: "double_elimination_6",
+      alliances: alliances,
+    });
+    if (data.ok) {
+      showToast(`${data.created_count} çift-eleme maçı oluşturuldu (M1–M11).`, "success");
+      await loadMatchSchedule();
+      if (typeof loadPlayoffMatchSchedule === "function") await loadPlayoffMatchSchedule();
+      if (typeof checkAllStepStatuses === "function") await checkAllStepStatuses();
+    } else {
+      showToast(data.error || "Playoff oluşturulamadı", "error");
+    }
+  } catch (err) {
+    console.error("generateDoubleElimPlayoff error:", err);
+    showToast(err.response?.data?.error || err.message || "Playoff oluşturulamadı", "error");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+/**
+ * Playoff maçlarını yükler ve tabloya ekler (setup -> playoff).
+ */
+async function loadPlayoffMatchSchedule() {
+  const tbody = qs("playoff_match_tbody");
+  if (!tbody) return;
+  try {
+    const [matches, bracketData] = await Promise.all([
+      apiGet("/api/match-schedule", { type: "final" }),
+      apiGet("/api/public/playoff-bracket").catch(() => ({})),
+    ]);
+    if (!matches || matches.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" style="padding: 20px; text-align: center; color: #666;">Playoff maçı bulunamadı.</td></tr>`;
+      return;
+    }
+    const roundMap = {};
+    (bracketData.bracket_rounds || []).forEach((round) => {
+      (round.matches || []).forEach((match) => {
+        if (!match || match.match_number == null) return;
+        roundMap[String(match.match_number)] = {
+          roundName: round.name || "",
+          label: match.label || "",
+          redAllianceInfo: match.red_alliance_info || [],
+          blueAllianceInfo: match.blue_alliance_info || [],
+        };
+      });
+    });
+
+    const buildAllianceNumber = (infoList) => {
+      const ranks = (infoList || [])
+        .map((item) => item?.rank)
+        .filter((rank) => Number.isFinite(Number(rank)))
+        .map((rank) => String(rank));
+      return ranks.length ? ranks.join("-") : "-";
+    };
+
+    tbody.innerHTML = matches.map((match) => {
+      const extra = roundMap[String(match.match_number || "")] || {};
+      const roundName = extra.roundName || "-";
+      const label = extra.label || "-";
+      const redAllianceNo = buildAllianceNumber(extra.redAllianceInfo);
+      const blueAllianceNo = buildAllianceNumber(extra.blueAllianceInfo);
+      const redTeams = (match.red_alliance || []).join(", ");
+      const blueTeams = (match.blue_alliance || []).join(", ");
+      return `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(roundName)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(label)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(String(match.match_number || ""))}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(match.match_date || "")}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(match.match_time || "")}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(`Saha ${match.field_number || "-"}`)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(redAllianceNo)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(redTeams)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(blueAllianceNo)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f2f6;">${escapeHtml(blueTeams)}</td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Load playoff match schedule error:", err);
+    tbody.innerHTML = `<tr><td colspan="10" style="padding: 20px; text-align: center; color: #c00;">Playoff maçları yüklenemedi.</td></tr>`;
+  }
+}
+
+/**
  * SP sıralamasını görüntüler (final maçları oluşturmadan önce kontrol için).
  */
 async function viewFinalRankings() {
@@ -723,29 +946,15 @@ async function viewFinalRankings() {
   try {
     setButtonLoading(btn, true);
     
-    // Tamamlanmış sıralama maçlarını al
-    const matches = await apiGet("/api/match-schedule?type=qualification&status=completed");
-    
-    if (!matches || matches.length === 0) {
-      content.innerHTML = `
-        <div style="padding: 16px; text-align: center; color: #666;">
-          <p>Henüz tamamlanmış sıralama maçı bulunamadı.</p>
-          <p style="font-size: 12px; margin-top: 8px;">SP sıralaması için en az bir tamamlanmış sıralama maçı gerekli.</p>
-        </div>
-      `;
-      display.style.display = "block";
-      return;
-    }
-    
-    // SP puanlarını hesapla (geçici olarak frontend'de)
-    // Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için
-    const rankings = calculateRankingsPreview(matches);
+    // Backend sıralama algoritmasını kullan
+    const rankingPayload = await apiGet("/api/match-schedule/rankings");
+    const rankings = rankingPayload?.rankings || [];
     
     if (!rankings || rankings.length === 0) {
       content.innerHTML = `
         <div style="padding: 16px; text-align: center; color: #666;">
-          <p>SP puanları hesaplanamadı.</p>
-          <p style="font-size: 12px; margin-top: 8px;">Maçların tamamlanmış ve SP puanlarının hesaplanmış olması gerekir.</p>
+          <p>Henüz tamamlanmış sıralama maçı bulunamadı.</p>
+          <p style="font-size: 12px; margin-top: 8px;">SP sıralaması için en az bir tamamlanmış sıralama maçı gerekli.</p>
         </div>
       `;
       display.style.display = "block";
@@ -761,6 +970,7 @@ async function viewFinalRankings() {
             <th style="padding: 8px; text-align: left; border: 1px solid #d0d5e0;">Takım</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Toplam SP</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">G</th>
+            <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Ort</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">B</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">M</th>
             <th style="padding: 8px; text-align: center; border: 1px solid #d0d5e0;">Maç</th>
@@ -771,6 +981,9 @@ async function viewFinalRankings() {
     
     rankings.forEach((team, index) => {
       const isTop = index < 4; // İlk 4 takım vurgulanır
+      const avgScore = (typeof team.average_score === "number")
+        ? team.average_score.toFixed(2)
+        : (team.average_score != null ? String(team.average_score) : "0.00");
       html += `
         <tr style="${isTop ? 'background: #fff8e1;' : ''}">
           <td style="padding: 8px; border: 1px solid #e1e4ee; font-weight: ${isTop ? '600' : '400'};">
@@ -783,6 +996,7 @@ async function viewFinalRankings() {
             ${team.total_sp}
           </td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.wins}</td>
+          <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${avgScore}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.ties}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.losses}</td>
           <td style="padding: 8px; border: 1px solid #e1e4ee; text-align: center;">${team.matches_played}</td>
@@ -794,8 +1008,7 @@ async function viewFinalRankings() {
         </tbody>
       </table>
       <div style="margin-top: 12px; padding: 8px; background: #e8f4f8; border-radius: 4px; font-size: 12px; color: #2c5f7c;">
-        <strong>Not:</strong> Bu önizleme, tamamlanmış sıralama maçlarından hesaplanmıştır. 
-        Final maçları oluşturulurken backend'de tekrar hesaplanır.
+        <strong>Not:</strong> Bu önizleme, backend'deki güncel sıralama algoritması ile hesaplanır.
       </div>
     `;
     
@@ -809,68 +1022,3 @@ async function viewFinalRankings() {
   }
 }
 
-/**
- * SP sıralaması önizlemesi (frontend'de basit hesaplama).
- * Not: Gerçek hesaplama backend'de yapılıyor, bu sadece önizleme için.
- */
-function calculateRankingsPreview(matches) {
-  const teamStats = {};
-  
-  matches.forEach(match => {
-    if (match.status !== "completed" || !match.scoring_data?.ranking_points) {
-      return;
-    }
-    
-    const rp = match.scoring_data.ranking_points;
-    const redAlliance = match.red_alliance || [];
-    const blueAlliance = match.blue_alliance || [];
-    const redScore = match.red_score || 0;
-    const blueScore = match.blue_score || 0;
-    
-    // Kırmızı ittifak
-    const redSP = rp.red?.total || 0;
-    redAlliance.forEach(team => {
-      if (!teamStats[team]) {
-        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
-      }
-      teamStats[team].total_sp += redSP;
-      teamStats[team].matches_played += 1;
-      if (redScore > blueScore) teamStats[team].wins += 1;
-      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
-      else if (blueScore > redScore) teamStats[team].losses += 1;
-    });
-    
-    // Mavi ittifak
-    const blueSP = rp.blue?.total || 0;
-    blueAlliance.forEach(team => {
-      if (!teamStats[team]) {
-        teamStats[team] = { total_sp: 0, wins: 0, ties: 0, losses: 0, matches_played: 0 };
-      }
-      teamStats[team].total_sp += blueSP;
-      teamStats[team].matches_played += 1;
-      if (blueScore > redScore) teamStats[team].wins += 1;
-      else if (redScore === blueScore && redScore > 0) teamStats[team].ties += 1;
-      else if (redScore > blueScore) teamStats[team].losses += 1;
-    });
-  });
-  
-  // Sırala
-  const rankings = Object.entries(teamStats).map(([team, stats]) => ({
-    team,
-    ...stats
-  }));
-  
-  rankings.sort((a, b) => {
-    if (b.total_sp !== a.total_sp) return b.total_sp - a.total_sp;
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.ties !== a.ties) return b.ties - a.ties;
-    return b.matches_played - a.matches_played;
-  });
-  
-  // Rank ekle
-  rankings.forEach((team, index) => {
-    team.rank = index + 1;
-  });
-  
-  return rankings;
-}

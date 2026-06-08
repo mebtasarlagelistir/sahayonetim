@@ -392,9 +392,8 @@ async function loadAwardsView() {
  */
 async function loadRankingsView() {
   try {
-    const data = await apiGet("/api/event");
+    const data = await apiGet("/api/public/rankings");
     const rankings = data.rankings || [];
-    const teams = data.teams || [];
     
     const container = qs("audience_rankings_view");
     const table = qs("audience_rankings_table");
@@ -405,15 +404,27 @@ async function loadRankingsView() {
       return;
     }
     
-    // Takım adlarını eşleştir
-    const teamNames = {};
-    teams.forEach(t => {
-      teamNames[String(t.number)] = t.name || "";
-    });
-    
     // Sıralamaya göre sırala
     const sortedRankings = [...rankings].sort((a, b) => (a.rank || 999) - (b.rank || 999));
     
+    const rowsHtml = sortedRankings.map((r) => {
+      const teamNumber = r.team_number || r.team;
+      const avgScore = (typeof r.average_score === "number")
+        ? r.average_score.toFixed(2)
+        : (r.average_score != null ? String(r.average_score) : "0.00");
+      return `<div class="rankings-row">
+        <span class="rank-col">${r.rank || '-'}</span>
+        <span class="team-col">
+          <strong>${teamNumber}</strong>
+        </span>
+        <span class="wins-col">${r.wins || 0}</span>
+        <span class="losses-col">${r.losses || 0}</span>
+        <span class="ties-col">${r.ties || 0}</span>
+        <span class="avg-col">${avgScore}</span>
+        <span class="sp-col">${r.total_sp != null ? r.total_sp : 0}</span>
+      </div>`;
+    }).join("");
+
     table.innerHTML = `
       <div class="rankings-header">
         <span class="rank-col">Sıra</span>
@@ -421,29 +432,38 @@ async function loadRankingsView() {
         <span class="wins-col">G</span>
         <span class="losses-col">M</span>
         <span class="ties-col">B</span>
-        <span class="rp-col">RP</span>
+        <span class="avg-col">Ort</span>
         <span class="sp-col">SP</span>
       </div>
-      ${sortedRankings.map((r) => {
-        const teamNumber = r.team_number || r.team;
-        const teamName = teamNames[String(teamNumber)] || "";
-        return `<div class="rankings-row">
-          <span class="rank-col">${r.rank || '-'}</span>
-          <span class="team-col">
-            <strong>${teamNumber}</strong>
-            ${teamName ? `<small>${escapeHtml(teamName)}</small>` : ""}
-          </span>
-          <span class="wins-col">${r.wins || 0}</span>
-          <span class="losses-col">${r.losses || 0}</span>
-          <span class="ties-col">${r.ties || 0}</span>
-          <span class="rp-col">${r.ranking_points || r.rp || 0}</span>
-          <span class="sp-col">${r.sort_order_1 || r.sp || 0}</span>
-        </div>`;
-      }).join("")}
+      <div class="rankings-scroll" id="audience_rankings_scroll">
+        <div class="rankings-scroll-inner" id="audience_rankings_inner">
+          ${rowsHtml}
+          ${rowsHtml}
+        </div>
+      </div>
     `;
+    
+    startRankingsAutoScroll();
   } catch (err) {
     console.error("Rankings view error:", err);
   }
+}
+
+// Rankings auto-scroll (audience) - CSS animasyon
+function startRankingsAutoScroll() {
+  const scrollEl = qs("audience_rankings_scroll");
+  const innerEl = qs("audience_rankings_inner");
+  if (!scrollEl || !innerEl) return;
+  // İçerik sığmıyorsa animasyon uygulama
+  if (scrollEl.scrollHeight <= scrollEl.clientHeight) {
+    innerEl.style.animation = "none";
+    return;
+  }
+  // Satır sayısına göre süreyi ayarla (daha çok takım = daha yavaş)
+  const rowCount = innerEl.querySelectorAll(".rankings-row").length / 2;
+  const duration = Math.max(12, rowCount * 1.2);
+  innerEl.style.setProperty("--scroll-duration", `${duration}s`);
+  innerEl.classList.add("is-scrolling");
 }
 
 /**
@@ -482,4 +502,153 @@ function showCeremonyView() {
   
   // State'i yükle
   loadCeremonyView();
+}
+
+/**
+ * ============================================================================
+ * PLAYOFF BRACKET GÖRÜNÜMÜ (Seyirci) — 6 ittifak çift eleme
+ * ============================================================================
+ */
+
+/**
+ * /api/public/playoff-bracket verisini seyirci ekranında bracket olarak çizer.
+ */
+async function renderAudiencePlayoff() {
+  const container = qs("audience_playoff_bracket");
+  if (!container) return;
+  try {
+    const data = await apiGet("/api/public/playoff-bracket");
+    if (!data || !data.ok) {
+      container.innerHTML = `<div class="audience-empty">${escapeHtml((data && data.error) || "Playoff henüz hazır değil.")}</div>`;
+      return;
+    }
+    const rounds = data.bracket_rounds || [];
+    if (!rounds.length) {
+      container.innerHTML = `<div class="audience-empty">Playoff eşleşmesi bulunamadı.</div>`;
+      return;
+    }
+
+    const allianceHtml = (info, fallback) => {
+      const list = (info && info.length) ? info : (fallback || []).map((t) => ({ team: t }));
+      if (!list.length) {
+        return `<span class="ap-team ap-waiting">Bekleniyor</span>`;
+      }
+      return list.map((t) => {
+        const seed = t.rank ? `<span class="ap-seed">#${escapeHtml(String(t.rank))}</span>` : "";
+        const name = t.name ? ` ${escapeHtml(t.name)}` : "";
+        return `<span class="ap-team">${seed}${escapeHtml(String(t.team))}${name}</span>`;
+      }).join("");
+    };
+
+    const columns = rounds.map((round) => {
+      const cards = (round.matches || []).map((m) => {
+        const empty = !(m.red_alliance && m.red_alliance.length) && !(m.blue_alliance && m.blue_alliance.length);
+        return `
+          <div class="ap-match ${empty ? "ap-empty" : ""}">
+            <div class="ap-label">${escapeHtml(m.label || "")}</div>
+            <div class="ap-alliance ap-red">${allianceHtml(m.red_alliance_info, m.red_alliance)}</div>
+            <div class="ap-vs">VS</div>
+            <div class="ap-alliance ap-blue">${allianceHtml(m.blue_alliance_info, m.blue_alliance)}</div>
+          </div>
+        `;
+      }).join("");
+      return `
+        <div class="ap-column">
+          <div class="ap-column-title">${escapeHtml(round.name || "")}</div>
+          ${cards}
+        </div>
+      `;
+    }).join("");
+
+    container.innerHTML = `<div class="ap-shell">${columns}</div>`;
+  } catch (err) {
+    console.error("renderAudiencePlayoff error:", err);
+    container.innerHTML = `<div class="audience-empty">Playoff verisi yüklenemedi.</div>`;
+  }
+}
+
+let _audiencePlayoffTimer = null;
+
+/**
+ * Playoff görünümünü yükler ve aktifken periyodik (5sn) tazeler.
+ * Panel gizlenince timer kendini durdurur.
+ */
+async function loadPlayoffView() {
+  await renderAudiencePlayoff();
+  if (_audiencePlayoffTimer) clearInterval(_audiencePlayoffTimer);
+  _audiencePlayoffTimer = setInterval(() => {
+    const el = qs("audience_playoff_view");
+    if (!el || el.style.display === "none") {
+      clearInterval(_audiencePlayoffTimer);
+      _audiencePlayoffTimer = null;
+      return;
+    }
+    renderAudiencePlayoff();
+  }, 5000);
+}
+
+/**
+ * ============================================================================
+ * İTTİFAK SEÇİMİ TÖRENİ GÖRÜNÜMÜ (Seyirci)
+ * ============================================================================
+ */
+
+/**
+ * /api/public/playoff-alliances verisini ittifak kartları olarak çizer.
+ */
+async function renderAudienceAlliances() {
+  const container = qs("audience_alliances_grid");
+  if (!container) return;
+  try {
+    const data = await apiGet("/api/public/playoff-alliances");
+    if (!data || !data.ok) {
+      container.innerHTML = `<div class="audience-empty">${escapeHtml((data && data.error) || "İttifaklar henüz hazır değil.")}</div>`;
+      return;
+    }
+    const alliances = data.alliances || [];
+    if (!alliances.length) {
+      container.innerHTML = `<div class="audience-empty">Henüz ittifak seçimi yapılmadı.</div>`;
+      return;
+    }
+    const teamHtml = (member, roleLabel, roleClass) => {
+      const name = member && member.name ? escapeHtml(member.name) : "";
+      const team = member && member.team ? escapeHtml(String(member.team)) : "-";
+      return `
+        <div class="aa-member ${roleClass}">
+          <div class="aa-role">${roleLabel}</div>
+          <div class="aa-team">${team}</div>
+          ${name ? `<div class="aa-name">${name}</div>` : ""}
+        </div>
+      `;
+    };
+    container.innerHTML = alliances.map((a) => `
+      <div class="aa-card">
+        <div class="aa-seed">İttifak ${escapeHtml(String(a.seed))}</div>
+        ${teamHtml(a.captain, "Kaptan", "aa-captain")}
+        ${teamHtml(a.partner, "Partner", "aa-partner")}
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("renderAudienceAlliances error:", err);
+    container.innerHTML = `<div class="audience-empty">İttifak verisi yüklenemedi.</div>`;
+  }
+}
+
+let _audienceAlliancesTimer = null;
+
+/**
+ * İttifak seçimi görünümünü yükler ve aktifken periyodik (5sn) tazeler.
+ */
+async function loadAlliancesView() {
+  await renderAudienceAlliances();
+  if (_audienceAlliancesTimer) clearInterval(_audienceAlliancesTimer);
+  _audienceAlliancesTimer = setInterval(() => {
+    const el = qs("audience_alliances_view");
+    if (!el || el.style.display === "none") {
+      clearInterval(_audienceAlliancesTimer);
+      _audienceAlliancesTimer = null;
+      return;
+    }
+    renderAudienceAlliances();
+  }, 5000);
 }

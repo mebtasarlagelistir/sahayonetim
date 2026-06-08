@@ -87,7 +87,14 @@ class ScoreCalculator:
             received_from_penalties +
             received_from_opponent
         )
-        
+
+        # DİSKALİFİYE (Kırmızı Kart): config'de red_card.disqualifies=True ise,
+        # bu ittifaktaki herhangi bir robotun kırmızı kartı tüm ittifak skorunu
+        # 0'a indirir. Karar tek noktada (backend) verilir; frontend yalnızca gösterir.
+        disqualified = self._is_disqualified(scoring_data)
+        if disqualified:
+            total_score = 0
+
         return {
             "autonomous_total": auto_total,
             "teleop_total": teleop_total,
@@ -95,12 +102,29 @@ class ScoreCalculator:
             "received_from_penalties": received_from_penalties,
             "received_from_opponent_actions": received_from_opponent,
             "total_score": total_score,
+            "disqualified": disqualified,
             "breakdown": {
                 "autonomous": auto_breakdown,
                 "teleop": teleop_breakdown,
                 "penalties": penalty_breakdown
             }
         }
+
+    def _is_disqualified(self, data: Dict) -> bool:
+        """
+        İttifakın bu maçta diskalifiye olup olmadığını döner.
+
+        Kırmızı kart kuralı config.PENALTIES["red_card"]["disqualifies"] True ise
+        ve ittifaktaki robotlardan herhangi biri kırmızı kart aldıysa True döner.
+        """
+        rule = self.config.get_penalty_rule("red_card")
+        if not rule or not rule.get("disqualifies"):
+            return False
+        return bool(
+            data.get("red_card_r1")
+            or data.get("red_card_r2")
+            or data.get("red_card")
+        )
     
     def _calculate_autonomous(self, data: Dict) -> Dict:
         """Otonom puanlama hesaplar."""

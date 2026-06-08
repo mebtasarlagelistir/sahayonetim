@@ -35,18 +35,25 @@ class TeamRankingsCalculator:
     - Storage katmanından bağımsız (sadece maç verilerini alır)
     """
     
-    # Tie-breaker kuralları (sıralama önceliği)
-    # Daha yüksek değer = daha iyi sıralama
-    TIE_BREAKER_RULES = {
-        "total_sp": 1000,      # Toplam SP puanı (en önemli)
-        "wins": 100,           # Galibiyet sayısı
-        "ties": 10,            # Beraberlik sayısı
-        "matches_played": 1,   # Oynanan maç sayısı (daha fazla maç = daha iyi)
-    }
+    # Tie-breaker sırası (current):
+    # 1) total_sp
+    # 2) wins
+    # 3) average_score
+    # 4) kartlar (önce kırmızı, sonra sarı - az olan önde)
+    # 5) auto SP (ranking_points_detail.auto)
+    # 6) climb SP (ranking_points_detail.climb)
+    #
+    # Legacy tie-breaker sırası (eski):
+    # 1) total_sp
+    # 2) climb SP
+    # 3) kartlar (kırmızı -> sarı, az olan önde)
+    # 4) auto SP
+    # 5) kalan metrikler (wins, ties, matches_played)
     
     def calculate_team_rankings(
         self,
-        qualification_matches: List[Dict[str, Any]]
+        qualification_matches: List[Dict[str, Any]],
+        mode: str = "current"
     ) -> List[Dict[str, Any]]:
         """
         Sıralama maçlarından takımların toplam SP puanlarını hesaplar ve sıralar.
@@ -67,6 +74,9 @@ class TeamRankingsCalculator:
                     }
                 }
         
+        Args:
+            mode: "current" (yeni) veya "legacy" (eski) tie-breaker sırası
+        
         Returns:
             List[Dict]: Takım sıralaması listesi (SP'ye göre sıralı)
             [
@@ -78,6 +88,7 @@ class TeamRankingsCalculator:
                     "ties": int,              # Beraberlik sayısı
                     "losses": int,            # Mağlubiyet sayısı
                     "matches_played": int,     # Oynanan maç sayısı
+                    "average_score": float,    # Ortalama skor
                     "ranking_points_detail": { # SP detayları
                         "result": int,        # Maç sonucu SP'leri toplamı
                         "climb": int,         # Kemere yükselme SP'leri toplamı
@@ -90,8 +101,8 @@ class TeamRankingsCalculator:
         # Takım istatistiklerini topla
         team_stats = self._collect_team_stats(qualification_matches)
         
-        # Takımları sırala (SP'ye göre, tie-breaker kuralları ile)
-        ranked_teams = self._rank_teams(team_stats)
+        # Takımları sırala (mode'a göre tie-breaker kuralları ile)
+        ranked_teams = self._rank_teams(team_stats, mode=mode)
         
         return ranked_teams
     
@@ -114,7 +125,7 @@ class TeamRankingsCalculator:
                     "ties": int,
                     "losses": int,
                     "matches_played": int,
-                    "ranking_points_detail": {
+                "ranking_points_detail": {
                         "result": int,
                         "climb": int,
                         "auto": int
@@ -129,6 +140,9 @@ class TeamRankingsCalculator:
             "ties": 0,
             "losses": 0,
             "matches_played": 0,
+            "total_score": 0,
+            "yellow_cards": 0,
+            "red_cards": 0,
             "ranking_points_detail": {
                 "result": 0,
                 "climb": 0,
@@ -150,16 +164,63 @@ class TeamRankingsCalculator:
             
             red_alliance = match.get("red_alliance", [])
             blue_alliance = match.get("blue_alliance", [])
-            red_score = match.get("red_score", 0) or 0
-            blue_score = match.get("blue_score", 0) or 0
+
+            # SURROGATE (yedek) takımlar: matches_per_team'i dolduran takımlar ekstra
+            # maça surrogate olarak alınır. FRC standardı gereği bu takımlar bu maçtan
+            # SP/galibiyet/oynanan-maç/ortalama-skor KAZANMAZ. Sıralama dışında tutulur.
+            surrogate_raw = match.get("surrogate_teams") or []
+            if isinstance(surrogate_raw, str):
+                try:
+                    import json as _json
+                    surrogate_raw = _json.loads(surrogate_raw)
+                except Exception:
+                    surrogate_raw = [s for s in surrogate_raw.split(",") if s]
+            surrogate_set = {str(t) for t in (surrogate_raw or [])}
+
+            def _get_match_score(alliance: str) -> int:
+                """
+                Maç skorunu öncelikle kayıtlı skor alanından alır.
+                Eğer yoksa scoring_data.calculated_scores içinden okur.
+                """
+                raw = match.get(f"{alliance}_score")
+                if raw is None:
+                    calculated = (scoring_data.get("calculated_scores") or {}).get(alliance, {}) or {}
+                    raw = calculated.get("total_score")
+                try:
+                    return int(raw or 0)
+                except (TypeError, ValueError):
+                    return 0
+
+            red_score = _get_match_score("red")
+            blue_score = _get_match_score("blue")
+            red_data = scoring_data.get("red", {}) or {}
+            blue_data = scoring_data.get("blue", {}) or {}
             
+            def _normalize_rp(rp: Dict[str, Any]) -> Dict[str, int]:
+                result = int(rp.get("result") or 0)
+                climb = int(rp.get("climb") or 0)
+                auto = int(rp.get("auto") or 0)
+                total = int(rp.get("total") or 0)
+                computed_total = result + climb + auto
+                if total != computed_total:
+                    total = computed_total
+                return {
+                    "result": result,
+                    "climb": climb,
+                    "auto": auto,
+                    "total": total,
+                }
+
             # Kırmızı ittifak takımları için
-            red_rp = ranking_points.get("red", {})
+            red_rp = _normalize_rp(ranking_points.get("red", {}) or {})
             red_total_sp = red_rp.get("total", 0)
             
             for team in red_alliance:
+                if str(team) in surrogate_set:
+                    continue  # surrogate takım: bu maç sıralamaya sayılmaz
                 team_stats[team]["total_sp"] += red_total_sp
                 team_stats[team]["matches_played"] += 1
+                team_stats[team]["total_score"] += int(red_score or 0)
                 
                 # SP detaylarını topla
                 team_stats[team]["ranking_points_detail"]["result"] += red_rp.get("result", 0)
@@ -167,39 +228,66 @@ class TeamRankingsCalculator:
                 team_stats[team]["ranking_points_detail"]["auto"] += red_rp.get("auto", 0)
                 
                 # Maç sonucu istatistikleri
+                # NOT: Beraberlik (eşit skor) kuralı ranking_points.py ile aynı olmalı:
+                # eşit skor 0-0 dahil beraberliktir ve +1 SP verir. 'red_score > 0'
+                # koşulu YOK; aksi halde total_sp ile W/T/L tutarsız kalırdı.
                 if red_score > blue_score:
                     team_stats[team]["wins"] += 1
-                elif red_score == blue_score and red_score > 0:
+                elif red_score == blue_score:
                     team_stats[team]["ties"] += 1
-                elif blue_score > red_score:
+                else:
                     team_stats[team]["losses"] += 1
             
             # Mavi ittifak takımları için
-            blue_rp = ranking_points.get("blue", {})
+            blue_rp = _normalize_rp(ranking_points.get("blue", {}) or {})
             blue_total_sp = blue_rp.get("total", 0)
             
             for team in blue_alliance:
+                if str(team) in surrogate_set:
+                    continue  # surrogate takım: bu maç sıralamaya sayılmaz
                 team_stats[team]["total_sp"] += blue_total_sp
                 team_stats[team]["matches_played"] += 1
+                team_stats[team]["total_score"] += int(blue_score or 0)
                 
                 # SP detaylarını topla
                 team_stats[team]["ranking_points_detail"]["result"] += blue_rp.get("result", 0)
                 team_stats[team]["ranking_points_detail"]["climb"] += blue_rp.get("climb", 0)
                 team_stats[team]["ranking_points_detail"]["auto"] += blue_rp.get("auto", 0)
                 
-                # Maç sonucu istatistikleri
+                # Maç sonucu istatistikleri (eşit skor = beraberlik, 0-0 dahil)
                 if blue_score > red_score:
                     team_stats[team]["wins"] += 1
-                elif red_score == blue_score and red_score > 0:
+                elif red_score == blue_score:
                     team_stats[team]["ties"] += 1
-                elif red_score > blue_score:
+                else:
                     team_stats[team]["losses"] += 1
+
+            # Kart istatistikleri (sarı/kırmızı)
+            # Sarı kart sayısı alliance bazlı tutuluyor; tüm ittifak takımlarına uygulanır.
+            red_yellow = int(red_data.get("yellow_card") or 0)
+            blue_yellow = int(blue_data.get("yellow_card") or 0)
+            red_red_cards = [bool(red_data.get("red_card_r1")), bool(red_data.get("red_card_r2"))]
+            blue_red_cards = [bool(blue_data.get("red_card_r1")), bool(blue_data.get("red_card_r2"))]
+
+            for idx, team in enumerate(red_alliance):
+                if str(team) in surrogate_set:
+                    continue
+                team_stats[team]["yellow_cards"] += red_yellow
+                if idx < len(red_red_cards) and red_red_cards[idx]:
+                    team_stats[team]["red_cards"] += 1
+            for idx, team in enumerate(blue_alliance):
+                if str(team) in surrogate_set:
+                    continue
+                team_stats[team]["yellow_cards"] += blue_yellow
+                if idx < len(blue_red_cards) and blue_red_cards[idx]:
+                    team_stats[team]["red_cards"] += 1
         
         return dict(team_stats)
     
     def _rank_teams(
         self,
-        team_stats: Dict[str, Dict[str, Any]]
+        team_stats: Dict[str, Dict[str, Any]],
+        mode: str = "current"
     ) -> List[Dict[str, Any]]:
         """
         Takımları SP puanına göre sıralar (tie-breaker kuralları ile).
@@ -207,59 +295,108 @@ class TeamRankingsCalculator:
         Args:
             team_stats: Takım istatistikleri dict'i
         
+        Args:
+            mode: "current" veya "legacy" tie-breaker sırası
+        
         Returns:
             List[Dict]: Sıralı takım listesi (rank alanı ile)
         """
-        # Takımları sıralama skoruna göre sırala
+        # Takımları tie-breaker sırasına göre sırala
         ranked_list = []
         
         for team, stats in team_stats.items():
-            # Sıralama skoru hesapla (tie-breaker kuralları ile)
-            ranking_score = self._calculate_ranking_score(stats)
-            
-            ranked_list.append({
+            matches_played = stats.get("matches_played", 0) or 0
+            total_score = stats.get("total_score", 0) or 0
+            avg_score = (total_score / matches_played) if matches_played > 0 else 0
+            team_data = {
                 "team": team,
                 "total_sp": stats["total_sp"],
                 "wins": stats["wins"],
                 "ties": stats["ties"],
                 "losses": stats["losses"],
                 "matches_played": stats["matches_played"],
+                "average_score": avg_score,
+                "yellow_cards": stats["yellow_cards"],
+                "red_cards": stats["red_cards"],
                 "ranking_points_detail": stats["ranking_points_detail"],
-                "_ranking_score": ranking_score  # Geçici, sıralama için
-            })
+            }
+            team_data["tie_breaker"] = self._build_tie_breaker_detail(team_data, mode=mode)
+            team_data["tie_breaker_key"] = self._ranking_key(team_data, mode=mode)
+            ranked_list.append(team_data)
         
-        # Sıralama skoruna göre sırala (yüksekten düşüğe)
-        ranked_list.sort(key=lambda x: x["_ranking_score"], reverse=True)
+        # Tie-breaker sırasına göre sırala (yüksekten düşüğe)
+        ranked_list.sort(key=lambda item: self._ranking_key(item, mode=mode), reverse=True)
         
         # Rank ekle ve geçici alanı kaldır
         for i, team_data in enumerate(ranked_list, start=1):
             team_data["rank"] = i
-            del team_data["_ranking_score"]
         
         return ranked_list
     
-    def _calculate_ranking_score(self, stats: Dict[str, Any]) -> float:
+    def _ranking_key(self, team_data: Dict[str, Any], mode: str = "current") -> tuple:
         """
-        Tie-breaker kurallarına göre sıralama skoru hesaplar.
+        Tie-breaker sırasına göre sıralama anahtarı üretir.
         
         Args:
-            stats: Takım istatistikleri
+            team_data: Takım istatistikleri ve SP detayları
+        
+        Args:
+            mode: "current" veya "legacy" tie-breaker sırası
         
         Returns:
-            float: Sıralama skoru (daha yüksek = daha iyi sıralama)
+            tuple: Sıralama anahtarı (daha yüksek = daha iyi sıralama)
         """
-        score = 0.0
-        
-        # Toplam SP puanı (en önemli)
-        score += stats["total_sp"] * self.TIE_BREAKER_RULES["total_sp"]
-        
-        # Galibiyet sayısı
-        score += stats["wins"] * self.TIE_BREAKER_RULES["wins"]
-        
-        # Beraberlik sayısı
-        score += stats["ties"] * self.TIE_BREAKER_RULES["ties"]
-        
-        # Oynanan maç sayısı (daha fazla maç = daha iyi)
-        score += stats["matches_played"] * self.TIE_BREAKER_RULES["matches_played"]
-        
-        return score
+        detail = team_data.get("ranking_points_detail", {}) or {}
+        climb_sp = detail.get("climb", 0) or 0
+        auto_sp = detail.get("auto", 0) or 0
+        red_cards = team_data.get("red_cards", 0) or 0
+        yellow_cards = team_data.get("yellow_cards", 0) or 0
+        avg_score = team_data.get("average_score", 0) or 0
+        if (mode or "current") == "legacy":
+            return (
+                team_data.get("total_sp", 0) or 0,
+                climb_sp,
+                -red_cards,
+                -yellow_cards,
+                auto_sp,
+                team_data.get("wins", 0) or 0,
+                team_data.get("ties", 0) or 0,
+                team_data.get("matches_played", 0) or 0,
+            )
+        return (
+            team_data.get("total_sp", 0) or 0,
+            team_data.get("wins", 0) or 0,
+            avg_score,
+            -red_cards,
+            -yellow_cards,
+            auto_sp,
+            climb_sp,
+        )
+
+    def _build_tie_breaker_detail(self, team_data: Dict[str, Any], mode: str = "current") -> List[Dict[str, Any]]:
+        """
+        UI'de eşitliğin hangi kriterle bozulduğunu göstermek için
+        tie-breaker detaylarını hazırlar.
+        """
+        detail = team_data.get("ranking_points_detail", {}) or {}
+        avg_score = team_data.get("average_score", 0) or 0
+        if (mode or "current") == "legacy":
+            return [
+                {"id": "total_sp", "label": "Toplam SP", "order": "desc", "value": team_data.get("total_sp", 0) or 0},
+                {"id": "climb_sp", "label": "SP Tırmanış", "order": "desc", "value": detail.get("climb", 0) or 0},
+                {"id": "red_cards", "label": "Kırmızı Kart", "order": "asc", "value": team_data.get("red_cards", 0) or 0},
+                {"id": "yellow_cards", "label": "Sarı Kart", "order": "asc", "value": team_data.get("yellow_cards", 0) or 0},
+                {"id": "auto_sp", "label": "SP Oto", "order": "desc", "value": detail.get("auto", 0) or 0},
+                {"id": "wins", "label": "Galibiyet", "order": "desc", "value": team_data.get("wins", 0) or 0},
+                {"id": "ties", "label": "Beraberlik", "order": "desc", "value": team_data.get("ties", 0) or 0},
+                {"id": "matches_played", "label": "Oynanan", "order": "desc", "value": team_data.get("matches_played", 0) or 0},
+            ]
+        return [
+            {"id": "total_sp", "label": "Toplam SP", "order": "desc", "value": team_data.get("total_sp", 0) or 0},
+            {"id": "wins", "label": "Galibiyet", "order": "desc", "value": team_data.get("wins", 0) or 0},
+            {"id": "average_score", "label": "Ortalama Skor", "order": "desc", "value": avg_score},
+            {"id": "red_cards", "label": "Kırmızı Kart", "order": "asc", "value": team_data.get("red_cards", 0) or 0},
+            {"id": "yellow_cards", "label": "Sarı Kart", "order": "asc", "value": team_data.get("yellow_cards", 0) or 0},
+            {"id": "auto_sp", "label": "SP Oto", "order": "desc", "value": detail.get("auto", 0) or 0},
+            {"id": "climb_sp", "label": "SP Tırmanış", "order": "desc", "value": detail.get("climb", 0) or 0},
+        ]

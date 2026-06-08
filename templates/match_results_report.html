@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Maç Sonuç Raporu</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="match-results-report">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+            <span class="event-phase" id="event-phase"></span>
+            <span class="event-datetime" id="event-datetime"></span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="event-switcher">
+          <label>
+            <select id="event_selector"></select>
+          </label>
+          <button id="new_event" class="btn-small">Yeni</button>
+          <button id="delete_event" class="btn-small danger">Sil</button>
+        </div>
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">Dashboard</a>
+          <a href="/setup#step-match-schedule" class="button btn-small">Maç Takvimi</a>
+          <a href="/rankings" class="button btn-small">Sıralamalar</a>
+          <a href="/match-control" class="button btn-small">Maç Kontrol</a>
+          <a href="/logout" class="button btn-small">Çıkış</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard-layout" style="max-width: 1200px;">
+      <section class="card">
+        <h2>Maç Sonuçları Raporu</h2>
+        <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+          Tüm kademelerdeki (Deneme, Sıralama, Elimination, Final) maçların skorlarını tek listede görebilir, filtreleyebilir, CSV olarak indirebilir veya yazdırabilirsiniz.
+        </p>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Durum
+            <select id="filter_status" class="btn-small" style="min-width: 140px;">
+              <option value="completed">Tamamlanan</option>
+              <option value="all">Tümü</option>
+            </select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Kademe / Maç tipi
+            <select id="filter_type" class="btn-small" style="min-width: 160px;">
+              <option value="">Tüm kademeler</option>
+              <option value="practice">Deneme</option>
+              <option value="qualification">Sıralama</option>
+              <option value="elimination">Elimination</option>
+              <option value="final">Final</option>
+            </select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Başlangıç Tarihi
+            <input id="filter_date_from" type="date" class="btn-small" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Bitiş Tarihi
+            <input id="filter_date_to" type="date" class="btn-small" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Saha
+            <input id="filter_field" type="number" min="1" placeholder="1" class="btn-small" style="max-width: 80px;" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            Takım
+            <input id="filter_team" type="text" placeholder="Takım no/isim" class="btn-small" style="min-width: 160px;" />
+          </label>
+          <button id="apply_filters" class="btn-secondary">Filtrele</button>
+          <button id="clear_filters" class="btn-secondary">Temizle</button>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
+            <input type="checkbox" id="csv_include_breakdown" />
+            CSV'ye puan kırılımı dahil et
+          </label>
+          <button id="export_csv" class="btn-secondary">CSV İndir</button>
+          <button id="print_report" class="btn-secondary">Yazdır</button>
+          <span id="last_update" style="font-size: 12px; color: #888;"></span>
+        </div>
+
+        <div id="summary_panel" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; font-size: 13px; color: #444;">
+          <div><strong>Toplam Maç:</strong> <span id="summary_total">0</span></div>
+          <div><strong>Kırmızı Kazanç:</strong> <span id="summary_red">0</span></div>
+          <div><strong>Mavi Kazanç:</strong> <span id="summary_blue">0</span></div>
+          <div><strong>Beraberlik:</strong> <span id="summary_tie">0</span></div>
+          <div><strong>Ortalama Skor:</strong> <span id="summary_avg">0</span></div>
+        </div>
+
+        <div id="results_container">
+          <table class="table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Kademe</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Maç No</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Saha</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Tarih</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Saat</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Kırmızı İttifak</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Kırmızı Skor</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Mavi Skor</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Mavi İttifak</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Kazanan</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Not</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Puan kırılımı</th>
+              </tr>
+            </thead>
+            <tbody id="results_tbody">
+              <tr><td colspan="12" style="padding: 24px; text-align: center; color: #888;">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/match_results_report.js"></script>
+  </body>
+</html>

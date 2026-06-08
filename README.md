@@ -90,7 +90,7 @@ Program üç ana katmandan oluşur:
    - Veri doğrulama ve iş kuralları
 
 3. **Veri Katmanı (Data Layer)**
-   - `src/core/storage.py`: SQLite veritabanı işlemleri
+   - `src/core/storage/`: SQLite veritabanı işlemleri (modüler paket)
    - Veri kalıcılığı ve CRUD operasyonları
 
 ### Modül Sorumlulukları
@@ -101,10 +101,12 @@ Program üç ana katmandan oluşur:
 - Kimlik doğrulama ve oturum yönetimi
 - QR kod oluşturma
 
-#### `src/core/storage.py`
-- Veritabanı şeması yönetimi
+#### `src/core/storage/` (modüler paket)
+- Veritabanı şeması yönetimi (`base.py`)
 - CRUD operasyonları (Create, Read, Update, Delete)
-- Veri migrasyon işlemleri
+- Alt modüller: `events.py`, `teams.py`, `users.py`, `inspection.py`,
+  `practice_matches.py`, `match_schedule.py`, `awards.py`, `connection_pool.py`
+- `DataStore` ana sınıfı (`__init__.py`) bu modülleri birleştirir
 - Kullanıcı yönetimi ve kimlik doğrulama
 
 #### `src/core/config.py`
@@ -117,11 +119,12 @@ Program üç ana katmandan oluşur:
 - Varsayılan yapılandırma şemaları
 - Veri doğrulama kuralları
 
-#### `static/app.js`
-- İstemci tarafı JavaScript mantığı
+#### `static/js/` (modüler JavaScript)
+- İstemci tarafı JavaScript mantığı (her bölüm için ayrı modül)
 - Form validasyonları
 - API çağrıları
 - Dinamik UI güncellemeleri
+- Puanlama sabitleri backend'den servis edilir (`/js/scoring_constants.js`)
 
 ## 🚀 Kurulum
 

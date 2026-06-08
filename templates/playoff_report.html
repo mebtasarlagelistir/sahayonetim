@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Playoff Eşleşme Raporu</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="playoff-report">
+    <header class="header playoff-header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status">
+            <span class="status-indicator status-indicator--public"></span>
+            <span id="playoff_event_name">Etkinlik yükleniyor...</span>
+            <span class="event-phase">Playoff Eşleşme Raporu</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="playoff-header-meta">
+            <span id="playoff_last_update">Son güncelleme: -</span>
+            <span id="playoff_completed_count">Tamamlanan maç: 0</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="playoff-summary" id="playoff_summary">
+          Bracket bilgileri yükleniyor...
+        </div>
+        <div class="actions">
+          <button id="playoff_refresh" class="btn-secondary">Yenile</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard-layout playoff-report-layout">
+      <section class="card">
+        <h2>Playoff Eşleşmeleri</h2>
+        <p class="muted">
+          Eşleşmeler, tamamlanan sıralama maçlarından hesaplanan SP sıralamasına göre otomatik oluşturulur.
+          Maçlar tamamlandıkça rapor kendini günceller.
+        </p>
+        <div class="playoff-info">
+          <p><strong>Çeyrek Final:</strong> İlk 16 takım 8 ittifak olarak eşleşir. 1-16 ittifağı 2-15 ile, 3-14 ittifağı 4-13 ile eşleşir ve bu şekilde devam eder. A/B/C/D olmak üzere 4 grupta 4 maç oynanır.</p>
+          <p><strong>Yarı Final:</strong> Çeyrek finalistlerden 2 eşleşme oluşur. Kazananlar Büyük Final'e, kaybedenler Üçüncülük Maçı'na gider.</p>
+          <p><strong>Final:</strong> Üçüncülük Maçı 3-4'ü, Büyük Final ise şampiyonu belirler. Toplam maç sayısı 8'dir (4 ÇF + 2 YF + 2 Final).</p>
+        </div>
+        <div id="playoff_bracket" class="playoff-bracket">
+          <div class="empty-state">Eşleşmeler yükleniyor...</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Playoff'a Giren Takımlar</h2>
+        <p class="muted" style="margin-top: 6px;">
+          Toplam SP, takımın tüm sıralama maçlarından aldığı toplamdır. SP Sonuç sütunu bu raporda gösterilmediği için
+          SP Tırmanış + SP Otonom ile birebir eşit olması beklenmez.
+        </p>
+        <div class="table-wrap">
+          <table class="table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Sıra</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #e1e4ee;">Takım</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Toplam SP</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">SP Sonuç</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">SP Tırmanış</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">SP Otonom</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Galibiyet</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Beraberlik</th>
+                <th style="padding: 8px; text-align: center; border: 1px solid #e1e4ee;">Oynanan</th>
+              </tr>
+            </thead>
+            <tbody id="playoff_rankings_tbody">
+              <tr>
+                <td colspan="9" style="padding: 24px; text-align: center; color: #888;">Yükleniyor...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/js/playoff_report.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
