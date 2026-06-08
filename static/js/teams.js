@@ -11,6 +11,57 @@
  * 
  * Hata durumunda boş liste gösterir.
  */
+/**
+ * 2. Tasarla Geliştir Takım Şablonu (27 takım)
+ *
+ * "2. TG Takımlarını Yükle" butonu bu listeyi tabloya doldurur (kaydetmez);
+ * kullanıcı gözden geçirip "Etkinliği Kaydet" ile kaydeder.
+ */
+const tgTeamsPreset = [
+  { number: "202501", name: "ŞİŞLİ ROBOTICS", school: "ŞİŞLİ BİLİM VE SANAT MERKEZİ", district: "ŞİŞLİ" },
+  { number: "202502", name: "ALFA ROBOTICS", school: "ÜMRANİYE ATATÜRK MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "ÜMRANİYE" },
+  { number: "202503", name: "TULPAR", school: "GÜLTEPE MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "KAĞITHANE" },
+  { number: "202504", name: "AKİF TECH", school: "AKİF İNAN ANADOLU İMAM HATİP LİSESİ", district: "BAŞAKŞEHİR" },
+  { number: "202506", name: "İTOBOT", school: "İSTANBUL TİCARET ODASI MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "BAYRAMPAŞA" },
+  { number: "202507", name: "CEZERİ ROBOTICS", school: "SULTANGAZİ CEZERİ MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "SULTANGAZİ" },
+  { number: "202508", name: "MAT ROBOTICS", school: "MAÇKA MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "ŞİŞLİ" },
+  { number: "202509", name: "AYYILDIZ ROBOTİM", school: "İMMİB ERKAN AVCI MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "BAHÇELİEVLER" },
+  { number: "202510", name: "QUBİT ROBOTICS", school: "MALTEPE KADİR HAS BİLİM VE SANAT MERKEZİ", district: "MALTEPE" },
+  { number: "202511", name: "AQUA ROBOTICS", school: "ZİYA KALKAVAN MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "BEŞİKTAŞ" },
+  { number: "202512", name: "ARAN ROBOT", school: "ŞİLE AYET AZER ARAN SAVUNMA SANAYİ MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "ŞİLE" },
+  { number: "202513", name: "HÜNKAR ROBOTİC", school: "HACI BEKTAŞ VELİ ANADOLU LİSESİ", district: "KÜÇÜKÇEKMECE" },
+  { number: "202514", name: "RAVEN ROBOTICS", school: "ŞEHİT YÜZBAŞI YUSUF KENAN MTAL", district: "SANCAKTEPE" },
+  { number: "202515", name: "GAL TIGERS", school: "GAZİOSMANPAŞA ANADOLU LİSESİ", district: "GAZİOSMANPAŞA" },
+  { number: "202516", name: "SYNTHEX", school: "ESENYURT BİLİM VE SANAT MERKEZİ", district: "ESENYURT" },
+  { number: "202519", name: "HİVEMİND", school: "SULTANGAZİ MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "SULTANGAZİ" },
+  { number: "202520", name: "CARACAL ROBOTICS", school: "MEHMET RIFAT EVYAP MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "SARIYER" },
+  { number: "202521", name: "MECHATAK", school: "AHMET KELEŞOĞLU FEN LİSESİ", district: "ATAŞEHİR" },
+  { number: "202523", name: "ROBORSA BAŞAKŞEHİR", school: "BORSA İSTANBUL BAŞAKŞEHİR MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "BAŞAKŞEHİR" },
+  { number: "202524", name: "ROBİSTİM", school: "İSTANBUL BİLİM VE SANAT MERKEZİ", district: "ATAŞEHİR" },
+  { number: "202525", name: "NEOCHIRON", school: "ŞEHREMİNİ ANADOLU LİSESİ", district: "FATİH" },
+  { number: "202530", name: "CYGNUS", school: "ESENYURT TOKİ ALİ DURAN MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "ESENYURT" },
+  { number: "202532", name: "ALKOBOT", school: "ALKOP MESLEKİ VE TEKNİK ANADOLU LİSESİ", district: "ESENYURT" },
+  { number: "202533", name: "TEKNOGIRIFT", school: "BAKIRKÖY ANADOLU İMAM HATİP LİSESİ", district: "BAKIRKÖY" },
+  { number: "202534", name: "TECHNOKA ROBOTICS", school: "KADIKÖY ANADOLU İMAM HATİP LİSESİ", district: "KADIKÖY" },
+  { number: "202535", name: "VOLTX ROBOTICS", school: "BURHAN FELEK ANADOLU LİSESİ", district: "ÜSKÜDAR" },
+  { number: "202536", name: "ERDEMLİLER", school: "BEŞİKTAŞ BİLİM VE SANAT MERKEZİ", district: "BEŞİKTAŞ" },
+];
+
+/**
+ * 2. TG takım şablonunu tabloya yükler (kaydetmez; kullanıcı sonra kaydeder).
+ */
+function loadTGTeamsPreset() {
+  const table = qs("teams_table");
+  if (!table) return;
+  const tbody = table.querySelector("tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  tgTeamsPreset.forEach((team) => addTeamRow(team));
+  if (typeof showToast === "function") {
+    showToast(`${tgTeamsPreset.length} takım tabloya yüklendi. Kaydetmek için "Etkinliği Kaydet"e basın.`, "success");
+  }
+}
+
 async function loadTeams() {
   try {
     const teams = await apiGet("/api/teams");

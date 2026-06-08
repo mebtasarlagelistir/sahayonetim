@@ -51,7 +51,10 @@ class TeamsStorage:
                 "number": row[0] or "",
                 "name": row[1] or "",
                 "school": row[2] or "",
+                # İlçe 'city' sütununda saklanır; frontend 'district' alanını kullanır.
+                # İki anahtarı da döndürerek uyumluluk sağlıyoruz.
                 "city": row[3] or "",
+                "district": row[3] or "",
                 "category": row[4] or "",
             }
             for row in rows
@@ -81,7 +84,8 @@ class TeamsStorage:
                     team.get("number", ""),
                     team.get("name", ""),
                     team.get("school", ""),
-                    team.get("city", ""),
+                    # Frontend 'district' (İlçe) gönderir; 'city' geriye dönük uyumluluk
+                    team.get("district") or team.get("city", ""),
                     team.get("category", ""),
                 )
                 for team in teams

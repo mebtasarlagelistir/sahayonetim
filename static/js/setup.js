@@ -182,6 +182,16 @@ function setupTeamsListeners() {
   if (qs("add_team")) {
     qs("add_team").addEventListener("click", () => addTeamRow());
   }
+  if (qs("load_tg_teams")) {
+    qs("load_tg_teams").addEventListener("click", () => {
+      const confirmed = window.confirm(
+        "Mevcut takım listesi silinip 2. Tasarla Geliştir takımları (27) yüklenecek. Devam edilsin mi?"
+      );
+      if (confirmed && typeof loadTGTeamsPreset === "function") {
+        loadTGTeamsPreset();
+      }
+    });
+  }
   if (qs("seed_teams")) {
     qs("seed_teams").addEventListener("click", seedTeams);
   }
