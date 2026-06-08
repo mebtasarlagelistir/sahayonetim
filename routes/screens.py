@@ -448,9 +448,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 if session_id in sessions:
                     sessions.discard(session_id)
                     if not sessions:
-                        # Room boş, thread'i durdur
-                        if screen_id in _audience_stop_threads:
-                            _audience_stop_threads[screen_id].set()
+                        # Room boş: thread'i durdur ve kayıtları hemen temizle
+                        _stop_audience_thread(screen_id)
                         del _audience_rooms[screen_id]
                     break
             logger.info(f"Audience WebSocket bağlantısı kesildi: sid={session_id}")
@@ -630,15 +629,28 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                         logger.error(f"Audience update thread hatası (screen_id={screen_id}): {str(e)}", exc_info=True)
                         time.sleep(1)
                 
-                # Thread sonlandı, temizle
-                if screen_id in _audience_update_threads:
-                    del _audience_update_threads[screen_id]
-                if screen_id in _audience_stop_threads:
-                    del _audience_stop_threads[screen_id]
-            
+                # Thread sonlandı: yalnızca HÂLÂ kayıtlı thread biz isek temizle.
+                # Hızlı reconnect'te yeni bir thread bizim yerimize geçmiş olabilir;
+                # o durumda yeni thread'in kayıtlarını YANLIŞLIKLA silmeyiz.
+                if _audience_stop_threads.get(screen_id) is stop_event:
+                    _audience_update_threads.pop(screen_id, None)
+                    _audience_stop_threads.pop(screen_id, None)
+
             thread = threading.Thread(target=update_loop, daemon=True)
             thread.start()
             _audience_update_threads[screen_id] = thread
+
+        def _stop_audience_thread(screen_id: str):
+            """
+            Bir ekranın güncelleme thread'ini durdurur ve kayıtları HEMEN temizler.
+            Böylece hemen ardından gelen subscribe yeni thread'i başlatabilir
+            (disconnect/reconnect yarışı giderilir). Eski thread, kimlik kontrolü
+            sayesinde çıkışta yeni thread'in kaydını silmez.
+            """
+            ev = _audience_stop_threads.pop(screen_id, None)
+            if ev is not None:
+                ev.set()
+            _audience_update_threads.pop(screen_id, None)
         
         @socketio.on("subscribe_audience", namespace="/audience")
         def handle_subscribe_audience(data):
@@ -714,10 +726,9 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                 leave_room(screen_id, namespace="/audience", sid=session_id)
                 _audience_rooms[screen_id].discard(session_id)
                 
-                # Eğer room boşsa thread'i durdur
+                # Eğer room boşsa thread'i durdur ve kayıtları hemen temizle
                 if not _audience_rooms[screen_id]:
                     del _audience_rooms[screen_id]
-                    if screen_id in _audience_stop_threads:
-                        _audience_stop_threads[screen_id].set()
+                    _stop_audience_thread(screen_id)
             
             logger.info(f"Audience WebSocket abonelikten çıkıldı: screen_id={screen_id}, sid={session_id}")

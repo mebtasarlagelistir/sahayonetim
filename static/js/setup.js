@@ -787,26 +787,27 @@ function updateProgressIndicator() {
     "step-wifi"
   ];
   
+  // İlerleme yalnızca ZORUNLU adımlar üzerinden hesaplanır. Opsiyonel adımlar
+  // (sponsor, jüri, playoff, arşiv vb.) hiç "Done" işaretlenmediğinden, tüm
+  // adımlar payda alınırsa %100'e asla ulaşılamazdı.
   let completedCount = 0;
-  let totalCount = steps.length;
-  
-  steps.forEach(step => {
-    const statusEl = document.querySelector(`[data-step="${step.id}"]`);
-    if (statusEl) {
-      const status = statusEl.textContent.trim();
-      if (status === "Done") {
-        completedCount++;
-      }
+  const totalCount = requiredSteps.length;
+
+  requiredSteps.forEach((stepId) => {
+    const statusEl = document.querySelector(`[data-step="${stepId}"]`);
+    if (statusEl && statusEl.textContent.trim() === "Done") {
+      completedCount++;
     }
   });
-  
-  const percentage = Math.round((completedCount / totalCount) * 100);
-  
+
+  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
   // Progress bar'ı güncelle
   const progressFill = qs("setup-progress-fill");
   const progressText = qs("setup-progress-text");
   const completedStepsEl = qs("completed-steps");
-  
+  const totalStepsEl = qs("total-steps");
+
   if (progressFill) {
     progressFill.style.width = `${percentage}%`;
   }
@@ -815,6 +816,9 @@ function updateProgressIndicator() {
   }
   if (completedStepsEl) {
     completedStepsEl.textContent = completedCount;
+  }
+  if (totalStepsEl) {
+    totalStepsEl.textContent = totalCount;  // HTML'deki sabit '12' yerine dinamik
   }
 }
 
@@ -977,11 +981,13 @@ async function initializeSetup() {
       "inspection-schedule": "inspection-schedule",
       "practice-matches": "practice-matches",
       "match-schedule": "match-schedule",
+      "playoff": "playoff",
       "wifi": "wifi",
       "awards": "awards",
       "archive": "archive",
     };
-    step = stepMap[stepName] || "event";
+    // Tıklama/hashchange handler'larıyla tutarlı: bilinmeyen ad da kendisine düşer
+    step = stepMap[stepName] || stepName || "event";
   }
   await loadStep(step);
   
@@ -1118,21 +1124,24 @@ async function initializeSetup() {
     });
   }
   
-  // New event button
+  // New event button — kırılgan window.prompt yerine varsayılan adla oluştur,
+  // ardından Etkinlik adımını açıp adı/detayları orada düzenlet (dashboard ile tutarlı).
   const newEventBtn = qs("new_event");
   if (newEventBtn) {
     newEventBtn.addEventListener("click", async () => {
-      const name = window.prompt("Etkinlik adı", "Yeni Etkinlik");
-      if (!name) return;
+      if (newEventBtn.disabled) return;
+      newEventBtn.disabled = true;
       try {
-        await apiPost("/api/events", { name });
-        showToast("Yeni etkinlik oluşturuldu", "success");
+        await apiPost("/api/events", { name: "Yeni Etkinlik" });
+        showToast("Yeni etkinlik oluşturuldu. Adı ve detayları aşağıdan düzenleyin.", "success");
         if (typeof loadEvents === "function") await loadEvents();
-        if (typeof loadEvent === "function") await loadEvent();
-        if (typeof loadTeams === "function") await loadTeams();
-        if (typeof loadUsers === "function") await loadUsers();
+        // Etkinlik adımına geç (ad, kod, tarih, konum buradan girilir)
+        if (typeof loadStep === "function") await loadStep("event");
+        if (typeof checkAllStepStatuses === "function") await checkAllStepStatuses();
       } catch (err) {
         showToast(`Hata: ${err.message}`, "error");
+      } finally {
+        newEventBtn.disabled = false;
       }
     });
   }

@@ -89,8 +89,6 @@ function updateSectionsForRole() {
     
     if (isAdmin || isEventManager) {
       shouldShow = true; // Admin ve etkinlik yöneticisi tüm adımları görebilir
-    } else if (isReferee && stepId === "step-scoring") {
-      shouldShow = true; // Hakem sadece skorlama adımını görebilir
     } else if (isInspector && (stepId === "step-judging" || stepId === "step-inspection-schedule")) {
       shouldShow = true; // Müfettiş sadece inceleme adımlarını görebilir
     } else if (isCeremony && stepId === "step-awards") {

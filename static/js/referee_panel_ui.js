@@ -183,27 +183,38 @@ function updateRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
     refereeTimerState = currentState;
     refereeTimerInitialTime = timeRemaining;
     refereeTimerStartTime = Date.now() - timeOffset; // Server zamanını hesaba kat
-    
-    // Timer'ı başlat (her saniye güncelle)
-    refereeTimerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - refereeTimerStartTime) / 1000);
-      const remaining = Math.max(0, refereeTimerInitialTime - elapsed);
-      
-      // Zamanı formatla (MM:SS)
-      const minutes = Math.floor(remaining / 60);
-      const seconds = remaining % 60;
-      if (timerDisplayEl) {
-        timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-      }
-      
-      // Süre dolduysa interval'i temizle
-      if (remaining <= 0) {
-        if (refereeTimerInterval) {
-          clearInterval(refereeTimerInterval);
-          refereeTimerInterval = null;
+
+    // Geri sayım YALNIZCA maç aktif bir durumdayken ve süre > 0 iken çalışsın
+    // (baş hakem timer'ı ile aynı guard). idle/completed veya süre 0 iken
+    // sabit değer gösterilir; gereksiz/yanıltıcı geri sayım olmaz.
+    const shouldCountdown =
+      timeRemaining > 0 &&
+      currentState &&
+      currentState !== "idle" &&
+      currentState !== "completed";
+
+    if (shouldCountdown) {
+      // Timer'ı başlat (her saniye güncelle)
+      refereeTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - refereeTimerStartTime) / 1000);
+        const remaining = Math.max(0, refereeTimerInitialTime - elapsed);
+
+        // Zamanı formatla (MM:SS)
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        if (timerDisplayEl) {
+          timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
         }
-      }
-    }, 100); // 100ms'de bir güncelle (daha akıcı görünüm)
+
+        // Süre dolduysa interval'i temizle
+        if (remaining <= 0) {
+          if (refereeTimerInterval) {
+            clearInterval(refereeTimerInterval);
+            refereeTimerInterval = null;
+          }
+        }
+      }, 100); // 100ms'de bir güncelle (daha akıcı görünüm)
+    }
   }
   
   // İlk güncelleme (hemen göster)

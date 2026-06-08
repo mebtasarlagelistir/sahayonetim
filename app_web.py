@@ -462,10 +462,11 @@ def create_app() -> Flask:
         return render_template("login.html", error="Geçersiz kullanıcı adı veya şifre.")
 
     @app.get("/qr/<token>")
+    @limiter.limit(RateLimitConstants.LOGIN_LIMIT)  # Brute force koruması (login ile aynı)
     def login_with_qr(token: str):
         """
         QR kod ile giriş.
-        
+
         Kullanıcılar QR kod okutarak giriş yapabilir.
         Token geçerliyse oturum açılır.
         

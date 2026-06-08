@@ -264,10 +264,33 @@ class UsersStorage:
         return None
     
     def get_user_event_id(self, username: str) -> int | None:
-        """Kullanıcının bağlı olduğu etkinlik ID'sini getirir."""
+        """
+        Kullanıcının bağlı olduğu etkinlik ID'sini getirir.
+
+        UNIQUE(username, event_id) olduğundan aynı kullanıcı adı birden çok
+        etkinlikte bulunabilir. Bu yüzden çözümleme deterministik ve aktif
+        etkinlik bağlamıyla tutarlı olmalı (get_user_role ile aynı öncelik):
+          1) Aktif etkinlikteki kayıt
+          2) Global (event_id IS NULL) kayıt — örn. admin
+          3) Son çare: en küçük event_id (rastgele satır yerine deterministik)
+        """
+        active_event_id = self.get_active_event_id()
         with self._get_connection() as conn:
+            if active_event_id is not None:
+                row = conn.execute(
+                    "SELECT event_id FROM users WHERE username = ? AND event_id = ?",
+                    (username, active_event_id),
+                ).fetchone()
+                if row:
+                    return row[0]
             row = conn.execute(
-                "SELECT event_id FROM users WHERE username = ?",
+                "SELECT event_id FROM users WHERE username = ? AND event_id IS NULL",
+                (username,),
+            ).fetchone()
+            if row:
+                return None  # global kullanıcı (etkinliğe bağlı değil)
+            row = conn.execute(
+                "SELECT event_id FROM users WHERE username = ? ORDER BY event_id",
                 (username,),
             ).fetchone()
             if row:

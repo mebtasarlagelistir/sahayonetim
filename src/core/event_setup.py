@@ -38,7 +38,10 @@ class EventSetup:
     fields: int = 1
     teams_per_alliance: int = 2
     alliances: int = 2
-    auto_seconds: int = 0
+    # NOT: Maç timer'ı otonom süresini MatchConstants.AUTONOMOUS_DURATION'dan (30 sn) alır
+    # (tek kaynak). Bu alan default_config_dict ve constants ile tutarlı olsun diye 30'dur;
+    # 0 değeri default_config_dict (30) ile çelişiyordu.
+    auto_seconds: int = 30
     teleop_seconds: int = 120
     endgame_seconds: int = 30
     match_cycle_seconds: int = 150

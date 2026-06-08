@@ -54,24 +54,31 @@ const USER_EDITING_TIMEOUT = 2000; // 2 saniye input yoksa "editing" modundan ç
  * @returns {string} "red" veya "blue"
  */
 function determineAssignedAlliance() {
+  // 1) Sayfa modu (en güvenilir): /referee/red veya /referee/blue body'ye yazar
   const mode = document.body?.dataset?.refereeMode;
   if (mode === "red" || mode === "blue") {
+    sessionStorage.setItem("referee_alliance", mode);
     return mode;
   }
-  // URL parametresinden kontrol et
+  // 2) URL parametresi (?alliance=red|blue)
   const urlParams = new URLSearchParams(window.location.search);
   const allianceParam = urlParams.get("alliance");
   if (allianceParam === "red" || allianceParam === "blue") {
+    sessionStorage.setItem("referee_alliance", allianceParam);
     return allianceParam;
   }
-  
-  // Kullanıcı adına göre belirle (örnek: hakem_1 -> red, hakem_2 -> blue)
-  const username = sessionStorage.getItem("username") || "";
-  const matchNumber = currentMatch?.match_number || 0;
-  
-  // Basit mantık: Maç numarasına göre değişken atama
-  // İleride backend'den gelecek
-  return (matchNumber % 2 === 0) ? "red" : "blue";
+  // 3) Aynı sekmede daha önce belirlenen ittifak (tutarlılık)
+  const stored = sessionStorage.getItem("referee_alliance");
+  if (stored === "red" || stored === "blue") {
+    return stored;
+  }
+  // 4) Belirlenemedi: maç numarası tek/çift TAHMİNİ KULLANILMAZ — her maçta
+  //    ittifak değiştirir ve yanlış ittifağa skor girme riski doğururdu.
+  //    Doğru kullanım /referee/red veya /referee/blue panelleridir.
+  console.warn(
+    "Hakem ittifağı belirlenemedi (mod/URL yok). Lütfen /referee/red veya /referee/blue panelini kullanın. Geçici olarak 'red' atandı."
+  );
+  return "red";
 }
 
 /**
