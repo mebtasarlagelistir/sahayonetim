@@ -7,6 +7,7 @@
 // Global değişkenler (rol yönetimi için)
 let currentUserRole = null;
 let currentUserEventId = null;
+let currentUsername = null;
 
 /**
  * Kullanıcı rolünü yükler ve UI'ı günceller
@@ -22,7 +23,8 @@ async function loadUserRole() {
     const data = await apiGet("/api/user/role");
     currentUserRole = data.role || null;
     currentUserEventId = data.event_id || null;
-    
+    currentUsername = data.username || null;
+
     updateUserInfo();
     if (typeof updateUIForRole === "function") {
       updateUIForRole();
@@ -45,26 +47,21 @@ async function loadUserRole() {
 function updateUserInfo() {
   const usernameEl = qs("current-user");
   const roleEl = qs("user-role");
-  
-  if (usernameEl && currentUserRole) {
-    // Username'i API'den al (eğer varsa)
-    apiGet("/api/user/role")
-      .then((data) => {
-        if (usernameEl) usernameEl.textContent = data.username || "Kullanıcı";
-        if (roleEl) {
-          const roleNames = {
-            admin: "Yönetici",
-            etkinlik_yoneticisi: "Etkinlik Yöneticisi",
-            hakem: "Hakem",
-            mufettis: "Müfettiş",
-            seremoni: "Seremoni",
-          };
-          roleEl.textContent = roleNames[currentUserRole?.toLowerCase()] || currentUserRole || "";
-        }
-      })
-      .catch(() => {
-        if (usernameEl) usernameEl.textContent = "Kullanıcı";
-      });
+
+  // Kullanıcı adını loadUserRole'den gelen veriden göster (ikinci API çağrısı YOK).
+  // Ad, rol boş olsa bile gösterilir.
+  if (usernameEl) {
+    usernameEl.textContent = currentUsername || "Kullanıcı";
+  }
+  if (roleEl) {
+    const roleNames = {
+      admin: "Yönetici",
+      etkinlik_yoneticisi: "Etkinlik Yöneticisi",
+      hakem: "Hakem",
+      mufettis: "Müfettiş",
+      seremoni: "Seremoni",
+    };
+    roleEl.textContent = roleNames[currentUserRole?.toLowerCase()] || currentUserRole || "";
   }
 }
 

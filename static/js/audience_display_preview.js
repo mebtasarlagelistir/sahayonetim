@@ -335,12 +335,14 @@ function applyResultsPayload(payload) {
   if (redTotalEl) redTotalEl.textContent = results.red_score ?? 0;
   if (blueTotalEl) blueTotalEl.textContent = results.blue_score ?? 0;
 
-  // KAZANAN rozeti: sadece kazanan ittifak tarafında göster (otomatik)
+  // KAZANAN rozeti: makine-okunur skor karşılaştırmasıyla (serbest metin yerine).
+  // Beraberlikte hiçbir rozet gösterilmez.
   const winnerRedBadge = qs("audience_results_winner_red");
   const winnerBlueBadge = qs("audience_results_winner_blue");
-  const winner = (results.winner || "").toLowerCase();
-  if (winnerRedBadge) winnerRedBadge.style.display = winner.indexOf("kırmızı") !== -1 ? "block" : "none";
-  if (winnerBlueBadge) winnerBlueBadge.style.display = winner.indexOf("mavi") !== -1 ? "block" : "none";
+  const rScore = Number(results.red_score ?? 0);
+  const bScore = Number(results.blue_score ?? 0);
+  if (winnerRedBadge) winnerRedBadge.style.display = rScore > bScore ? "block" : "none";
+  if (winnerBlueBadge) winnerBlueBadge.style.display = bScore > rScore ? "block" : "none";
 
   // Kategori breakdown (otomatik payload'dan)
   const setEl = (id, value) => { const el = qs(id); if (el) el.textContent = value; };
@@ -358,13 +360,14 @@ function applyResultsPayload(payload) {
   // Takım rozetleri (match.red_alliance / blue_alliance)
   const redTeamsContainer = qs("audience_results_red_teams");
   const blueTeamsContainer = qs("audience_results_blue_teams");
+  const esc = (typeof escapeHtml === "function") ? escapeHtml : (s) => String(s);
   if (redTeamsContainer) {
     const teams = match.red_alliance || [];
-    redTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${t}</span>`).join("") || "-";
+    redTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${esc(String(t))}</span>`).join("") || "-";
   }
   if (blueTeamsContainer) {
     const teams = match.blue_alliance || [];
-    blueTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${t}</span>`).join("") || "-";
+    blueTeamsContainer.innerHTML = teams.map((t) => `<span class="team-badge">${esc(String(t))}</span>`).join("") || "-";
   }
 
   // Eleme/Final: "Bir sonraki maç" metinleri (payload'da varsa otomatik)

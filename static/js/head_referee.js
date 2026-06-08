@@ -168,9 +168,9 @@ async function initializeHeadReferee() {
           }
           if (state.scores && state.scores.referee_meta) {
             refereeMeta = state.scores.referee_meta;
-            if (typeof updateSubmitStatus === "function") {
-              updateSubmitStatus();
-            } else if (typeof updateHeadRefereeStatus === "function") {
+            // Baş hakem sayfasında doğru fonksiyon updateHeadRefereeStatus'tur
+            // (updateSubmitStatus referee_panel_ui'de tanımlı, burada yüklenmez).
+            if (typeof updateHeadRefereeStatus === "function") {
               updateHeadRefereeStatus();
             }
           }
@@ -387,6 +387,35 @@ async function loadHeadRefereeMatchHistory() {
 }
 
 /**
+ * Sayfa içi maç detay modalı gösterir (bloklayan alert yerine).
+ * Tek seferlik DOM oluşturur; tekrar çağrılınca içeriği günceller.
+ */
+function showHeadRefereeDetailModal(title, bodyHtml) {
+  let overlay = document.getElementById("hr_detail_modal");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "hr_detail_modal";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;";
+    overlay.innerHTML =
+      '<div class="hr-modal-box" role="dialog" aria-modal="true" style="background:#fff;border-radius:10px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);overflow:hidden;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e5e7eb;">' +
+      '<h3 id="hr_modal_title" style="margin:0;font-size:1.1rem;"></h3>' +
+      '<button id="hr_modal_close" class="btn-small" style="min-width:44px;min-height:44px;font-size:18px;">✕</button>' +
+      '</div>' +
+      '<div id="hr_modal_body" style="padding:18px;line-height:1.7;"></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    const close = () => { overlay.style.display = "none"; };
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector("#hr_modal_close").addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  }
+  overlay.querySelector("#hr_modal_title").textContent = title || "Maç Detayı";
+  overlay.querySelector("#hr_modal_body").innerHTML = bodyHtml || "";
+  overlay.style.display = "flex";
+}
+
+/**
  * Maç detaylarını görüntüler (baş hakem için)
  */
 async function viewHeadRefereeMatchDetails(matchId, source) {
@@ -405,19 +434,20 @@ async function viewHeadRefereeMatchDetails(matchId, source) {
       return;
     }
     
-    // Detaylı bilgileri göster (modal veya yeni tab)
-    const details = `
-Maç Bilgileri:
-- ${match.match_type === "practice" ? "Deneme" : "Maç"} ${match.match_number}
-- Saha: ${match.field_number}
-- Tarih: ${match.match_date} ${match.match_time}
-- Kırmızı İttifak: ${(match.red_alliance || []).join(", ")}
-- Mavi İttifak: ${(match.blue_alliance || []).join(", ")}
-- Skor: Kırmızı ${match.red_score || 0} - Mavi ${match.blue_score || 0}
+    // Detaylı bilgileri sayfa içi modalda göster (bloklayan alert yerine).
+    const esc = (typeof escapeHtml === "function") ? escapeHtml : (s) => String(s);
+    const sd = (match.scoring_data && typeof match.scoring_data === "object") ? match.scoring_data : {};
+    const redCards = `🟡 ${esc(String((sd.red || {}).yellow_card ?? 0))}  🔴 ${[(sd.red || {}).red_card_r1, (sd.red || {}).red_card_r2].filter(Boolean).length}`;
+    const blueCards = `🟡 ${esc(String((sd.blue || {}).yellow_card ?? 0))}  🔴 ${[(sd.blue || {}).red_card_r1, (sd.blue || {}).red_card_r2].filter(Boolean).length}`;
+    const title = `${match.match_type === "practice" ? "Deneme" : "Maç"} ${esc(String(match.match_number ?? ""))}`;
+    const bodyHtml = `
+      <div class="hr-detail-row"><b>Saha:</b> ${esc(String(match.field_number ?? "-"))}</div>
+      <div class="hr-detail-row"><b>Tarih:</b> ${esc(String(match.match_date ?? ""))} ${esc(String(match.match_time ?? ""))}</div>
+      <div class="hr-detail-row hr-detail-red"><b>Kırmızı:</b> ${esc((match.red_alliance || []).join(", ") || "-")} — <b>${esc(String(match.red_score || 0))}</b> &nbsp; ${redCards}</div>
+      <div class="hr-detail-row hr-detail-blue"><b>Mavi:</b> ${esc((match.blue_alliance || []).join(", ") || "-")} — <b>${esc(String(match.blue_score || 0))}</b> &nbsp; ${blueCards}</div>
     `;
-    
-    alert(details); // Geçici olarak alert, daha sonra modal'a çevrilebilir
-    
+    showHeadRefereeDetailModal(title, bodyHtml);
+
   } catch (err) {
     console.error("View match details error:", err);
     showToast("Maç detayları yüklenirken hata oluştu", "error");
@@ -1376,7 +1406,13 @@ async function saveHeadRefereeScore(alliance, silent) {
     if (!silent) showToast("Aktif maç bulunamadı", "error");
     return;
   }
-  
+
+  // Savunma derinliği: düzenleme izni yoksa hiçbir yoldan (autosave dahil) kayıt gitmesin.
+  if (typeof canHeadRefereeEdit === "function" && !canHeadRefereeEdit()) {
+    if (!silent) showToast("Düzenleme için iki hakem de girişini tamamlamalı.", "warning");
+    return;
+  }
+
   var formEl = qs("head_" + alliance + "_scoring_form");
   if (!formEl || formEl.querySelectorAll("input").length === 0) {
     if (!silent) showToast("Skor formu henüz yüklenmedi. Lütfen birkaç saniye bekleyip tekrar deneyin.", "warning");

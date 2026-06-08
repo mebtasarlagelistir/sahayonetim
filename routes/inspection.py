@@ -9,6 +9,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _coerce_duration(value, default=15, min_v=1, max_v=600):
+    """
+    İnceleme süresini (dakika) güvenli pozitif int'e çevirir.
+    Geçersiz/negatif/sınır dışı girdileri makul aralığa sabitler.
+    """
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return default
+    if v < min_v:
+        return min_v
+    if v > max_v:
+        return max_v
+    return v
+
+
 def register_inspection_routes(bp, datastore, require_login, require_event_manager, socketio=None):
     """
     İnceleme route'larını Blueprint'e kaydeder.
@@ -241,8 +257,8 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         if not slot_time:
             return jsonify({"error": "Saat gerekli"}), 400
         
-        # Çakışma kontrolü
-        duration_minutes = data.get("duration_minutes", 15)
+        # Çakışma kontrolü — süreyi pozitif int'e zorla (tip/aralık doğrulaması)
+        duration_minutes = _coerce_duration(data.get("duration_minutes", 15))
         if datastore.check_inspection_conflict(
             team_number=team_number,
             slot_date=slot_date,
@@ -302,8 +318,9 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             team_number = data.get("team_number", current_slot["team_number"])
             slot_date = data.get("slot_date", current_slot["slot_date"])
             slot_time = data.get("slot_time", current_slot["slot_time"])
-            duration_minutes = data.get("duration_minutes", current_slot["duration_minutes"])
-            
+            duration_minutes = _coerce_duration(
+                data.get("duration_minutes", current_slot["duration_minutes"])
+            )
             if datastore.check_inspection_conflict(
                 team_number=team_number,
                 slot_date=slot_date,
@@ -320,7 +337,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 inspection_type=data.get("inspection_type"),
                 slot_date=data.get("slot_date"),
                 slot_time=data.get("slot_time"),
-                duration_minutes=data.get("duration_minutes"),
+                duration_minutes=_coerce_duration(data["duration_minutes"]) if data.get("duration_minutes") is not None else None,
                 inspector_name=data.get("inspector_name"),
                 status=data.get("status"),
                 notes=data.get("notes"),

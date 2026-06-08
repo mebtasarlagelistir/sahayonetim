@@ -204,10 +204,11 @@ async function loadNextMatchPreview() {
       return;
     }
     const match = data.match;
-    const num = match.match_number || "-";
+    // Maç tipi/kaynağına göre anlamlı etiket (match_number yoksa "-" yerine).
+    const label = getMatchHeaderLabel(match) || "Sıradaki maç";
     const field = match.field_number ? `Saha ${match.field_number}` : "";
     const dateTime = [match.match_date, match.match_time].filter(Boolean).join(" ");
-    setNextMatchText(`Sıradaki: ${num}${field ? " • " + field : ""}${dateTime ? " • " + dateTime : ""}`.trim() || "Sıradaki maç yok");
+    setNextMatchText(`Sıradaki: ${label}${field ? " • " + field : ""}${dateTime ? " • " + dateTime : ""}`.trim() || "Sıradaki maç yok");
   } catch (err) {
     console.warn("loadNextMatchPreview:", err);
     setNextMatchText("Sıradaki maç bilgisi alınamadı");
@@ -322,10 +323,11 @@ async function loadInspectionView() {
         }
       };
       
+      const escI = (typeof escapeHtml === "function") ? escapeHtml : (s) => String(s);
       table.innerHTML = teamRows.map(({ team, status }) => {
         return `<div class="inspection-team-row ${status}">
-          <span class="team-number">${team.number}</span>
-          <span class="team-name">${team.name || '-'}</span>
+          <span class="team-number">${escI(String(team.number ?? ""))}</span>
+          <span class="team-name">${escI(team.name || '-')}</span>
           <span class="team-status">${getStatusLabel(status)}</span>
         </div>`;
       }).join("");
@@ -412,10 +414,11 @@ async function loadRankingsView() {
       const avgScore = (typeof r.average_score === "number")
         ? r.average_score.toFixed(2)
         : (r.average_score != null ? String(r.average_score) : "0.00");
+      const escR = (typeof escapeHtml === "function") ? escapeHtml : (s) => String(s);
       return `<div class="rankings-row">
         <span class="rank-col">${r.rank || '-'}</span>
         <span class="team-col">
-          <strong>${teamNumber}</strong>
+          <strong>${escR(String(teamNumber ?? ""))}</strong>
         </span>
         <span class="wins-col">${r.wins || 0}</span>
         <span class="losses-col">${r.losses || 0}</span>

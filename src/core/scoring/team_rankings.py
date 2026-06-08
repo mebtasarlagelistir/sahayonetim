@@ -352,6 +352,12 @@ class TeamRankingsCalculator:
         red_cards = team_data.get("red_cards", 0) or 0
         yellow_cards = team_data.get("yellow_cards", 0) or 0
         avg_score = team_data.get("average_score", 0) or 0
+        # Tam eşitlikte deterministik son kriter: küçük takım numarası önce gelsin.
+        # sort reverse=True olduğundan -team_num kullanılır (küçük numara -> daha büyük değer -> önde).
+        try:
+            team_num = int(str(team_data.get("team", "")).strip())
+        except (ValueError, TypeError):
+            team_num = 0
         if (mode or "current") == "legacy":
             return (
                 team_data.get("total_sp", 0) or 0,
@@ -362,6 +368,7 @@ class TeamRankingsCalculator:
                 team_data.get("wins", 0) or 0,
                 team_data.get("ties", 0) or 0,
                 team_data.get("matches_played", 0) or 0,
+                -team_num,
             )
         return (
             team_data.get("total_sp", 0) or 0,
@@ -371,6 +378,7 @@ class TeamRankingsCalculator:
             -yellow_cards,
             auto_sp,
             climb_sp,
+            -team_num,
         )
 
     def _build_tie_breaker_detail(self, team_data: Dict[str, Any], mode: str = "current") -> List[Dict[str, Any]]:

@@ -37,7 +37,7 @@ function renderRefereeRobotStatus() {
   robotStatusGrid.innerHTML = teams.map((team, index) => {
     const robotIndex = index + 1;
     return `
-      <div class="referee-robot-status-item">
+      <div class="referee-robot-status-item" data-robot="${robotIndex}">
         <div class="referee-robot-status-header">
           <span class="referee-robot-team-number">${team}</span>
           <span class="referee-robot-label">R${robotIndex}</span>
@@ -176,7 +176,7 @@ function loadRefereeRobotStatuses(scoringData = null) {
     const status = allianceStatuses[robotKey];
     
     if (status) {
-      const robotItem = document.querySelector(`.referee-robot-status-item:nth-child(${robotIndex})`);
+      const robotItem = document.querySelector(`.referee-robot-status-item[data-robot="${robotIndex}"]`);
       if (robotItem) {
         const btn = robotItem.querySelector(`.referee-robot-status-btn[data-status="${status}"]`);
         if (btn) {
@@ -188,7 +188,7 @@ function loadRefereeRobotStatuses(scoringData = null) {
       }
     } else {
       // Durum yoksa, tüm butonları temizle
-      const robotItem = document.querySelector(`.referee-robot-status-item:nth-child(${robotIndex})`);
+      const robotItem = document.querySelector(`.referee-robot-status-item[data-robot="${robotIndex}"]`);
       if (robotItem) {
         robotItem.querySelectorAll(".referee-robot-status-btn").forEach(b => b.classList.remove("active"));
       }

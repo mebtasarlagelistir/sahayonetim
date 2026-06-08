@@ -165,9 +165,6 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
         if (not start_date or not start_time) and time_windows:
             start_date = time_windows[0][0].strftime("%Y-%m-%d")
             start_time = time_windows[0][0].strftime("%H:%M")
-        if (not start_date or not start_time) and time_windows:
-            start_date = time_windows[0][0].strftime("%Y-%m-%d")
-            start_time = time_windows[0][0].strftime("%H:%M")
         if not start_date or not start_time:
             return jsonify({"error": "Başlangıç tarihi ve saati gerekli"}), 400
 
@@ -889,5 +886,14 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
             except Exception as e:
                 print(f"Error creating practice match: {e}")
                 continue
-        
-        return jsonify({"ok": True, "created_count": created_count})
+
+        # Kısmi başarı bilgisi: istenen sayıda maç üretilemediyse uyar (resmi maç
+        # takvimiyle tutarlı). Üretilenler geçerlidir; kullanıcıya fark bildirilir.
+        response = {"ok": True, "created_count": created_count, "requested": num_matches}
+        if num_matches and created_count < num_matches:
+            response["partial"] = True
+            response["message"] = (
+                f"İstenen {num_matches} maçtan {created_count} tanesi oluşturulabildi "
+                f"(dinlenme/çakışma kuralları nedeniyle)."
+            )
+        return jsonify(response)

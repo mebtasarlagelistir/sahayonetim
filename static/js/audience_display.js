@@ -15,6 +15,10 @@
  * NOT: Bu dosya diğer audience_display modüllerinden SONRA yüklenmelidir.
  */
 
+// Tüm seyirci görünüm panellerinin ortak listesi (gizleme döngülerinde kullanılır).
+// Tek kaynak: fallback ve AudienceCore yolları aynı listeyi kullanır (sürüklenmeyi önler).
+const AUDIENCE_VIEW_NAMES = ["match", "inspection", "rankings", "awards", "ceremony", "playoff", "alliances"];
+
 /**
  * Screen settings'i yükler ve preview durumunu kontrol eder
  * 
@@ -147,8 +151,7 @@ function switchView(viewName) {
     return;
   }
   
-  const views = ["match", "inspection", "rankings", "awards", "playoff", "alliances"];
-  views.forEach((view) => {
+  AUDIENCE_VIEW_NAMES.forEach((view) => {
     const el = qs(`audience_${view}_view`);
     if (el) {
       el.style.display = view === targetView ? "block" : "none";
@@ -268,8 +271,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // NOT: "playoff" ve "alliances" de listede olmalı; aksi halde bu panellere
       // geçtikten sonra başka görünüme dönülünce panel ekranda asılı kalır ve
       // arka plandaki yenileme timer'ı (display==="none" kontrolü) hiç durmaz.
-      const views = ["match", "inspection", "rankings", "awards", "ceremony", "playoff", "alliances"];
-      views.forEach((view) => {
+      AUDIENCE_VIEW_NAMES.forEach((view) => {
         const el = qs(`audience_${view}_view`);
         if (el) {
           el.style.display = "none";

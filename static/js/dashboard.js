@@ -97,11 +97,9 @@ function updateEventStatus(eventData) {
   if (typeof updateEventDateTime === "function") {
     updateEventDateTime(eventData);
   }
-  
-  // Etkinlik fazını yükle
-  if (typeof loadEventPhase === "function") {
-    loadEventPhase();
-  }
+  // NOT: loadEventPhase buradan ÇAĞRILMAZ. Çağıranlar (loadEventSummary,
+  // initializeSetup) fazı ayrıca yüklüyor; buradan tetiklemek aynı sayfa
+  // açılışında yinelenen 4-6 API isteği dalgasına yol açıyordu.
 }
 
 /**
@@ -221,11 +219,9 @@ async function loadEventPhase() {
     
     // İnceleme slotları var mı?
     if (inspectionData && inspectionData.length > 0) {
-      if (inspectionData && inspectionData.length > 0) {
-        phase = "inspection";
-        phaseLabel = "İnceleme";
-        phaseClass = "phase-inspection";
-      }
+      phase = "inspection";
+      phaseLabel = "İnceleme";
+      phaseClass = "phase-inspection";
     }
     
     // Deneme maçları var mı?

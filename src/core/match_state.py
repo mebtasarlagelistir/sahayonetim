@@ -489,10 +489,10 @@ class MatchStateManager:
                     "post_match": MatchConstants.POST_MATCH_DURATION,
                 }
             except ImportError:
-                # Fallback değerler (constants.py ile aynı: OKS 30, SKS 120)
+                # Fallback değerler (constants.py ile birebir aynı olmalı)
                 MATCH_TIMINGS = {
                     "autonomous": 30,
-                    "prepare_teleop": 5,
+                    "prepare_teleop": 10,  # PREPARE_TELEOP_DURATION ile aynı
                     "driver_controlled": 120,
                     "end_game": 30,
                     "post_match": 10,

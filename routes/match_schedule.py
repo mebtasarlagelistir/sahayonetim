@@ -6,9 +6,12 @@ Bu modül resmi maç takvimi yönetimi için API endpoint'lerini içerir.
 
 from datetime import datetime, timedelta
 import itertools
+import logging
 import random
 
 from flask import Blueprint, jsonify, request
+
+logger = logging.getLogger(__name__)
 
 
 def register_match_schedule_routes(bp, datastore, require_login, require_event_manager):
@@ -1253,7 +1256,8 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     surrogate_teams=surrogate_teams,
                     event_id=event_id,
                 )
-            except Exception:
+            except Exception as e:
+                logger.warning("Sıralama maçı oluşturulamadı (atlandı): %s", e)
                 current_time += timedelta(minutes=match_duration)
                 continue
 
@@ -1408,8 +1412,8 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
             new_event_data["playoff"] = playoff_cfg
             try:
                 datastore.save_event(new_event_data)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Playoff ittifak konfigurasyonu kaydedilemedi: %s", e)
 
             de_generator = BracketGenerator()
             de_rounds = de_generator.generate_double_elimination_6(alliances)
@@ -1451,7 +1455,8 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     created_count += 1
                     next_number += 1
                     current_time += timedelta(minutes=match_duration)
-                except Exception:
+                except Exception as e:
+                    logger.warning("Çift eleme maçı oluşturulamadı (atlandı): %s", e)
                     continue
 
             # Yanıt: ittifak/seed bilgisini zenginleştir

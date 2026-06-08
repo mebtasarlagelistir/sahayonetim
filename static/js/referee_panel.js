@@ -154,14 +154,9 @@ async function initializeRefereePanel() {
               lastAppliedTeamStatusesKey = tsKeyInitial;
             }
           } else {
-            // Aynı maç: sadece timer, meta ve WebSocket'ten gelen skorları uygula (formu silmeden)
-            if (typeof updateRefereeTimer === "function") {
-              updateRefereeTimer(state.currentState, state.timeRemaining);
-            }
-            if (state.scores && state.scores.referee_meta && typeof updateSubmitStatus === "function") {
-              refereeMeta = state.scores.referee_meta;
-              updateSubmitStatus();
-            }
+            // Aynı maç: WebSocket'ten gelen skorları uygula (formu silmeden).
+            // Timer ve referee_meta aşağıdaki "her zaman güncelle" bloğunda işlenir
+            // (burada tekrar çağırmaya gerek yok).
             if (!isUserEditing && state.scores) {
               if (assignedAlliance === "red" && state.scores.red && typeof applyScoringDataToForm === "function") {
                 applyScoringDataToForm(state.scores.red);
