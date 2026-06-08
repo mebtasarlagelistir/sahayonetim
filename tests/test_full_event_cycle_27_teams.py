@@ -419,12 +419,13 @@ def main() -> None:
     rankings = resp.get("rankings", [])
     log(f"Final maç sayısı: {created_count}, SP sıralaması (ilk 8): {[x.get('team') for x in rankings[:8]]}", ok=True)
 
-    # --- 7. Bracket eşleşmesini doğrula: 1–2 vs 8–7, 3–4 vs 6–5 ---
-    log("7. Bracket eşleşmesi doğrulanıyor (1–2 vs 8–7, 3–4 vs 6–5)...")
+    # --- 7. Bracket eşleşmesini doğrula (dengeli ittifak + standart seeding) ---
+    # İttifaklar: (1,8),(2,7),(3,6),(4,5) — Eşleştirme: A=(1,8)v(4,5), B=(2,7)v(3,6)
+    log("7. Bracket eşleşmesi doğrulanıyor (A: 1,8 vs 4,5 | B: 2,7 vs 3,6)...")
     schedule = session.get(BASE_URL + "/api/match-schedule", timeout=10).json()
     final_matches = [m for m in schedule if m.get("match_type") == "final"]
     final_matches.sort(key=lambda x: x.get("match_number", 0))
-    expected_ranks = [(1, 2, 8, 7), (3, 4, 6, 5)]
+    expected_ranks = [(1, 8, 4, 5), (2, 7, 3, 6)]
     bracket_ok = True
     for idx, exp in enumerate(expected_ranks):
         if idx >= len(final_matches):

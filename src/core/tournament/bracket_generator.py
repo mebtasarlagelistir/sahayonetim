@@ -66,15 +66,18 @@ class BracketGenerator:
         
         Returns:
             List[Dict]: Final maçları listesi
+            Dengeli (serpentine) ittifaklar + standart seeding ile (8 takım örneği):
+              İttifaklar: (1,8), (2,7), (3,6), (4,5)
+              Eşleştirme: en iyi ittifak en zayıfla → A=(1,8)v(4,5), B=(2,7)v(3,6)
             [
                 {
-                    "red_alliance": ["202501", "202502"],
-                    "blue_alliance": ["202508", "202507"],
+                    "red_alliance": ["202501", "202508"],
+                    "blue_alliance": ["202504", "202505"],
                     "match_number": 1
                 },
                 {
-                    "red_alliance": ["202503", "202504"],
-                    "blue_alliance": ["202506", "202505"],
+                    "red_alliance": ["202502", "202507"],
+                    "blue_alliance": ["202503", "202506"],
                     "match_number": 2
                 },
                 ...
@@ -156,19 +159,22 @@ class BracketGenerator:
                 break
             alliances.append(alliance)
 
-        # Çeyrek Final (round 1)
+        # Çeyrek Final (round 1) — STANDART SEEDING: en iyi ittifak en zayıfla eşleşir.
+        # İttifaklar zaten dengeli (serpentine): alliances[0]=(seed1+son), alliances[1]=(seed2+...)
+        # Eşleştirme: A = ittifak[0] vs ittifak[n-1], B = ittifak[1] vs ittifak[n-2], ...
+        # Böylece 4 ittifakta A=(1,8)vs(4,5), B=(2,7)vs(3,6) gibi adil bir bracket oluşur.
         round1_matches = []
         match_number = 1
-        for i in range(0, len(alliances), 2):
-            if i + 1 >= len(alliances):
-                break
-            label = chr(65 + (i // 2))  # A, B, C, D...
+        num_alliances = len(alliances)
+        num_round1 = num_alliances // 2
+        for i in range(num_round1):
+            label = chr(65 + i)  # A, B, C, D...
             round1_matches.append({
                 "match_number": match_number,
                 "round": "quarterfinal",
                 "label": label,
-                "red_alliance": alliances[i],
-                "blue_alliance": alliances[i + 1],
+                "red_alliance": alliances[i],                      # üst seed ittifakı
+                "blue_alliance": alliances[num_alliances - 1 - i],  # karşı uçtaki alt seed ittifakı
             })
             match_number += 1
 
