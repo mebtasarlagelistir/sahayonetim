@@ -249,17 +249,47 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
             from_head_referee = data.get("from_head_referee", False)
             current_meta = _get_referee_meta(match)
             alliance_meta = current_meta.get(alliance, {})
-            if not from_head_referee and alliance_meta.get("submitted"):
-                updated_meta = {
-                    **current_meta,
-                    alliance: {
+            meta_changed = False
+            updated_meta = {**current_meta}
+            if not from_head_referee:
+                now_iso = datetime.now().isoformat()
+                # 1) Hakem skoru yeniden düzenledi -> "Maç Girişini Bitir" durumunu düşür
+                if alliance_meta.get("submitted"):
+                    updated_meta[alliance] = {
                         **alliance_meta,
                         "submitted": False,
-                        "last_updated": datetime.now().isoformat(),
+                        "last_updated": now_iso,
                     }
-                }
+                    meta_changed = True
+                # 2) Onaydan SONRA düzenleme -> baş hakem onayını geçersiz kıl (yeniden onay gerekir)
+                head_meta = current_meta.get("head", {})
+                if head_meta.get("approved"):
+                    updated_meta["head"] = {
+                        **head_meta,
+                        "approved": False,
+                        "invalidated_at": now_iso,
+                        "invalidated_reason": f"{alliance} skoru onaydan sonra düzenlendi",
+                        "last_updated": now_iso,
+                    }
+                    meta_changed = True
+
+            if meta_changed:
                 persisted["referee_meta"] = updated_meta
                 realtime_manager.update_referee_meta(match_key, updated_meta)
+                # Baş hakem / maç kontrol ekranları durumu anında görsün diye skor odasına emit et
+                if socketio:
+                    try:
+                        latest_scores = realtime_manager.get_current_scores(match_key)
+                        if latest_scores:
+                            room = f"match:{event_id}:{match_source}:{match_id}"
+                            socketio.emit(
+                                "scores",
+                                {"type": "scores", "scores": dict(latest_scores)},
+                                room=room,
+                                namespace="/match",
+                            )
+                    except Exception as emit_err:
+                        logger.warning("Onay geçersizleştirme emit hatası: %s", emit_err)
 
             if match_source == "practice":
                 datastore.update_practice_match(match_id=match_id, scoring_data=persisted)
