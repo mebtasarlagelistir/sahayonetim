@@ -6144,3 +6144,42 @@ body[data-referee-mode="blue"] #active_match_card {
 }
 .aa-team { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
 .aa-name { font-size: 1rem; color: #e3e8f2; opacity: 0.9; }
+
+/* ============================================================
+   DOKUNMATİK CİHAZ OPTİMİZASYONU (tablet/telefon)
+   Hakem, inspector vb. dokunmatik kullanıcılar için tüm etkileşimli
+   kontroller en az ~44px dokunma hedefi olsun. 'pointer: coarse' yalnızca
+   dokunmatik cihazlarda devreye girer; masaüstü fare kullanımını ETKİLEMEZ.
+   ============================================================ */
+@media (pointer: coarse) {
+  /* Küçük nav/aksiyon butonları ve linkleri büyüt */
+  .btn-small,
+  a.button,
+  .actions a.button {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Genel etkileşimli kontroller en az 44px yüksekliğinde olsun */
+  button,
+  select,
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  input[type="email"],
+  input[type="password"] {
+    min-height: 44px;
+  }
+
+  /* Dokunma sırasında gecikmeyi azalt ve mavi vurgu parlamasını kapat */
+  button, a.button, .btn-small, select, .filter-btn, .tab-button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
