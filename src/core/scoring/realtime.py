@@ -129,7 +129,12 @@ class RealtimeScoreManager:
         """
         if match_key not in self._active_scores:
             self.register_match(match_key)
-        
+
+        # Sunucu tarafı doğrulama: sayısal alanları sınırla (negatif veya
+        # sınır-dışı değerler skoru bozmasın/şişirmesin). HTML min/max yalnızca
+        # istemci tarafıdır; tahrif edilmiş/bozuk istekler buradan geçemez.
+        scoring_data = self._sanitize_scoring_data(scoring_data)
+
         self._active_scores[match_key][alliance] = scoring_data
         self._active_scores[match_key]["last_updated"] = datetime.now().isoformat()
         self._active_scores[match_key]["updated_by"] = updated_by
@@ -146,6 +151,38 @@ class RealtimeScoreManager:
         
         # Tüm bağlı cihazlara bildir
         self._broadcast_update(match_key, alliance, scoring_data)
+
+    # Üst sınırı olan sayısal alanlar (config.py max_robots ile uyumlu).
+    # leave_start_area/climb gibi robot-sınırlı alanlar en fazla 2 robot.
+    _MAX_LIMITS = {
+        "teleop_climb": 2,
+    }
+
+    def _sanitize_scoring_data(self, scoring_data: Dict) -> Dict:
+        """
+        Puanlama verisindeki üst-seviye sayısal alanları güvenli aralığa çeker.
+
+        - Negatif sayılar 0'a sabitlenir.
+        - Üst sınırı tanımlı alanlar (örn. teleop_climb) sınırına çekilir.
+        - Boolean alanlar (kart/leave) ve dict/list/string alanlar (team_statuses,
+          ranking_points vb.) olduğu gibi korunur.
+        """
+        if not isinstance(scoring_data, dict):
+            return scoring_data
+        sanitized = dict(scoring_data)
+        for key, value in scoring_data.items():
+            # bool, int'in alt sınıfıdır; kart/leave gibi boolean alanlara dokunma
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                v = value
+                if v < 0:
+                    v = 0
+                limit = self._MAX_LIMITS.get(key)
+                if limit is not None and v > limit:
+                    v = limit
+                sanitized[key] = v
+        return sanitized
 
     def update_team_statuses_only(self, match_key: str, team_statuses: Dict) -> None:
         """

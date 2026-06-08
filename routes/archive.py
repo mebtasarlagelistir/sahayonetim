@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def register_archive_routes(bp: Blueprint, datastore, require_login, require_event_manager, limiter=None) -> None:
+def register_archive_routes(bp: Blueprint, datastore, require_login, require_event_manager, limiter=None, require_admin=None) -> None:
     """
     Arşiv yönetimi route'larını Blueprint'e kaydeder.
 
@@ -31,7 +31,12 @@ def register_archive_routes(bp: Blueprint, datastore, require_login, require_eve
         require_login: require_login decorator
         require_event_manager: require_event_manager decorator
         limiter: Flask-Limiter instance (opsiyonel, rate limiting için)
+        require_admin: require_admin decorator (arşiv yükleme için zorunlu)
     """
+    # Arşiv geri yükleme tüm veritabanının ve secret.key'in üzerine yazdığı için
+    # yalnızca admin'e açıktır. require_admin verilmezse güvenli tarafta kalıp
+    # require_event_manager'a düşeriz (eski davranış), ama app_web bunu sağlar.
+    require_admin = require_admin or require_event_manager
     
     # Rate limiting decorator helper (limiter varsa uygula)
     def rate_limit(limit_str):
@@ -72,7 +77,7 @@ def register_archive_routes(bp: Blueprint, datastore, require_login, require_eve
     @bp.post("/archive/upload")
     @rate_limit(RateLimitConstants.ARCHIVE_UPLOAD_LIMIT)
     @require_login
-    @require_event_manager
+    @require_admin
     def upload_archive():
         """
         Zip arşivini yükler ve mevcut verilerin üzerine yazar.
@@ -108,6 +113,10 @@ def register_archive_routes(bp: Blueprint, datastore, require_login, require_eve
                 )
                 if not _looks_like_sqlite(data_bytes):
                     return jsonify({"error": "data.db geçerli bir SQLite veritabanı değil"}), 400
+                # İmza ötesinde içerik doğrulaması: beklenen MEMSKOR tabloları var mı?
+                if not _is_valid_memskor_db(data_bytes):
+                    logger.warning(f"Arşiv yükleme reddedildi: data.db beklenen şemaya uymuyor (kullanıcı: {request.remote_addr})")
+                    return jsonify({"error": "data.db geçerli bir MEMSKOR veritabanı değil (beklenen tablolar yok)"}), 400
 
                 config_bytes = _read_zip_member_optional(
                     zip_file, ["config.json", "resources/config.json", "src/resources/config.json"]
@@ -125,16 +134,25 @@ def register_archive_routes(bp: Blueprint, datastore, require_login, require_eve
         data_db_path, config_path, secret_path = _get_resource_paths(datastore)
         backup_files = _backup_existing_files(data_db_path, config_path, secret_path)
 
+        # Atomik yazım: önce geçici dosyaya yaz, sonra os.replace ile taşı.
+        # Herhangi bir adım başarısız olursa daha önce alınan yedeklerden geri yükle.
+        writes = [(data_db_path, data_bytes)]
+        if config_bytes is not None:
+            writes.append((config_path, config_bytes))
+        if secret_bytes is not None:
+            writes.append((secret_path, secret_bytes))
+
         try:
-            data_db_path.write_bytes(data_bytes)
-            if config_bytes is not None:
-                config_path.write_bytes(config_bytes)
-            if secret_bytes is not None:
-                secret_path.write_bytes(secret_bytes)
+            for target_path, payload in writes:
+                _atomic_write_bytes(target_path, payload)
             logger.info(f"Arşiv yüklendi: {len(backup_files)} yedek oluşturuldu (kullanıcı: {request.remote_addr})")
         except Exception as e:
             logger.error(f"Arşiv yükleme hatası: Dosya yazılamadı - {str(e)} (kullanıcı: {request.remote_addr})", exc_info=True)
-            return jsonify({"error": "Arşiv içeriği yazılamadı"}), 500
+            restored = _restore_from_backups(backup_files, data_db_path)
+            msg = "Arşiv içeriği yazılamadı"
+            if restored:
+                msg += "; önceki veriler yedekten geri yüklendi"
+            return jsonify({"error": msg, "restored": restored}), 500
 
         return jsonify(
             {
@@ -205,6 +223,91 @@ def _read_zip_member_optional(zip_file: zipfile.ZipFile, candidates: list[str]) 
 
 def _looks_like_sqlite(data_bytes: bytes) -> bool:
     return data_bytes.startswith(b"SQLite format 3")
+
+
+# Yüklenen veritabanında bulunması beklenen çekirdek MEMSKOR tabloları.
+_REQUIRED_DB_TABLES = {"events", "users", "teams", "match_schedule"}
+
+
+def _is_valid_memskor_db(data_bytes: bytes) -> bool:
+    """
+    Yüklenen baytları geçici bir dosyaya yazıp SQLite olarak açar ve
+    beklenen MEMSKOR tablolarının var olduğunu doğrular. Sahte/yabancı bir
+    SQLite dosyasının (yalnızca imza kontrolünü geçen) reddedilmesini sağlar.
+    """
+    import sqlite3
+    import tempfile
+    import os as _os
+
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".db")
+        with _os.fdopen(fd, "wb") as fh:
+            fh.write(data_bytes)
+        conn = sqlite3.connect(tmp_path)
+        try:
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        finally:
+            conn.close()
+        table_names = {r[0] for r in rows}
+        return _REQUIRED_DB_TABLES.issubset(table_names)
+    except Exception:
+        return False
+    finally:
+        if tmp_path:
+            try:
+                _os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _atomic_write_bytes(target_path: Path, payload: bytes) -> None:
+    """
+    Veriyi aynı dizinde geçici bir dosyaya yazıp os.replace ile atomik olarak
+    hedefin üzerine taşır. Yazma yarıda kalırsa hedef dosya bozulmaz.
+    """
+    import os as _os
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
+    with open(tmp_path, "wb") as fh:
+        fh.write(payload)
+        fh.flush()
+        _os.fsync(fh.fileno())
+    _os.replace(tmp_path, target_path)
+
+
+def _restore_from_backups(backup_files: list[str], data_db_path: Path) -> bool:
+    """
+    _backup_existing_files ile alınan yedekleri orijinal konumlarına geri yükler.
+    Yedek adları '<stem>_<timestamp><suffix>' biçiminde olup backups/ altındadır.
+    """
+    resource_dir = data_db_path.parent
+    # stem -> hedef dosya eşlemesi
+    stem_to_target = {
+        "data": resource_dir / "data.db",
+        "config": resource_dir / "config.json",
+        "secret": resource_dir / "secret.key",
+    }
+    restored_any = False
+    for rel in backup_files:
+        try:
+            # backup_files öğeleri data_db_path.parent'a göreli (örn. "backups/data_<ts>.db")
+            backup_path = data_db_path.parent / rel
+            if not backup_path.exists():
+                continue
+            # '<stem>_<timestamp>' -> stem
+            stem_part = backup_path.stem.rsplit("_", 2)[0]
+            target = stem_to_target.get(stem_part)
+            if target is None:
+                continue
+            shutil.copy2(backup_path, target)
+            restored_any = True
+        except Exception:
+            continue
+    return restored_any
 
 
 def _backup_existing_files(data_db_path: Path, config_path: Path, secret_path: Path) -> list[str]:

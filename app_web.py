@@ -1315,14 +1315,24 @@ def create_app() -> Flask:
 
     @app.delete("/api/users")
     @require_login
+    @require_admin
     def delete_all_users():
-        datastore.delete_all_users()
-        session.clear()
+        # Admin kullanıcısını koru (POST karşılığı ile tutarlı)
+        datastore.delete_all_users(keep_admin=True)
+        users = datastore.list_users()
+        admin_exists = any(u.get("username", "").lower() == "admin" for u in users)
+        if not admin_exists:
+            datastore.create_user("admin", "admin123", "admin")
+        if session.get("user", "").lower() != "admin":
+            session.clear()
         return jsonify({"ok": True})
 
     @app.delete("/api/users/<username>")
     @require_login
+    @require_admin
     def delete_user(username: str):
+        if username.lower() == "admin":
+            return jsonify({"error": "Admin kullanıcısı silinemez"}), 403
         datastore.delete_user(username)
         if session.get("user") == username:
             session.clear()
@@ -1373,7 +1383,7 @@ def create_app() -> Flask:
 
     # Arşiv yönetimi route'larını Blueprint'e kaydet
     archive_bp = Blueprint("archive", __name__, url_prefix="/api")
-    register_archive_routes(archive_bp, datastore, require_login, require_event_manager, limiter)
+    register_archive_routes(archive_bp, datastore, require_login, require_event_manager, limiter, require_admin=require_admin)
     app.register_blueprint(archive_bp)
     
     # Maç Kontrol route'larını Blueprint'e kaydet

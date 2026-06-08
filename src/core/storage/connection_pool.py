@@ -45,6 +45,21 @@ class SQLiteConnectionPool:
         # WAL mode'u etkinleştir (daha iyi concurrent read)
         self._enable_wal_mode()
     
+    def _configure_connection(self, conn):
+        """
+        Yeni açılan bir bağlantıya tüm PRAGMA ayarlarını uygular.
+
+        ÖNEMLI: SQLite'ta foreign key zorlaması bağlantı başına varsayılan
+        KAPALIDIR; şemadaki ON DELETE CASCADE kısıtlarının çalışması için
+        her bağlantıda 'PRAGMA foreign_keys=ON' set edilmelidir.
+        """
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")  # Daha hızlı, güvenli
+        conn.execute("PRAGMA foreign_keys=ON")  # CASCADE kısıtları için zorunlu
+        conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+        conn.execute("PRAGMA temp_store=MEMORY")  # Temp tabloları memory'de tut
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O
+
     def _enable_wal_mode(self):
         """WAL (Write-Ahead Logging) mode'unu etkinleştirir."""
         try:
@@ -54,11 +69,7 @@ class SQLiteConnectionPool:
                 timeout=self.timeout,
                 check_same_thread=False  # Thread-safe için
             )
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")  # Daha hızlı, güvenli
-            conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
-            conn.execute("PRAGMA temp_store=MEMORY")  # Temp tabloları memory'de tut
-            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O
+            self._configure_connection(conn)
             conn.close()
         except Exception as e:
             # WAL mode etkinleştirilemezse normal modda devam et
@@ -76,6 +87,8 @@ class SQLiteConnectionPool:
                 conn.execute("SELECT ...")
         """
         conn = None
+        # Pool dolu iken oluşturulan, sayaca dahil edilmeyen geçici bağlantı mı?
+        is_temporary = False
         try:
             # Pool'dan bağlantı al veya yeni oluştur
             with self._lock:
@@ -83,63 +96,62 @@ class SQLiteConnectionPool:
                     conn = self._pool.pop()
                     self._active_connections += 1
                 elif self._active_connections < self.pool_size:
-                    # Yeni bağlantı oluştur
+                    # Yeni havuz bağlantısı oluştur (sayaca dahil)
                     conn = sqlite3.connect(
                         str(self.db_path),
                         timeout=self.timeout,
                         check_same_thread=False
                     )
-                    # WAL mode ve optimizasyonlar
-                    conn.execute("PRAGMA journal_mode=WAL")
-                    conn.execute("PRAGMA synchronous=NORMAL")
-                    conn.execute("PRAGMA cache_size=-64000")
-                    conn.execute("PRAGMA temp_store=MEMORY")
-                    conn.execute("PRAGMA mmap_size=268435456")
+                    self._configure_connection(conn)
                     self._active_connections += 1
                 else:
-                    # Pool dolu, yeni bağlantı oluştur (geçici)
+                    # Pool dolu, geçici bağlantı oluştur (sayaca dahil DEĞİL)
                     conn = sqlite3.connect(
                         str(self.db_path),
                         timeout=self.timeout,
                         check_same_thread=False
                     )
-                    conn.execute("PRAGMA journal_mode=WAL")
-                    conn.execute("PRAGMA synchronous=NORMAL")
-            
+                    self._configure_connection(conn)
+                    is_temporary = True
+
             yield conn
-            
-        except sqlite3.OperationalError as e:
-            # Bağlantı hatası - pool'a geri ekleme
-            if conn:
+
+        except Exception:
+            # Herhangi bir hata: açık/kirli transaction'ı geri al ve bağlantıyı at.
+            # Aksi halde yarım transaction bir sonraki kullanıcıya pool'dan geçebilir.
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     conn.close()
-                except:
+                except Exception:
                     pass
+                with self._lock:
+                    if not is_temporary and self._active_connections > 0:
+                        self._active_connections -= 1
+                conn = None  # finally'de tekrar işlenmesin
             raise
         finally:
-            # Bağlantıyı pool'a geri ekle
-            if conn:
+            # Sağlıklı bağlantıyı pool'a geri ekle (veya geçici ise kapat)
+            if conn is not None:
                 with self._lock:
-                    if self._active_connections <= self.pool_size and conn not in self._pool:
-                        # Pool'a geri ekle
-                        try:
-                            # Bağlantının hala geçerli olduğunu kontrol et
-                            # SQLite connection'ları thread-safe değil, bu yüzden sadece basit bir kontrol yap
-                            # Detaylı kontrol connection kullanımı sırasında yapılacak
-                            self._pool.append(conn)
-                            self._active_connections -= 1
-                        except:
-                            # Bağlantı geçersiz, kapat
-                            try:
-                                conn.close()
-                            except:
-                                pass
-                            self._active_connections -= 1
-                    else:
-                        # Pool dolu veya geçici bağlantı, kapat
+                    if is_temporary:
+                        # Geçici bağlantı sayaca dahil değildi; yalnızca kapat
                         try:
                             conn.close()
-                        except:
+                        except Exception:
+                            pass
+                    elif len(self._pool) < self.pool_size and conn not in self._pool:
+                        # Pool'a geri ekle
+                        self._pool.append(conn)
+                        self._active_connections -= 1
+                    else:
+                        # Pool dolu, kapat
+                        try:
+                            conn.close()
+                        except Exception:
                             pass
                         if self._active_connections > 0:
                             self._active_connections -= 1

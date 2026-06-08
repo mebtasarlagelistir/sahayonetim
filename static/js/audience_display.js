@@ -265,7 +265,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       // View değişikliği: Önce hangi panelin görüneceğini ayarla (puan/timer doğru panelde güncellensin)
       // ÖNCELİKLE: Tüm view elementlerini gizle
-      const views = ["match", "inspection", "rankings", "awards", "ceremony"];
+      // NOT: "playoff" ve "alliances" de listede olmalı; aksi halde bu panellere
+      // geçtikten sonra başka görünüme dönülünce panel ekranda asılı kalır ve
+      // arka plandaki yenileme timer'ı (display==="none" kontrolü) hiç durmaz.
+      const views = ["match", "inspection", "rankings", "awards", "ceremony", "playoff", "alliances"];
       views.forEach((view) => {
         const el = qs(`audience_${view}_view`);
         if (el) {

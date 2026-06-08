@@ -175,11 +175,15 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             return False, "invalid_target"
         existing = match_obj.get("red_alliance") if slot == "red" else match_obj.get("blue_alliance")
         if existing:
-            # Dolu ise aynıysa geç, farklıysa dokunma
+            # Aynıysa hiçbir şey yapma
             if existing == teams:
                 return False, "already_filled"
-            logger.warning("Playoff auto-advance: slot already filled, skipping (match_id=%s)", match_obj.get("id"))
-            return False, "slot_full"
+            # Farklıysa DÜZELTME yap: bir üst maç yeniden oynanmış/düzeltilmiş olabilir.
+            # Eski (yanlış) ittifakın üzerine yaz; aksi halde bracket eski galiple asılı kalır.
+            logger.warning(
+                "Playoff slot düzeltiliyor (match_id=%s, slot=%s): %s -> %s",
+                match_obj.get("id"), slot, existing, teams,
+            )
         update_data = {"red_alliance": teams} if slot == "red" else {"blue_alliance": teams}
         datastore.update_match(match_id=match_obj.get("id"), **update_data)
         return True, "updated"
@@ -1000,7 +1004,10 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 all_practice = datastore.get_practice_matches(event_id=event_id)
                 match = next((m for m in all_practice if m.get("id") == match_id), None)
             else:
-                match = datastore.get_match(match_id)
+                # Resmi (schedule/playoff) maçlar için ID ile arama.
+                # NOT: datastore.get_match diye bir metot yok; get_match_schedule kullanılır.
+                all_schedule = datastore.get_match_schedule(event_id=event_id)
+                match = next((m for m in all_schedule if m.get("id") == match_id), None)
             
             if not match:
                 return jsonify({"error": "Maç bulunamadı"}), 404

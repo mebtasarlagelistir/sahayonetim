@@ -165,6 +165,18 @@ class TeamRankingsCalculator:
             red_alliance = match.get("red_alliance", [])
             blue_alliance = match.get("blue_alliance", [])
 
+            # SURROGATE (yedek) takımlar: matches_per_team'i dolduran takımlar ekstra
+            # maça surrogate olarak alınır. FRC standardı gereği bu takımlar bu maçtan
+            # SP/galibiyet/oynanan-maç/ortalama-skor KAZANMAZ. Sıralama dışında tutulur.
+            surrogate_raw = match.get("surrogate_teams") or []
+            if isinstance(surrogate_raw, str):
+                try:
+                    import json as _json
+                    surrogate_raw = _json.loads(surrogate_raw)
+                except Exception:
+                    surrogate_raw = [s for s in surrogate_raw.split(",") if s]
+            surrogate_set = {str(t) for t in (surrogate_raw or [])}
+
             def _get_match_score(alliance: str) -> int:
                 """
                 Maç skorunu öncelikle kayıtlı skor alanından alır.
@@ -204,6 +216,8 @@ class TeamRankingsCalculator:
             red_total_sp = red_rp.get("total", 0)
             
             for team in red_alliance:
+                if str(team) in surrogate_set:
+                    continue  # surrogate takım: bu maç sıralamaya sayılmaz
                 team_stats[team]["total_sp"] += red_total_sp
                 team_stats[team]["matches_played"] += 1
                 team_stats[team]["total_score"] += int(red_score or 0)
@@ -214,11 +228,14 @@ class TeamRankingsCalculator:
                 team_stats[team]["ranking_points_detail"]["auto"] += red_rp.get("auto", 0)
                 
                 # Maç sonucu istatistikleri
+                # NOT: Beraberlik (eşit skor) kuralı ranking_points.py ile aynı olmalı:
+                # eşit skor 0-0 dahil beraberliktir ve +1 SP verir. 'red_score > 0'
+                # koşulu YOK; aksi halde total_sp ile W/T/L tutarsız kalırdı.
                 if red_score > blue_score:
                     team_stats[team]["wins"] += 1
-                elif red_score == blue_score and red_score > 0:
+                elif red_score == blue_score:
                     team_stats[team]["ties"] += 1
-                elif blue_score > red_score:
+                else:
                     team_stats[team]["losses"] += 1
             
             # Mavi ittifak takımları için
@@ -226,6 +243,8 @@ class TeamRankingsCalculator:
             blue_total_sp = blue_rp.get("total", 0)
             
             for team in blue_alliance:
+                if str(team) in surrogate_set:
+                    continue  # surrogate takım: bu maç sıralamaya sayılmaz
                 team_stats[team]["total_sp"] += blue_total_sp
                 team_stats[team]["matches_played"] += 1
                 team_stats[team]["total_score"] += int(blue_score or 0)
@@ -235,12 +254,12 @@ class TeamRankingsCalculator:
                 team_stats[team]["ranking_points_detail"]["climb"] += blue_rp.get("climb", 0)
                 team_stats[team]["ranking_points_detail"]["auto"] += blue_rp.get("auto", 0)
                 
-                # Maç sonucu istatistikleri
+                # Maç sonucu istatistikleri (eşit skor = beraberlik, 0-0 dahil)
                 if blue_score > red_score:
                     team_stats[team]["wins"] += 1
-                elif red_score == blue_score and red_score > 0:
+                elif red_score == blue_score:
                     team_stats[team]["ties"] += 1
-                elif red_score > blue_score:
+                else:
                     team_stats[team]["losses"] += 1
 
             # Kart istatistikleri (sarı/kırmızı)
@@ -251,10 +270,14 @@ class TeamRankingsCalculator:
             blue_red_cards = [bool(blue_data.get("red_card_r1")), bool(blue_data.get("red_card_r2"))]
 
             for idx, team in enumerate(red_alliance):
+                if str(team) in surrogate_set:
+                    continue
                 team_stats[team]["yellow_cards"] += red_yellow
                 if idx < len(red_red_cards) and red_red_cards[idx]:
                     team_stats[team]["red_cards"] += 1
             for idx, team in enumerate(blue_alliance):
+                if str(team) in surrogate_set:
+                    continue
                 team_stats[team]["yellow_cards"] += blue_yellow
                 if idx < len(blue_red_cards) and blue_red_cards[idx]:
                     team_stats[team]["red_cards"] += 1
