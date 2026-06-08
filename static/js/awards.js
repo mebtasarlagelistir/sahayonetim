@@ -6,18 +6,22 @@
  */
 
 /**
- * TG (Tasarla Geliştir) Ödül Şablonları
- * 
- * Bu liste, TG yarışmalarında verilen 11 ödülü içerir.
- * "TG Şablonları Yükle" butonu ile bu ödüller otomatik olarak yüklenir.
+ * 2. Tasarla Geliştir Ödül Şablonları
+ *
+ * Bu liste 2. TG için planlanan ödülleri içerir (8 jüri + 1 otonom + 4 ittifak).
+ * "TG Şablonları Yükle" butonu ile otomatik yüklenir.
+ *
+ * NOT: "Robot Performansı Kazanan/Finalist İttifak" ödüllerinin adları backend ile
+ * (routes/match_control.py PLAYOFF_AWARD_LABELS) birebir aynı olmalıdır; playoff
+ * bitince bu ödüller otomatik doldurulur (sonradan Ödül Atama'dan düzenlenebilir).
  */
 const awardPresets = [
   // ============================================
   // JÜRİ DEĞERLENDİRMELİ ÖDÜLLER (8 Adet)
-  // Bu ödüller, jürilerin takımlarla yaptığı mülakatlar ve inceledikleri portfolyolar sonucunda belirlenir.
+  // Jürilerin mülakat ve portfolyo incelemeleri sonucunda belirlenir.
   // ============================================
   {
-    name: "İlham Verici Takım Ödülü",
+    name: "İlham Verici Takım Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
@@ -25,15 +29,15 @@ const awardPresets = [
     description: "Robot performansı, mühendislik süreci, işbirliği çalışmaları ve Tasarla Geliştir değerlerinde dengeli ve üstün başarı gösteren takıma verilir.",
   },
   {
-    name: "İletişim Ödülü",
+    name: "İletişim Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
     icon: "📣",
-    description: "STEM topluluğu, kurumlar ve diğer takımlarla kurduğu etkili ve sürdürülebilir iletişim ile takım katkısını öne çıkan takıma verilir.",
+    description: "STEM topluluğu, kurumlar ve diğer takımlarla kurduğu etkili ve sürdürülebilir iletişim ile takım katkısıyla öne çıkan takıma verilir.",
   },
   {
-    name: "Kalite Ödülü",
+    name: "Kalite Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
@@ -41,7 +45,7 @@ const awardPresets = [
     description: "Yüksek mühendislik standartlarıyla tasarlanmış, güvenilir, düzenli ve istikrarlı çalışan bir robot geliştiren takıma verilir.",
   },
   {
-    name: "Kontrol Ödülü",
+    name: "Kontrol Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
@@ -49,15 +53,15 @@ const awardPresets = [
     description: "Yazılım mimarisi, sensör kullanımı ve otonom/sürüş kontrolünde teknik üstünlük gösteren takıma verilir.",
   },
   {
-    name: "Tasarım Ödülü",
+    name: "Tasarım Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
     icon: "✏️",
-    description: "Özgün mekanik tasarım, yenilikçi, iyi gerekçelendirilmiş mühendislik temelli bir robot veya robot alt montajı tasarımı ve güçlü dokümantasyon sergileyen takıma verilir.",
+    description: "Özgün mekanik tasarım, yenilikçi ve iyi gerekçelendirilmiş mühendislik temelli tasarım ve güçlü dokümantasyon sergileyen takıma verilir.",
   },
   {
-    name: "Takım Ruhu Ödülü",
+    name: "Takım Ruhu Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
@@ -65,28 +69,28 @@ const awardPresets = [
     description: "Ekip çalışması, takım içi motivasyon, sahadaki pozitif tutum ve Tasarla Geliştir değerlerini en iyi yansıtan, çevresine ilham veren takıma verilir.",
   },
   {
-    name: "Usta–Çırak Ödülü",
+    name: "Usta–Çırak Ödülü Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
     icon: "🤝",
-    description: "Takım içi bilgi aktarımını, mentorluk yaklaşımı ve birlikte öğrenme kültürünü en etkili şekilde hayata geçiren takıma verilir.",
+    description: "Takım içi bilgi aktarımını, mentorluk yaklaşımını ve birlikte öğrenme kültürünü en etkili şekilde hayata geçiren takıma verilir.",
   },
   {
-    name: "Jüri Özel Ödülü (Parlak Takım Ödülü)",
+    name: "Jüri Özel Ödülü (Parlayan Takım Ödülü) Şampiyonu",
     category: "Jüri Değerlendirmeli",
     type: "Jüri",
     sponsor: "",
     icon: "💎",
     description: "Standart ödül kategorilerinin dışında olağanüstü çaba, dikkat çekici gelişim, özgün ve ilham verici yönüyle fark yaratan takıma verilir.",
   },
-  
+
   // ============================================
-  // ROBOT PERFORMANSINA DAYALI ÖDÜLLER (3 Adet)
-  // Bu ödüller, saha içindeki maç sonuçlarına ve robotun oyun sırasındaki yeteneklerine göre belirlenir.
+  // ROBOT PERFORMANSI ÖDÜLLERİ (1 otonom + 4 ittifak)
+  // İttifak ödülleri playoff (çift eleme) sonucuna göre otomatik atanır.
   // ============================================
   {
-    name: "Otonom Mod Ödülü",
+    name: "Otonom Mod Ödülü Şampiyonu",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
@@ -94,20 +98,36 @@ const awardPresets = [
     description: "Otonom (otomatik) kontrol sürecinde doğru, tutarlı ve stratejik performans sergileyen takıma verilir.",
   },
   {
-    name: "Hızlı Başlangıç Ödülü",
+    name: "Robot Performansı Kazanan İttifak (1)",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
-    icon: "⚡",
-    description: "Maçın başlangıcında—özellikle otonom süreçte—hızlı, etkili ve stratejik bir performans sergileyerek erken avantaj sağlayan takıma verilir.",
+    icon: "🥇",
+    description: "Playoff (çift eleme) büyük finalini kazanan ittifağın 1. takımına verilir. Playoff bitince otomatik atanır; Ödül Atama'dan düzenlenebilir.",
   },
   {
-    name: "Savunma Ödülü",
+    name: "Robot Performansı Kazanan İttifak (2)",
     category: "Robot Performansı",
     type: "Performans",
     sponsor: "",
-    icon: "🛡️",
-    description: "Oyun sırasında rakiplerinin puan kazanmasını kurallara uygun şekilde etkili savunma stratejisi uygulayan ve oyun dengesini değiştiren takıma verilir.",
+    icon: "🥇",
+    description: "Playoff (çift eleme) büyük finalini kazanan ittifağın 2. takımına verilir. Playoff bitince otomatik atanır; Ödül Atama'dan düzenlenebilir.",
+  },
+  {
+    name: "Robot Performansı Finalist İttifak (1)",
+    category: "Robot Performansı",
+    type: "Performans",
+    sponsor: "",
+    icon: "🥈",
+    description: "Playoff büyük finalinde finalist (ikinci) olan ittifağın 1. takımına verilir. Playoff bitince otomatik atanır; Ödül Atama'dan düzenlenebilir.",
+  },
+  {
+    name: "Robot Performansı Finalist İttifak (2)",
+    category: "Robot Performansı",
+    type: "Performans",
+    sponsor: "",
+    icon: "🥈",
+    description: "Playoff büyük finalinde finalist (ikinci) olan ittifağın 2. takımına verilir. Playoff bitince otomatik atanır; Ödül Atama'dan düzenlenebilir.",
   },
 ];
 
@@ -259,7 +279,7 @@ function setupAwardsListeners() {
   if (qs("load_award_presets")) {
     qs("load_award_presets").addEventListener("click", () => {
       const confirmed = window.confirm(
-        "Mevcut liste silinip FTC örnek ödülleri yüklenecek. Devam edilsin mi?"
+        "Mevcut liste silinip 2. Tasarla Geliştir ödül şablonu (13 ödül) yüklenecek. Devam edilsin mi?"
       );
       if (confirmed) {
         loadAwardPresets();

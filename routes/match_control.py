@@ -188,6 +188,61 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         datastore.update_match(match_id=match_obj.get("id"), **update_data)
         return True, "updated"
 
+    # Otomatik doldurulan ittifak ödüllerinin adları (şablon ile birebir aynı olmalı —
+    # static/js/awards.js awardPresets içindeki adlarla eşleşir).
+    PLAYOFF_AWARD_LABELS = {
+        "champion": [
+            "Robot Performansı Kazanan İttifak (1)",
+            "Robot Performansı Kazanan İttifak (2)",
+        ],
+        "finalist": [
+            "Robot Performansı Finalist İttifak (1)",
+            "Robot Performansı Finalist İttifak (2)",
+        ],
+    }
+
+    def _populate_alliance_awards(event_id: int, champion_teams: list, finalist_teams: list) -> None:
+        """
+        Playoff şampiyon ve finalist ittifaklarını ilgili 'Robot Performansı' ödüllerine
+        otomatik yazar. Ödül adına göre upsert eder (jüri ödüllerini etkilemez).
+        Operatör daha sonra Ödül Atama sayfasından elle düzeltebilir.
+        """
+        try:
+            team_names = {
+                str(t.get("number")): (t.get("name") or "")
+                for t in (datastore.get_teams() or [])
+            }
+            pairs = []
+            for i, label in enumerate(PLAYOFF_AWARD_LABELS["champion"]):
+                num = champion_teams[i] if i < len(champion_teams or []) else None
+                pairs.append((label, num))
+            for i, label in enumerate(PLAYOFF_AWARD_LABELS["finalist"]):
+                num = finalist_teams[i] if i < len(finalist_teams or []) else None
+                pairs.append((label, num))
+
+            for award_name, team_num in pairs:
+                if not team_num:
+                    continue
+                datastore.save_award_winner(
+                    award_name=award_name,
+                    winner_team_number=str(team_num),
+                    winner_team_name=team_names.get(str(team_num), ""),
+                    award_category="Robot Performansı",
+                    award_description="Playoff sonucuna göre otomatik atandı (Ödül Atama'dan düzenlenebilir).",
+                    event_id=event_id,
+                )
+            logger.info(
+                "Playoff ittifak ödülleri otomatik dolduruldu: şampiyon=%s, finalist=%s",
+                champion_teams, finalist_teams,
+            )
+            # Seyirci ekranlarına ödül güncellemesi bildir
+            try:
+                socketio.emit("awards_update", {"type": "awards_update"}, namespace="/audience")
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("Playoff ittifak ödülü otomatik atama hatası: %s", e)
+
     def _advance_playoff_match(event_id: int, match_id: int) -> dict | None:
         """
         Playoff maçları tamamlandıkça kazananları bir sonraki maça taşır.
@@ -248,6 +303,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
 
                 # Büyük Final rövanşı (M11): yalnızca tamamlanır, ilerletme yok
                 if gf == "reset":
+                    # Şampiyon = M11 galibi, finalist = M11 mağlubu
+                    _populate_alliance_awards(event_id, winner, loser)
                     return {"status": "advanced", "message": "Büyük Final (rövanş) tamamlandı: şampiyon belirlendi."}
 
                 # Büyük Final (M10)
@@ -255,6 +312,8 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     red_alliance = match.get("red_alliance") or []
                     # Kırmızı = üst kademe şampiyonu. Kırmızı kazanırsa turnuva biter.
                     if winner == red_alliance:
+                        # Şampiyon = üst kademe (kırmızı), finalist = alt kademe (mavi)
+                        _populate_alliance_awards(event_id, winner, match.get("blue_alliance") or [])
                         return {"status": "advanced", "message": "Büyük Final tamamlandı: Üst kademe şampiyonu kazandı."}
                     # Mavi (alt kademe şampiyonu) kazandı -> bracket reset (rövanş)
                     reset_label = round_meta.get("reset_to")
