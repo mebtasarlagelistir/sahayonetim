@@ -6,6 +6,8 @@ from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
 import random
 
+from src.core.scheduling import generate_partner_balanced_fixture
+
 
 def register_practice_matches_routes(bp, datastore, require_login, require_event_manager):
     def _parse_time_windows(raw_windows: list[dict]) -> list[tuple[datetime, datetime]]:
@@ -611,226 +613,43 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
         
         created_count = 0
         match_counter = 1
-        
-        # Tek bir sahada maç oynanır; diğer sahalar hazırlık içindir
         current_time = initial_datetime
-        
-        # Matchmaker algoritması için takım istatistikleri
-        # Her takım için: {match_count, red_count, blue_count, opponents: set}
-        team_stats = {
-            team: {
-                "match_count": 0,
-                "red_count": 0,
-                "blue_count": 0,
-                "opponents": set(),  # Bu takımla daha önce eşleşen takımlar
-                "last_color": None,  # 'red' veya 'blue'
-                "last_match_time": None,  # datetime
-            }
-            for team in team_numbers
-        }
-        
-        def calculate_team_score(team, current_time):
-            """
-            Takım seçim skorunu hesaplar.
-            Daha az oynayan, daha dengeli ittifak dağılımına sahip takımlar önceliklendirilir.
-            """
-            stats = team_stats[team]
-            # Temel skor: ne kadar az oynadıysa o kadar yüksek
-            base_score = 1000 - stats["match_count"] * 10
-            
-            # İttifak dengesi: kırmızı ve mavi sayıları arasındaki fark ne kadar azsa o kadar iyi
-            alliance_balance = abs(stats["red_count"] - stats["blue_count"])
-            balance_score = 50 - alliance_balance * 5
-            
-            # Hedef maç sayısı varsa, bu hedefin üstüne çıkanları cezalandır
-            if target_matches_per_team and stats["match_count"] >= target_matches_per_team:
-                base_score -= 200
-    
-            # Dinlenme süresi: kısa aralıkları cezalandır, uzun aralıkları ödüllendir
-            rest_score = 0
-            last_time = stats["last_match_time"]
-            if last_time is None:
-                rest_score += 80
-            else:
-                gap_minutes = (current_time - last_time).total_seconds() / 60
-                if gap_minutes < match_duration:
-                    rest_score -= 200
-                elif gap_minutes < match_duration * 2:
-                    rest_score -= 80
-                else:
-                    rest_score += min(120, gap_minutes)
-            
-            return base_score + balance_score + rest_score
-        
-        def find_best_match_combination(available_teams, required_count, current_time):
-            """
-            En dengeli takım kombinasyonunu bulur.
-            Matchmaker algoritması: 
-            - En az oynayan takımları önceliklendirir
-            - İttifak dengesini korur
-            - Mümkün olduğunca farklı takımlarla eşleşmeyi sağlar
-            """
-            if len(available_teams) < required_count:
-                return None
-            
-            # Rastgelelik için önce karıştır, sonra skorlarına göre sırala
-            shuffled = list(available_teams)
-            random.shuffle(shuffled)
-            sorted_teams = sorted(
-                shuffled,
-                key=lambda t: calculate_team_score(t, current_time) + random.random(),
-                reverse=True,
-            )
-            
-            selected = []
-            selected_set = set()
-            
-            # İlk takımı seç (en yüksek skorlu) - eşitlikte rastgele
-            if sorted_teams:
-                top_score = calculate_team_score(sorted_teams[0], current_time)
-                top_candidates = [
-                    t for t in sorted_teams if calculate_team_score(t, current_time) >= top_score - 0.01
-                ]
-                first_team = random.choice(top_candidates) if top_candidates else sorted_teams[0]
-                selected.append(first_team)
-                selected_set.add(first_team)
-            
-            # Kalan takımları seç
-            # Her takım için: skor + daha önce seçilen takımlarla eşleşme durumu
-            remaining_teams = [t for t in sorted_teams[1:] if t not in selected_set]
-            
-            while len(selected) < required_count and remaining_teams:
-                best_team = None
-                best_score = float("-inf")
-                best_candidates = []
-                
-                for team in remaining_teams:
-                    if team in selected_set:
-                        continue
-                    
-                    # Takım skorunu hesapla
-                    team_score = calculate_team_score(team, current_time)
-                    
-                    # Daha önce seçilen takımlarla eşleşme durumunu kontrol et
-                    # Daha az eşleşme = daha iyi (çeşitlilik)
-                    overlap_count = sum(
-                        1
-                        for sel_team in selected
-                        if team in team_stats[sel_team]["opponents"] or sel_team in team_stats[team]["opponents"]
-                    )
-                    # Aynı rakiple tekrar eşleşmeyi daha güçlü cezalandır
-                    diversity_bonus = (len(selected) - overlap_count) * 5
-                    repeat_penalty = overlap_count * 25
-                    
-                    total_score = team_score + diversity_bonus - repeat_penalty
-                    
-                    if total_score > best_score + 0.0001:
-                        best_score = total_score
-                        best_candidates = [team]
-                    elif abs(total_score - best_score) <= 0.0001:
-                        best_candidates.append(team)
-                
-                if best_candidates:
-                    best_team = random.choice(best_candidates)
-                    selected.append(best_team)
-                    selected_set.add(best_team)
-                    if best_team in remaining_teams:
-                        remaining_teams.remove(best_team)
-                else:
-                    # Eğer hiç takım bulunamadıysa, kalanları rastgele ekle
-                    needed = required_count - len(selected)
-                    if remaining_teams:
-                        additional = random.sample(remaining_teams, min(needed, len(remaining_teams)))
-                        selected.extend(additional)
-                        selected_set.update(additional)
-                        for team in additional:
-                            if team in remaining_teams:
-                                remaining_teams.remove(team)
-                    break
-            
-            if len(selected) < required_count:
-                # Yeterli takım bulunamadı, kalanları rastgele ekle
-                remaining = [t for t in available_teams if t not in selected_set]
-                needed = required_count - len(selected)
-                if remaining:
-                    selected.extend(random.sample(remaining, min(needed, len(remaining))))
-            
-            return selected[:required_count] if len(selected) >= required_count else None
-        
-        # Maçları oluştur
-        max_attempts = num_matches * 10  # Sonsuz döngüyü önlemek için
-        attempt = 0
-        
-        while created_count < num_matches and attempt < max_attempts:
-            attempt += 1
-            
-            # Tek saha akışı
+
+        # Adil fikstür: takımlar eşit maç yapsın, partner tekrarı (mümkünse) olmasın,
+        # rakip çeşitliliği ve kırmızı/mavi denge gözetilsin. Sıralama maçlarıyla
+        # AYNI paylaşılan algoritma kullanılır (src/core/scheduling/fixture.py).
+        required_count = teams_per_alliance * 2
+
+        # Hedef maç/takım: kullanıcı vermediyse toplam maç sayısından türet.
+        fixture_matches_per_team = target_matches_per_team
+        if not fixture_matches_per_team:
+            fixture_matches_per_team = max(1, round((num_matches * required_count) / len(team_numbers)))
+
+        # Dinlenme aralığı (deadlock önleme): yeterli takım varsa 2, azsa 1.
+        min_gap_matches = 2 if len(team_numbers) >= required_count * 3 else 1
+
+        schedule_pairs = generate_partner_balanced_fixture(
+            team_numbers,
+            teams_per_alliance,
+            fixture_matches_per_team,
+            num_matches,
+            min_gap_matches=min_gap_matches,
+            hard_unique_partners=False,
+        )
+        if not schedule_pairs:
+            return jsonify({"error": "Deneme maçı takvimi oluşturulamadı, parametreleri gözden geçirin"}), 400
+
+        # Üretilen ittifak çiftlerini zaman/saha ile veritabanına yaz.
+        match_count_tracker = {team: 0 for team in team_numbers}
+        for pair in schedule_pairs:
+            red_alliance = pair["red_alliance"]
+            blue_alliance = pair["blue_alliance"]
+
             current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
-            
-            # Mevcut zamanda çakışması olmayan takımları bul
-            available_teams = []
-            for team in team_numbers:
-                if not datastore.check_practice_match_conflict(
-                    team_number=team,
-                    match_date=current_time.strftime("%Y-%m-%d"),
-                    match_time=current_time.strftime("%H:%M"),
-                    duration_minutes=match_duration,
-                        event_id=event_id,
-                ):
-                    available_teams.append(team)
-            
-            if len(available_teams) < teams_per_alliance * 2:
-                # Yeterli takım yok, zamanı ilerlet
-                current_time += timedelta(minutes=match_duration)
-                continue
-            
-            # En dengeli takım kombinasyonunu bul
-            selected_teams = find_best_match_combination(
-                available_teams,
-                teams_per_alliance * 2,
-                current_time,
-            )
-            
-            if not selected_teams or len(selected_teams) < teams_per_alliance * 2:
-                # Yeterli takım bulunamadı, zamanı ilerlet
-                current_time += timedelta(minutes=match_duration)
-                continue
-            
-            # İttifak dengesini koru: kırmızı/mavi dağılımını mümkün olduğunca eşitle
-            # Daha az kırmızı oynayanları kırmızıya, daha az mavi oynayanları maviye ata
-            def red_need_score(team):
-                stats = team_stats[team]
-                # Pozitif değer: kırmızıya daha çok ihtiyaç var
-                balance = stats["blue_count"] - stats["red_count"]
-                streak_adjust = 0
-                if stats["last_color"] == "red":
-                    streak_adjust -= 2
-                elif stats["last_color"] == "blue":
-                    streak_adjust += 2
-                return balance + streak_adjust
-            
-            shuffled_selected = list(selected_teams)
-            random.shuffle(shuffled_selected)
-            sorted_for_red = sorted(
-                shuffled_selected,
-                key=lambda t: red_need_score(t) + random.random() * 0.01,
-                reverse=True,
-            )
-            
-            red_alliance = sorted_for_red[:teams_per_alliance]
-            blue_alliance = [t for t in shuffled_selected if t not in red_alliance]
-            
-            # Surrogate takımlar: hedef maç sayısını doldurmak için ekstra oynayanlar
-            surrogate_teams = []
-            if target_matches_per_team:
-                for team in red_alliance + blue_alliance:
-                    if team_stats[team]["match_count"] >= target_matches_per_team:
-                        surrogate_teams.append(team)
-            
-            # Çakışma kontrolü
-            all_teams = red_alliance + blue_alliance
+
+            # Çakışma kontrolü (var olan maçlarla)
             conflict = False
-            for team in all_teams:
+            for team in red_alliance + blue_alliance:
                 if datastore.check_practice_match_conflict(
                     team_number=team,
                     match_date=current_time.strftime("%Y-%m-%d"),
@@ -840,12 +659,17 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
                 ):
                     conflict = True
                     break
-            
             if conflict:
-                # Çakışma varsa zamanı ilerlet
                 current_time += timedelta(minutes=match_duration)
                 continue
-            
+
+            # Surrogate: hedef maç sayısını aşan (doldurma amaçlı) takımlar
+            surrogate_teams = []
+            if target_matches_per_team:
+                for team in red_alliance + blue_alliance:
+                    if match_count_tracker[team] >= target_matches_per_team:
+                        surrogate_teams.append(team)
+
             try:
                 match_number = f"P{match_counter}"
                 field_number = (created_count % max(1, field_count)) + 1
@@ -863,26 +687,9 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
                 )
                 created_count += 1
                 match_counter += 1
-                
-                # Takım istatistiklerini güncelle
-                for team in red_alliance:
-                    team_stats[team]["match_count"] += 1
-                    team_stats[team]["red_count"] += 1
-                    team_stats[team]["last_color"] = "red"
-                    team_stats[team]["last_match_time"] = current_time
-                    # Mavi ittifak takımlarıyla eşleşme kaydı
-                    team_stats[team]["opponents"].update(blue_alliance)
-                
-                for team in blue_alliance:
-                    team_stats[team]["match_count"] += 1
-                    team_stats[team]["blue_count"] += 1
-                    team_stats[team]["last_color"] = "blue"
-                    team_stats[team]["last_match_time"] = current_time
-                    # Kırmızı ittifak takımlarıyla eşleşme kaydı
-                    team_stats[team]["opponents"].update(red_alliance)
-                
-                # Bir sonraki maça geç
-                current_time = current_time + timedelta(minutes=match_duration)
+                for team in red_alliance + blue_alliance:
+                    match_count_tracker[team] += 1
+                current_time += timedelta(minutes=match_duration)
             except Exception as e:
                 print(f"Error creating practice match: {e}")
                 continue
