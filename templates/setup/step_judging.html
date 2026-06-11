@@ -1,4 +1,78 @@
 <section class="card" id="step-judging">
-  <h2>Jüri / İnceleme Takibi (Opsiyonel)</h2>
-  <p class="placeholder">Jüri, teknik inceleme ve değerlendirme ayarları.</p>
+  <h2>Jüri Görüşme Takvimi</h2>
+  <p style="color:#666;margin-top:0;">Her takıma bir jüri görüşmesi (mülakat) planlanır. Odalara (panel) sırayla dağıtılır; her oda kendi zaman çizgisini takip eder. Atamaları sonra <strong>Jüri Danışmanı Paneli</strong>'nden değiştirebilirsiniz.</p>
+
+  <div class="card-section">
+    <h3>Otomatik Takvim Oluştur</h3>
+    <div class="grid">
+      <label>Başlangıç Tarihi
+        <input type="date" id="judging_start_date" />
+      </label>
+      <label>Başlangıç Saati
+        <input type="time" id="judging_start_time" value="09:00" />
+      </label>
+      <label>Görüşme Süresi (dakika)
+        <input type="number" id="judging_duration" value="10" min="1" max="120" />
+      </label>
+      <label>Mola Süresi (dakika)
+        <input type="number" id="judging_break" value="0" min="0" max="60" />
+      </label>
+      <label>Takım Sıralama
+        <select id="judging_sort_order">
+          <option value="ascending">Artan (takım no)</option>
+          <option value="descending">Azalan (takım no)</option>
+          <option value="random">Rastgele</option>
+        </select>
+      </label>
+    </div>
+
+    <label style="display:block;margin-top:10px;">Görüşme Odaları / Paneller
+      <div id="judging_rooms_container" style="margin-top:8px;">
+        <div class="room-input-group" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+          <input type="text" class="room-name-input" placeholder="Oda 1" value="Oda 1" style="flex:1;" />
+          <button type="button" class="btn-danger remove-room-btn" style="padding:6px 10px;">Sil</button>
+        </div>
+      </div>
+      <button type="button" id="add_judging_room" class="btn-secondary" style="margin-top:6px;padding:6px 12px;">+ Oda Ekle</button>
+      <small style="display:block;color:#666;margin-top:4px;">Birden fazla oda, aynı anda paralel görüşme demektir.</small>
+    </label>
+
+    <label class="checkbox" style="display:block;margin-top:10px;">
+      <input type="checkbox" id="judging_clear_existing" /> Mevcut görüşme takvimini temizle
+    </label>
+
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button type="button" id="generate_judging_slots" class="btn-primary">Otomatik Takvim Oluştur</button>
+      <button type="button" id="delete_all_judging_slots" class="btn-danger">Tüm Takvimi Sil</button>
+    </div>
+  </div>
+
+  <div class="card-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3 style="margin:0;">Görüşme Slotları</h3>
+      <span id="judging_slot_count" style="color:#666;font-size:0.9rem;"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="judging_slots_table">
+        <thead>
+          <tr><th>Takım</th><th>Tarih</th><th>Saat</th><th>Süre</th><th>Oda</th><th>Jüri</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <style>
+    #step-judging table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    #step-judging th, #step-judging td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+    #step-judging th { background: #f4f5fa; }
+    @media (max-width: 700px) {
+      #step-judging .room-input-group input { font-size: 1rem; min-height: 44px; }
+      #step-judging table thead { display: none; }
+      #step-judging table, #step-judging tbody, #step-judging tr, #step-judging td { display: block; width: 100%; }
+      #step-judging tr { border: 1px solid #e1e4ee; border-radius: 8px; margin-bottom: 10px; padding: 4px 2px; }
+      #step-judging td { border: none; display: flex; justify-content: space-between; gap: 10px; }
+      #step-judging td::before { content: attr(data-label); font-weight: 600; color: #666; font-size: 0.8rem; }
+    }
+  </style>
 </section>

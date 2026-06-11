@@ -1,4 +1,54 @@
 <section class="card" id="step-sponsors">
   <h2>Sponsorlar</h2>
-  <p class="placeholder">Sponsor listesini eklemek için alanlar burada olacak.</p>
+  <p style="color:#666;margin-top:0;">Etkinlik sponsorlarını ekleyin. Ad zorunlu; seviye (ör. Ana Sponsor, Destekçi) ve web sitesi opsiyoneldir.</p>
+
+  <div class="sponsor-form">
+    <label>Sponsor Adı
+      <input type="text" id="sponsor_name" placeholder="Örn: ABC Teknoloji" />
+    </label>
+    <label>Seviye / Kategori
+      <input type="text" id="sponsor_level" placeholder="Örn: Ana Sponsor" />
+    </label>
+    <label>Web Sitesi
+      <input type="text" id="sponsor_website" placeholder="https://..." />
+    </label>
+    <button type="button" id="add_sponsor" class="btn-primary">+ Sponsor Ekle</button>
+  </div>
+
+  <div id="sponsors_list" class="sponsor-list"></div>
+
+  <div class="actions-row" style="margin-top:14px;">
+    <button type="button" id="save_sponsors" class="btn-primary">Kaydet</button>
+    <span id="sponsors_status" style="margin-left:8px;color:#4caf50;font-size:0.9rem;"></span>
+  </div>
+
+  <style>
+    #step-sponsors .sponsor-form {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 2fr auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+    #step-sponsors .sponsor-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #555; }
+    #step-sponsors .sponsor-form input { padding: 9px 10px; min-height: 42px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; }
+    #step-sponsors .sponsor-form button { min-height: 42px; }
+    #step-sponsors .sponsor-list { display: flex; flex-direction: column; gap: 8px; }
+    #step-sponsors .sponsor-item {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 10px 12px; background: #f8f9fc; border: 1px solid #e1e4ee; border-radius: 8px;
+    }
+    #step-sponsors .sponsor-item .s-name { font-weight: 600; color: #333; }
+    #step-sponsors .sponsor-item .s-level { background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 10px; font-size: 0.78rem; }
+    #step-sponsors .sponsor-item .s-web { color: #2563eb; font-size: 0.82rem; word-break: break-all; }
+    #step-sponsors .sponsor-item .s-remove { margin-left: auto; }
+    #step-sponsors .sponsor-empty { color: #999; padding: 8px 0; }
+
+    @media (max-width: 700px) {
+      #step-sponsors .sponsor-form { grid-template-columns: 1fr; }
+      #step-sponsors .sponsor-form button { width: 100%; min-height: 46px; }
+      #step-sponsors .sponsor-item { gap: 6px; }
+      #step-sponsors .sponsor-item .s-remove { margin-left: 0; width: 100%; min-height: 40px; }
+    }
+  </style>
 </section>

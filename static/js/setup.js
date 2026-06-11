@@ -113,6 +113,14 @@ async function initializeStep(step) {
     case "archive":
       if (typeof setupArchiveListeners === "function") setupArchiveListeners();
       break;
+    case "sponsors":
+      if (typeof loadSponsors === "function") await loadSponsors();
+      if (typeof setupSponsorsListeners === "function") setupSponsorsListeners();
+      break;
+    case "judging":
+      if (typeof loadJudgingSetup === "function") await loadJudgingSetup();
+      if (typeof setupJudgingSetupListeners === "function") setupJudgingSetupListeners();
+      break;
   }
 }
 

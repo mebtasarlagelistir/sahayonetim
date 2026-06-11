@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Jüri Danışmanı Paneli</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .ja-layout { max-width: 1300px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+      .card { background: white; border-radius: 8px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 16px; }
+      .card h2 { margin: 0 0 14px 0; font-size: 1.2rem; color: #333; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; }
+
+      .judge-item { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid #e1e4ee; border-radius: 8px; margin-bottom: 8px; background: #faf8ff; }
+      .judge-item .uname { font-weight: 700; color: #6d28d9; }
+      .judge-item .cred { font-size: 0.85rem; color: #555; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .judge-item code { background: #f3e8ff; padding: 1px 6px; border-radius: 4px; }
+      .copy-btn { border: 1px solid #ddd6fe; background: white; border-radius: 4px; cursor: pointer; font-size: 0.75rem; padding: 1px 6px; }
+
+      .map-box { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+      .map-box h3 { margin: 0 0 6px; font-size: 1rem; color: #333; }
+      .map-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+      .map-row .r-name { flex: 0 0 42%; font-weight: 600; color: #6d28d9; }
+      .map-row select { flex: 1; padding: 8px; min-height: 40px; border: 1px solid #ddd6fe; border-radius: 6px; }
+
+      .filter-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: end; }
+      .filter-row label { font-size: 0.8rem; color: #555; display: flex; flex-direction: column; gap: 3px; }
+      .filter-row input { padding: 8px 10px; min-height: 40px; border: 1px solid #ddd; border-radius: 6px; }
+
+      table.slots { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+      table.slots th, table.slots td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+      table.slots th { background: #f4f5fa; position: sticky; top: 0; }
+      table.slots select.assign { padding: 6px 8px; min-height: 38px; border: 1px solid #ddd6fe; border-radius: 6px; min-width: 150px; }
+      table.slots tr.assigned td { background: #f5f3ff; }
+      .muted { color: #999; }
+
+      @media (max-width: 900px) { .ja-layout { grid-template-columns: 1fr; } }
+      @media (max-width: 700px) {
+        .ja-layout { padding: 10px; gap: 12px; }
+        .filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
+        .filter-row label, .filter-row input, .filter-row .button { width: 100%; min-height: 44px; }
+        .map-row { flex-direction: column; align-items: stretch; gap: 4px; }
+        .map-row .r-name { flex: none; }
+        .map-row select { min-height: 46px; }
+        table.slots thead { display: none; }
+        table.slots, table.slots tbody, table.slots tr, table.slots td { display: block; width: 100%; }
+        table.slots tr { border: 1px solid #e1e4ee; border-radius: 10px; margin-bottom: 12px; padding: 4px 2px; }
+        table.slots tr.assigned { background: #f5f3ff; }
+        table.slots td { border: none; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        table.slots td::before { content: attr(data-label); font-weight: 600; color: #666; font-size: 0.8rem; }
+        table.slots td.assign-cell { flex-direction: column; align-items: stretch; gap: 4px; }
+        table.slots select.assign { width: 100%; min-height: 46px; min-width: 0; }
+      }
+    </style>
+  </head>
+  <body data-page="judge-advisor">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">← Dashboard</a>
+          <a href="/judging-progress" class="button btn-small">📝 Görüşme Girişi</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="ja-layout">
+      <section class="card">
+        <h2>🧑‍⚖️ Jüri Hesapları</h2>
+        <div id="judges_list"><p class="muted">Yükleniyor...</p></div>
+      </section>
+
+      <section class="card">
+        <h2>📋 Görüşme Atamaları</h2>
+
+        <div class="map-box" id="room_map_section">
+          <h3>🪄 Oda → Jüri Eşlemesi</h3>
+          <p class="muted" style="margin:0 0 10px;font-size:0.82rem;">Her odaya bir jüri ata; o odadaki tüm görüşmeler o jüriye geçer. "Otomatik Doldur" sırayla dağıtır.</p>
+          <div id="room_map_rows"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <button class="button btn-small" id="auto_fill_map">🪄 Otomatik Doldur</button>
+            <button class="button btn-small" id="apply_map">Eşlemeyi Uygula</button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <label>Takım <input type="text" id="f_team" placeholder="Takım no" /></label>
+          <label>Oda <input type="text" id="f_room" placeholder="Oda" /></label>
+          <label>Tarih <input type="date" id="f_date" /></label>
+          <button class="button btn-small" id="apply_filters">Filtrele</button>
+          <button class="button btn-small" id="clear_filters">Temizle</button>
+        </div>
+
+        <div style="max-height:60vh;overflow:auto;border:1px solid #eee;border-radius:6px;">
+          <table class="slots">
+            <thead><tr><th>Takım</th><th>Tarih / Saat</th><th>Oda</th><th>Atanan Jüri</th></tr></thead>
+            <tbody id="slots_body"><tr><td colspan="4" class="muted">Yükleniyor...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/app.js"></script>
+    <script>
+    (function () {
+      'use strict';
+      let judges = [];
+      let slots = [];
+
+      function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+      async function loadJudges() {
+        try { const r = await fetch('/api/judging/judges'); judges = r.ok ? await r.json() : []; }
+        catch(e){ judges = []; }
+        renderJudges();
+        renderRoomMapping();
+      }
+      function renderJudges() {
+        const box = document.getElementById('judges_list');
+        if (!judges.length) { box.innerHTML = '<p class="muted">Jüri hesabı bulunamadı. Hesaplar Kurulum → Varsayılan Hesaplar adımında oluşturulur.</p>'; return; }
+        box.innerHTML = judges.map(function(u){
+          return '<div class="judge-item"><span class="uname">'+esc(u.username)+'</span>'+
+            '<span class="cred">Şifre: <code>'+esc(u.password||'—')+'</code>'+
+            '<button class="copy-btn" data-copy="'+esc(u.username)+'\t'+esc(u.password||'')+'">kopyala</button></span></div>';
+        }).join('');
+        box.querySelectorAll('.copy-btn').forEach(function(b){
+          b.addEventListener('click', function(){
+            const p=b.dataset.copy.split('\t');
+            if(navigator.clipboard) navigator.clipboard.writeText('Kullanıcı: '+p[0]+'  Şifre: '+p[1]);
+            b.textContent='✓'; setTimeout(function(){b.textContent='kopyala';},1200);
+          });
+        });
+      }
+      function renderJudgeOptions(select, selected) {
+        const opts = ['<option value="">— Atanmadı —</option>'].concat(
+          judges.map(function(u){ const s=(selected&&selected===u.username)?' selected':''; return '<option value="'+esc(u.username)+'"'+s+'>'+esc(u.username)+'</option>'; })
+        );
+        select.innerHTML = opts.join('');
+      }
+
+      function distinctRooms(){ const list=[]; slots.forEach(function(s){ const r=s.room||''; if(list.indexOf(r)===-1) list.push(r); }); return list; }
+      function renderRoomMapping(){
+        const box=document.getElementById('room_map_rows'); if(!box) return;
+        const rooms=distinctRooms();
+        if(!rooms.length){ box.innerHTML='<p class="muted">Önce jüri görüşme takvimi oluşturulmalı.</p>'; return; }
+        box.innerHTML=rooms.map(function(r){
+          return '<div class="map-row"><span class="r-name">'+esc(r||'(Odasız)')+'</span><select class="map-select" data-room="'+esc(r)+'"></select></div>';
+        }).join('');
+        box.querySelectorAll('.map-select').forEach(function(sel){
+          const r=sel.dataset.room;
+          const ex=slots.find(function(s){ return (s.room||'')===r && s.judge_username; });
+          renderJudgeOptions(sel, ex?ex.judge_username:'');
+        });
+      }
+      function autoFillMapping(){
+        if(!judges.length){ if(typeof showToast==='function') showToast('Jüri hesabı yok','warning'); return; }
+        const sels=document.querySelectorAll('#room_map_rows .map-select');
+        sels.forEach(function(sel,i){ sel.value=judges[i%judges.length].username; });
+        if(typeof showToast==='function') showToast('Sırayla dolduruldu — Uygula deyin','success');
+      }
+      async function applyMapping(){
+        const sels=Array.from(document.querySelectorAll('#room_map_rows .map-select'));
+        const mapping=sels.map(function(sel){return {room:sel.dataset.room,username:sel.value};}).filter(function(m){return m.username;});
+        if(!mapping.length){ if(typeof showToast==='function') showToast('Önce jüri seçin','warning'); return; }
+        if(!confirm(mapping.length+' oda için atama uygulansın mı?')) return;
+        let total=0;
+        for(const m of mapping){
+          const ids=slots.filter(function(s){return (s.room||'')===m.room;}).map(function(s){return s.id;});
+          if(!ids.length) continue;
+          try{ await fetch('/api/judging-slots/bulk-update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot_ids:ids,judge_username:m.username,judge_name:m.username})}); total+=ids.length; }catch(e){}
+        }
+        if(typeof showToast==='function') showToast(total+' görüşme atandı','success');
+        await loadSlots();
+      }
+
+      function filtered(){
+        const team=(document.getElementById('f_team').value||'').trim().toLowerCase();
+        const room=(document.getElementById('f_room').value||'').trim().toLowerCase();
+        const date=(document.getElementById('f_date').value||'').trim();
+        return slots.filter(function(s){
+          if(team && !String(s.team_number||'').toLowerCase().includes(team)) return false;
+          if(room && !String(s.room||'').toLowerCase().includes(room)) return false;
+          if(date && s.slot_date!==date) return false;
+          return true;
+        });
+      }
+      async function loadSlots(){
+        try{ const r=await fetch('/api/judging-slots'); slots=r.ok?await r.json():[]; }catch(e){ slots=[]; }
+        renderSlots(); renderRoomMapping();
+      }
+      function renderSlots(){
+        const body=document.getElementById('slots_body');
+        const list=filtered().sort(function(a,b){return ((a.slot_date||'')+(a.slot_time||'')).localeCompare((b.slot_date||'')+(b.slot_time||''));});
+        if(!list.length){ body.innerHTML='<tr><td colspan="4" class="muted">Filtreye uygun görüşme yok.</td></tr>'; return; }
+        body.innerHTML=list.map(function(s){
+          const date=s.slot_date?s.slot_date.split('-').reverse().join('/'):'';
+          const assigned=s.judge_username?' assigned':'';
+          return '<tr class="'+assigned+'" data-id="'+s.id+'">'+
+            '<td data-label="Takım"><strong>'+esc(s.team_number)+'</strong></td>'+
+            '<td data-label="Tarih/Saat">'+date+' '+esc(s.slot_time||'')+'</td>'+
+            '<td data-label="Oda">'+esc(s.room||'—')+'</td>'+
+            '<td data-label="Jüri" class="assign-cell"><select class="assign" data-id="'+s.id+'"></select></td>'+
+            '</tr>';
+        }).join('');
+        body.querySelectorAll('select.assign').forEach(function(sel){
+          const id=sel.dataset.id;
+          const slot=slots.find(function(x){return String(x.id)===String(id);});
+          renderJudgeOptions(sel, slot?slot.judge_username:'');
+          sel.addEventListener('change', function(){ assignSlot(id, sel.value); });
+        });
+      }
+      async function assignSlot(id, username){
+        const slot=slots.find(function(x){return String(x.id)===String(id);});
+        try{
+          const r=await fetch('/api/judging-slots/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({judge_username:username,judge_name:username})});
+          if(r.ok && slot){ slot.judge_username=username; slot.judge_name=username;
+            const tr=document.querySelector('tr[data-id="'+id+'"]'); if(tr) tr.className=username?'assigned':'';
+            if(typeof showToast==='function') showToast(username?(username+' atandı'):'Atama kaldırıldı','success');
+          }
+        }catch(e){ if(typeof showToast==='function') showToast('Atama kaydedilemedi','error'); }
+      }
+
+      function init(){
+        document.getElementById('apply_filters').addEventListener('click', renderSlots);
+        document.getElementById('clear_filters').addEventListener('click', function(){
+          document.getElementById('f_team').value=''; document.getElementById('f_room').value=''; document.getElementById('f_date').value=''; renderSlots();
+        });
+        document.getElementById('auto_fill_map').addEventListener('click', autoFillMapping);
+        document.getElementById('apply_map').addEventListener('click', applyMapping);
+        loadJudges(); loadSlots();
+      }
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+    })();
+    </script>
+  </body>
+</html>

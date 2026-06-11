@@ -525,6 +525,8 @@ function updateDashboardSectionsForRole() {
 
   const isHeadInspector = roleLower.includes("bas_mufettis") || roleLower.includes("baş_müfettiş");
   const isInspector = !isHeadInspector && (roleLower.includes("mufettis") || roleLower.includes("inspector"));
+  const isJudgeAdvisor = roleLower.includes("juri_danismani") || roleLower.includes("juri_danışmanı");
+  const isJudge = !isJudgeAdvisor && (roleLower.includes("juri") || roleLower.includes("jüri"));
   const isCeremony = roleLower.includes("seremoni");
 
   const isAdminOrManager =
@@ -535,6 +537,10 @@ function updateDashboardSectionsForRole() {
   // Baş Müfettiş Paneli linki yalnız baş müfettişe gösterilir
   document.querySelectorAll(".head-inspector-only").forEach((el) => {
     el.style.display = isHeadInspector || isAdminOrManager ? "" : "none";
+  });
+  // Jüri Danışmanı Paneli linki yalnız jüri danışmanına gösterilir
+  document.querySelectorAll(".judge-advisor-only").forEach((el) => {
+    el.style.display = isJudgeAdvisor || isAdminOrManager ? "" : "none";
   });
 
   // Yardımcı: yalnız izin verilen başlıklı bölümleri göster
@@ -610,6 +616,14 @@ function updateDashboardSectionsForRole() {
   if (isInspector || isHeadInspector) {
     // Müfettiş / Baş müfettiş: sadece İnceleme bölümü
     showOnlySections(["Inspection", "İnceleme"]);
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "";
+    return;
+  }
+
+  if (isJudge || isJudgeAdvisor) {
+    // Jüri / Jüri danışmanı: sadece Jüri (Görüşme) bölümü
+    showOnlySections(["Jüri (Görüşme)"]);
     const summary = document.querySelector(".dashboard-summary");
     if (summary) summary.style.display = "";
     return;

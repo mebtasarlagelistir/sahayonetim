@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Jüri Görüşme Girişi</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .jp-layout { max-width: 1200px; margin: 0 auto; padding: 20px; }
+      .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+      .card h2 { margin: 0 0 16px 0; font-size: 1.3rem; color: #333; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; }
+
+      .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+      .stat-card { border-radius: 8px; padding: 16px; text-align: center; color: white; }
+      .stat-card.total { background: linear-gradient(135deg,#8b5cf6,#6d28d9); }
+      .stat-card.done { background: linear-gradient(135deg,#4caf50,#43a047); }
+      .stat-card.inprogress { background: linear-gradient(135deg,#2196f3,#1e88e5); }
+      .stat-card.pending { background: linear-gradient(135deg,#ff9800,#fb8c00); }
+      .stat-card .value { font-size: 2rem; font-weight: 700; }
+      .stat-card .label { font-size: 0.85rem; opacity: 0.9; }
+
+      .progress-container { background:#e0e0e0; border-radius:6px; height:20px; overflow:hidden; margin-bottom:16px; }
+      .progress-fill { height:100%; background: linear-gradient(135deg,#4caf50,#43a047); transition: width .3s; display:flex; align-items:center; justify-content:center; color:white; font-size:.75rem; font-weight:600; }
+
+      .filter-row { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+      .filter-btn { padding:10px 18px; min-height:44px; border:1px solid #ddd; border-radius:22px; background:white; color:#333; cursor:pointer; font-size:.95rem; touch-action:manipulation; }
+      .filter-btn.active { background:#8b5cf6; color:white; border-color:#8b5cf6; }
+      .search-box { flex:1; min-width:180px; padding:10px 16px; min-height:44px; border:1px solid #ddd; border-radius:22px; font-size:.95rem; }
+
+      .teams-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); gap:12px; }
+      .team-card { background:#f8f9fa; border-radius:8px; padding:14px; border-left:4px solid #8b5cf6; }
+      .team-card.status-completed { border-left-color:#4caf50; background:#f1f8e9; }
+      .team-card.status-in_progress { border-left-color:#2196f3; background:#e3f2fd; }
+      .team-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; }
+      .team-info .team-number { font-size:1.2rem; font-weight:700; color:#6d28d9; }
+      .team-info .team-name { font-size:.85rem; color:#666; }
+      .team-info .team-time { font-size:.75rem; color:#999; margin-top:2px; }
+      .status-select { padding:10px 12px; min-height:44px; border:2px solid #ddd; border-radius:6px; font-size:1rem; font-weight:500; min-width:140px; }
+      .status-select.status-completed { border-color:#4caf50; background:#e8f5e9; color:#2e7d32; }
+      .status-select.status-in_progress { border-color:#2196f3; background:#e3f2fd; color:#1565c0; }
+      .notes-input { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:.9rem; resize:vertical; min-height:70px; margin-top:8px; }
+
+      .claim-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; padding:6px 8px; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:6px; }
+      .claim-row.mine { background:#e8f5e9; border-color:#a5d6a7; }
+      .claim-label { font-size:.85rem; font-weight:600; color:#6d28d9; }
+      .claim-row.mine .claim-label { color:#2e7d32; }
+      .claim-label.muted-claim { color:#999; font-weight:400; }
+      .claim-btn { min-height:40px; padding:8px 16px; border:1px solid #8b5cf6; background:#8b5cf6; color:white; border-radius:6px; font-size:.9rem; cursor:pointer; touch-action:manipulation; }
+      .claim-btn.release { background:white; color:#c62828; border-color:#e57373; }
+
+      .save-indicator { font-size:.7rem; color:#999; margin-top:4px; text-align:right; }
+      .save-indicator.saving { color:#ff9800; } .save-indicator.saved { color:#4caf50; }
+      .empty-state { text-align:center; padding:40px; color:#666; } .empty-state .icon { font-size:3rem; margin-bottom:12px; }
+      .muted { color:#999; }
+
+      @media (max-width:600px) {
+        .jp-layout { padding:10px; } .card { padding:14px; } .teams-grid { grid-template-columns:1fr; }
+        .team-card-header { flex-direction:column; align-items:stretch; gap:10px; }
+        .status-select { width:100%; min-height:48px; font-size:1.05rem; }
+        .notes-input { min-height:80px; font-size:.95rem; }
+        .claim-btn { min-height:44px; }
+        .filter-btn { flex:1 1 auto; } .search-box { min-width:100%; }
+      }
+    </style>
+  </head>
+  <body data-page="judging-progress">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info"><span id="current-user"></span><span id="user-role"></span></div>
+      </div>
+      <div class="header-bottom"><div class="actions"><a href="/dashboard" class="button btn-small">← Dashboard</a></div></div>
+    </header>
+
+    <main class="jp-layout">
+      <section class="card">
+        <h2>📝 Jüri Görüşme Girişi</h2>
+        <div class="stats-grid">
+          <div class="stat-card total"><div class="value" id="stat_total">0</div><div class="label">Toplam</div></div>
+          <div class="stat-card done"><div class="value" id="stat_done">0</div><div class="label">Tamamlandı ✓</div></div>
+          <div class="stat-card inprogress"><div class="value" id="stat_in_progress">0</div><div class="label">Devam Ediyor 🔄</div></div>
+          <div class="stat-card pending"><div class="value" id="stat_not_started">0</div><div class="label">Başlamadı</div></div>
+        </div>
+        <div class="progress-container"><div id="progress_bar" class="progress-fill" style="width:0%;">0%</div></div>
+      </section>
+
+      <section class="card">
+        <div class="filter-row">
+          <button class="filter-btn active" data-filter="all">Tümü</button>
+          <button class="filter-btn" data-filter="not-started">📋 Başlamadı</button>
+          <button class="filter-btn" data-filter="in_progress">🔄 Devam</button>
+          <button class="filter-btn" data-filter="completed">✅ Tamamlandı</button>
+          <input type="text" class="search-box" id="search_box" placeholder="Takım ara..." />
+        </div>
+        <div id="teams_container" class="teams-grid">
+          <div class="empty-state"><div class="icon">📝</div><p>Henüz jüri görüşme takvimi oluşturulmamış</p><p class="muted">Takvim, etkinlik yöneticisi tarafından Kurulum adımında oluşturulur.</p></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/app.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    (function(){
+      'use strict';
+      let data=[]; let currentFilter='all'; let searchTerm=''; let saveTimers={}; let socket=null; let refreshInterval=null;
+      let currentUser=''; const REFRESH=5000;
+
+      function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+      async function loadMe(){ try{ const r=await fetch('/api/user/role'); if(r.ok){ const d=await r.json(); currentUser=d.username||''; } }catch(e){} }
+
+      async function init(){
+        try{ socket=io(); socket.on('judging_update', loadSlots); }catch(e){}
+        document.querySelectorAll('.filter-btn').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+            btn.classList.add('active'); currentFilter=btn.dataset.filter; render();
+          });
+        });
+        document.getElementById('search_box').addEventListener('input', function(e){ searchTerm=e.target.value.toLowerCase(); render(); });
+        await loadMe(); await loadSlots();
+        refreshInterval=setInterval(loadSlots, REFRESH);
+      }
+
+      async function loadSlots(){
+        try{ const r=await fetch('/api/judging-slots'); if(!r.ok) throw 0; data=await r.json(); updateStats(); render(); }catch(e){}
+      }
+      function updateStats(){
+        const total=data.length;
+        const done=data.filter(function(t){return t.status==='completed';}).length;
+        const inprog=data.filter(function(t){return t.status==='in_progress';}).length;
+        const ns=total-done-inprog;
+        document.getElementById('stat_total').textContent=total;
+        document.getElementById('stat_done').textContent=done;
+        document.getElementById('stat_in_progress').textContent=inprog;
+        document.getElementById('stat_not_started').textContent=ns;
+        const pct=total>0?Math.round((done/total)*100):0;
+        const bar=document.getElementById('progress_bar'); bar.style.width=pct+'%'; bar.textContent=pct+'%';
+      }
+      function statusClassOf(s){ if(s==='completed') return 'status-completed'; if(s==='in_progress') return 'status-in_progress'; return ''; }
+
+      function render(){
+        const c=document.getElementById('teams_container');
+        let list=data.filter(function(t){
+          if(currentFilter==='not-started' && (t.status==='completed'||t.status==='in_progress')) return false;
+          if(currentFilter==='in_progress' && t.status!=='in_progress') return false;
+          if(currentFilter==='completed' && t.status!=='completed') return false;
+          if(searchTerm){ const n=(t.team_number||'').toLowerCase(); const nm=(t.team_name||'').toLowerCase(); if(!n.includes(searchTerm)&&!nm.includes(searchTerm)) return false; }
+          return true;
+        });
+        list.sort(function(a,b){return ((a.slot_date||'')+' '+(a.slot_time||'')).localeCompare((b.slot_date||'')+' '+(b.slot_time||''));});
+        if(!list.length){
+          c.innerHTML = data.length===0
+            ? '<div class="empty-state"><div class="icon">📝</div><p>Henüz jüri görüşme takvimi oluşturulmamış</p><p class="muted">Takvim, etkinlik yöneticisi tarafından Kurulum adımında oluşturulur.</p></div>'
+            : '<div class="empty-state"><div class="icon">🔍</div><p>Filtreye uygun görüşme yok</p></div>';
+          return;
+        }
+        c.innerHTML=list.map(card).join('');
+        c.querySelectorAll('.status-select').forEach(function(s){ s.addEventListener('change', onStatus); });
+        c.querySelectorAll('.notes-input').forEach(function(i){ i.addEventListener('input', onNotes); });
+        c.querySelectorAll('.claim-btn').forEach(function(b){ b.addEventListener('click', onClaim); });
+      }
+      function claimRow(t){
+        const a=t.judge_username||''; const mine=a&&currentUser&&a===currentUser;
+        if(mine) return '<div class="claim-row mine"><span class="claim-label">🧑‍⚖️ Üzerinde</span><button class="claim-btn release" data-id="'+t.id+'" data-act="release">Bırak</button></div>';
+        if(a) return '<div class="claim-row"><span class="claim-label">🧑‍⚖️ '+esc(a)+'</span><button class="claim-btn" data-id="'+t.id+'" data-act="claim">Üzerime al</button></div>';
+        return '<div class="claim-row"><span class="claim-label muted-claim">Atanmadı</span><button class="claim-btn" data-id="'+t.id+'" data-act="claim">Üzerime al</button></div>';
+      }
+      function card(t){
+        const cls=statusClassOf(t.status);
+        const ns=t.status!=='completed'&&t.status!=='in_progress';
+        const date=t.slot_date?t.slot_date.split('-').reverse().join('/'):'';
+        const room=t.room?(' · '+esc(t.room)):'';
+        return '<div class="team-card '+cls+'" data-id="'+t.id+'">'+
+          '<div class="team-card-header"><div class="team-info">'+
+            '<div class="team-number">'+esc(t.team_number)+'</div>'+
+            '<div class="team-name">'+esc(t.team_name||'')+'</div>'+
+            '<div class="team-time">📅 '+date+' ⏰ '+esc(t.slot_time||'')+room+'</div>'+
+          '</div>'+
+          '<select class="status-select '+cls+'" data-id="'+t.id+'">'+
+            '<option value="not-started"'+(ns?' selected':'')+'>📋 Başlamadı</option>'+
+            '<option value="in_progress"'+(t.status==='in_progress'?' selected':'')+'>🔄 Devam Ediyor</option>'+
+            '<option value="completed"'+(t.status==='completed'?' selected':'')+'>✅ Tamamlandı</option>'+
+          '</select></div>'+
+          claimRow(t)+
+          '<textarea class="notes-input" data-id="'+t.id+'" placeholder="Görüşme notları...">'+esc(t.notes||'')+'</textarea>'+
+          '<div class="save-indicator" id="ind_'+t.id+'"></div>'+
+        '</div>';
+      }
+      async function onStatus(e){
+        const id=e.target.dataset.id; const st=e.target.value;
+        const t=data.find(function(x){return x.id==id;}); if(t) t.status=st;
+        const cls=statusClassOf(st);
+        const card=document.querySelector('.team-card[data-id="'+id+'"]'); if(card) card.className=('team-card '+cls).trim();
+        e.target.className=('status-select '+cls).trim();
+        await save(id,{status:st}); updateStats();
+        if(socket) socket.emit('judging_update',{id:id,status:st});
+      }
+      function onNotes(e){
+        const id=e.target.dataset.id; const notes=e.target.value;
+        const t=data.find(function(x){return x.id==id;}); if(t) t.notes=notes;
+        ind(id,'saving','Kaydediliyor...');
+        clearTimeout(saveTimers[id]);
+        saveTimers[id]=setTimeout(async function(){ const ok=await save(id,{notes:notes}); ind(id, ok?'saved':'error', ok?'✓ Kaydedildi':'✗ Hata'); }, 800);
+      }
+      async function onClaim(e){
+        const b=e.currentTarget; const id=b.dataset.id; const act=b.dataset.act;
+        if(act==='claim' && !currentUser) return;
+        const u=act==='claim'?currentUser:'';
+        const ok=await save(id,{judge_username:u,judge_name:u});
+        if(ok){ const t=data.find(function(x){return x.id==id;}); if(t){ t.judge_username=u; t.judge_name=u; } render(); }
+      }
+      async function save(id,payload){
+        try{ const r=await fetch('/api/judging-slots/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); return r.ok; }catch(e){ return false; }
+      }
+      function ind(id,type,msg){ const el=document.getElementById('ind_'+id); if(el){ el.className='save-indicator '+type; el.textContent=msg; if(type==='saved') setTimeout(function(){el.textContent='';},2000); } }
+
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+    })();
+    </script>
+  </body>
+</html>

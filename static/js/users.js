@@ -54,14 +54,25 @@ function updateUserInfo() {
     usernameEl.textContent = currentUsername || "Kullanıcı";
   }
   if (roleEl) {
+    const role = (currentUserRole || "").toLowerCase();
     const roleNames = {
       admin: "Yönetici",
       etkinlik_yoneticisi: "Etkinlik Yöneticisi",
       hakem: "Hakem",
       mufettis: "Müfettiş",
       seremoni: "Seremoni",
+      juri: "Jüri",
     };
-    roleEl.textContent = roleNames[currentUserRole?.toLowerCase()] || currentUserRole || "";
+    let label = roleNames[role] || currentUserRole || "";
+    // Önek içeren roller için anlamlı etiket
+    if (role.includes("juri_danismani") || role.includes("juri_danışmanı")) label = "Jüri Danışmanı";
+    else if (role.includes("bas_mufettis")) label = "Baş Müfettiş";
+    else if (role.includes("bas_hakem")) label = "Baş Hakem";
+    else if (role.includes("juri")) label = "Jüri";
+    else if (role.includes("mufettis")) label = "Müfettiş";
+    else if (role.includes("hakem")) label = "Hakem";
+    else if (role.includes("seremoni")) label = "Seremoni";
+    roleEl.textContent = label;
   }
 }
 
