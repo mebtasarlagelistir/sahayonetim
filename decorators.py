@@ -142,11 +142,91 @@ def create_decorators(datastore):
                 return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
             # Setup sayfasına erişim denemesi - login sayfasına yönlendir
             return redirect(url_for("login"))
-        
+
         return wrapper
-    
+
+    def home_for_role(role: str | None) -> str:
+        """
+        Bir rolün varsayılan iniş sayfası yolunu döndürür.
+
+        Yetkisiz bir sayfaya erişmeye çalışan kullanıcı, login yerine kendi
+        ana sayfasına yönlendirilir. app_web.py index rol-yönlendirmesiyle hizalı.
+        """
+        role_lower = (role or "").lower()
+        if role_lower == "admin" or "etkinlik_yoneticisi" in role_lower or "yonetici" in role_lower:
+            return "/setup"
+        if "bas_mufettis" in role_lower:
+            return "/head-inspector"
+        if "mufettis" in role_lower or "inspector" in role_lower:
+            return "/inspection-progress"
+        if "bas_hakem" in role_lower:
+            return "/head-referee"
+        if "hakem" in role_lower:
+            return "/referee-panel"
+        if "seremoni" in role_lower:
+            return "/award-assignment"
+        return "/setup"
+
+    def require_roles(*allowed_substrings):
+        """
+        Decorator factory: Belirli rollere (alt-string eşleşmesiyle) erişim verir.
+
+        Admin ve etkinlik yöneticisi her zaman geçer. allowed_substrings içindeki
+        herhangi biri kullanıcının rolünde geçiyorsa erişim verilir (aynı-etkinlik
+        kontrolüyle). Aksi halde API → 403 JSON, sayfa → rolün ana sayfasına redirect.
+
+        Kullanım:
+            @app.get("/head-inspector")
+            @require_login
+            @require_roles("bas_mufettis")
+            def head_inspector_page(): ...
+        """
+        def decorator(handler):
+            @wraps(handler)
+            def wrapper(*args, **kwargs):
+                username = session.get("user")
+                if not username:
+                    if request.path.startswith("/api/"):
+                        return jsonify({"error": "unauthorized"}), 401
+                    return redirect(url_for("login"))
+
+                role = datastore.get_user_role(username)
+                role_lower = (role or "").lower()
+
+                # Admin ve etkinlik yöneticisi her şeye erişir
+                privileged = (
+                    role_lower == "admin"
+                    or "etkinlik_yoneticisi" in role_lower
+                    or "yonetici" in role_lower
+                )
+                allowed = privileged or any(sub in role_lower for sub in allowed_substrings)
+
+                if not allowed:
+                    if request.path.startswith("/api/"):
+                        return jsonify({"error": "forbidden", "message": "Bu işlem için yetkiniz yok"}), 403
+                    return redirect(home_for_role(role))
+
+                # Yetkili roller için aynı-etkinlik kontrolü (admin hariç)
+                if not privileged or "etkinlik_yoneticisi" in role_lower or "yonetici" in role_lower:
+                    if role_lower != "admin":
+                        user_event_id = datastore.get_user_event_id(username)
+                        active_event_id = datastore.get_active_event_id()
+                        if user_event_id is not None and active_event_id is not None:
+                            if user_event_id != active_event_id:
+                                if request.path.startswith("/api/"):
+                                    return jsonify({"error": "forbidden", "message": "Bu etkinliğe erişim yetkiniz yok"}), 403
+                                return redirect(home_for_role(role))
+
+                return handler(*args, **kwargs)
+
+            return wrapper
+
+        return decorator
+
     return {
         "require_login": require_login,
         "require_admin": require_admin,
         "require_event_manager": require_event_manager,
+        "require_roles": require_roles,
+        "home_for_role": home_for_role,
     }

@@ -227,6 +227,8 @@ class BaseStorage:
         self._ensure_user_token_column()
         self._ensure_user_event_column()
         self._ensure_inspection_station_column()
+        self._ensure_inspection_inspector_username_column()
+        self._ensure_inspection_type_notes_column()
         self._ensure_practice_field_name_column()
         self._ensure_practice_surrogate_column()
         self._ensure_practice_scoring_data_column()
@@ -374,6 +376,37 @@ class BaseStorage:
             ]
             if "station_name" not in columns:
                 conn.execute("ALTER TABLE inspection_slots ADD COLUMN station_name TEXT")
+                conn.commit()
+
+    def _ensure_inspection_inspector_username_column(self) -> None:
+        """
+        inspection_slots tablosuna inspector_username kolonu ekler (migration).
+
+        Müfettişi bir kullanıcı hesabına (users.username) bağlar; inspector_name
+        görüntü için kalır, inspector_username kaynak doğruluk olur.
+        """
+        with self._get_connection() as conn:
+            columns = [
+                row[1] for row in conn.execute("PRAGMA table_info(inspection_slots)").fetchall()
+            ]
+            if "inspector_username" not in columns:
+                conn.execute("ALTER TABLE inspection_slots ADD COLUMN inspector_username TEXT")
+                conn.commit()
+
+    def _ensure_inspection_type_notes_column(self) -> None:
+        """
+        inspection_slots tablosuna type_notes kolonu ekler (migration).
+
+        İnceleme tipine göre serbest metin notları JSON map olarak tutulur:
+        {"size": "...", "general_hardware": "..."}. Gruplanmış (composite) slotlarda
+        üye tiplerin her biri ayrı not alabilir.
+        """
+        with self._get_connection() as conn:
+            columns = [
+                row[1] for row in conn.execute("PRAGMA table_info(inspection_slots)").fetchall()
+            ]
+            if "type_notes" not in columns:
+                conn.execute("ALTER TABLE inspection_slots ADD COLUMN type_notes TEXT")
                 conn.commit()
 
     def _ensure_practice_field_name_column(self) -> None:

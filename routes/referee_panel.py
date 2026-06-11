@@ -21,16 +21,23 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
+def register_referee_panel_routes(bp, datastore, require_login, socketio=None, require_roles=None):
     """
     Hakem paneli route'larını Blueprint'e kaydeder.
-    
+
     Args:
         bp: Blueprint instance
         datastore: DataStore instance
         require_login: require_login decorator
         socketio: SocketIO instance (WebSocket için)
+        require_roles: require_roles decorator factory (rol bazlı erişim için)
     """
+    # require_roles verilmezse no-op (geriye dönük uyumluluk)
+    if require_roles is None:
+        def require_roles(*_a):
+            def _d(h):
+                return h
+            return _d
     # SocketIO instance'ını al (app'ten)
     if socketio is None:
         socketio = current_app.socketio if hasattr(current_app, 'socketio') else None
@@ -88,10 +95,11 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
 
     @bp.route("/referee-panel")
     @require_login
+    @require_roles("hakem")
     def referee_panel_page():
         """
         Hakem paneli sayfasını render eder.
-        
+
         Bu sayfa hakemlerin tabletlerinden puanlama yapabilmesi için
         optimize edilmiş bir arayüz sağlar.
         """
@@ -99,16 +107,19 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
 
     @bp.route("/referee/red")
     @require_login
+    @require_roles("hakem")
     def referee_red_page():
         return render_template("referee_panel.html", referee_mode="red")
 
     @bp.route("/referee/blue")
     @require_login
+    @require_roles("hakem")
     def referee_blue_page():
         return render_template("referee_panel.html", referee_mode="blue")
 
     @bp.route("/head-referee")
     @require_login
+    @require_roles("bas_hakem")
     def head_referee_page():
         return render_template("head_referee.html")
     
@@ -132,6 +143,7 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
     
     @bp.route("/api/referee/score/update", methods=["POST"])
     @require_login
+    @require_roles("hakem")
     def referee_update_score():
         """
         Hakemden gelen puanlama verilerini günceller.
@@ -380,6 +392,7 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
 
     @bp.route("/api/referee/submit", methods=["POST"])
     @require_login
+    @require_roles("hakem")
     def referee_submit_match():
         """
         Hakemin maç girişini tamamladığını işaretler.
@@ -431,6 +444,7 @@ def register_referee_panel_routes(bp, datastore, require_login, socketio=None):
 
     @bp.route("/api/referee/approve", methods=["POST"])
     @require_login
+    @require_roles("bas_hakem")
     def head_referee_approve_match():
         """
         Baş hakem maç sonuçlarını onaylar.

@@ -25,20 +25,28 @@ def _coerce_duration(value, default=15, min_v=1, max_v=600):
     return v
 
 
-def register_inspection_routes(bp, datastore, require_login, require_event_manager, socketio=None):
+def register_inspection_routes(bp, datastore, require_login, require_event_manager, socketio=None, require_roles=None):
     """
     İnceleme route'larını Blueprint'e kaydeder.
-    
+
     Args:
         bp: Blueprint instance
         datastore: DataStore instance
         require_login: require_login decorator
         require_event_manager: require_event_manager decorator
         socketio: SocketIO instance (WebSocket için)
+        require_roles: require_roles decorator factory (rol bazlı erişim için)
     """
-    
+    # require_roles verilmezse no-op (geriye dönük uyumluluk)
+    if require_roles is None:
+        def require_roles(*_a):
+            def _d(h):
+                return h
+            return _d
+
     @bp.get("/inspection-settings")
     @require_login
+    @require_roles("mufettis")
     def get_inspection_settings():
         """
         İnceleme ayarlarını getirir (tip süreleri vb.).
@@ -90,9 +98,14 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 "Baş Robot Müfettişine danışınız."
             ),
         )
+        # İnceleme grupları (tek slotta birleştirilen tipler)
+        # Biçim: [{"types": ["size", "general_hardware"], "duration": 25}, ...]
+        inspection_groups = inspection_settings.get("inspection_groups", [])
+
         return jsonify({
             "type_durations": type_durations,
             "selected_types": selected_types,
+            "inspection_groups": inspection_groups,
             "print_note": print_note,
         })
 
@@ -129,6 +142,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         data = request.get_json(force=True) or {}
         type_durations = data.get("type_durations")
         selected_types = data.get("selected_types")
+        inspection_groups = data.get("inspection_groups")
         print_note = data.get("print_note")
         
         # Validation: Check for valid FRC types
@@ -156,11 +170,27 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         if selected_types is not None:
             if not isinstance(selected_types, list):
                 return jsonify({"error": "selected_types must be a list"}), 400
-            
+
             # Validate selected types
             for type_key in selected_types:
                 if type_key not in valid_frc_types:
                     return jsonify({"error": f"Invalid selected type: {type_key}"}), 400
+
+        if inspection_groups is not None:
+            if not isinstance(inspection_groups, list):
+                return jsonify({"error": "inspection_groups must be a list"}), 400
+            for group in inspection_groups:
+                if not isinstance(group, dict):
+                    return jsonify({"error": "Each inspection group must be an object"}), 400
+                group_types = group.get("types")
+                if not isinstance(group_types, list) or len(group_types) < 2:
+                    return jsonify({"error": "Each group must contain at least 2 types"}), 400
+                for type_key in group_types:
+                    if type_key not in valid_frc_types:
+                        return jsonify({"error": f"Invalid group type: {type_key}"}), 400
+                duration = group.get("duration")
+                if duration is not None and (not isinstance(duration, (int, float)) or duration <= 0):
+                    return jsonify({"error": "Invalid group duration: must be positive number"}), 400
         
         event_id = datastore.get_active_event_id()
         if event_id is None:
@@ -175,6 +205,19 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             event_data["inspection_settings"]["type_durations"] = type_durations
         if isinstance(selected_types, list):
             event_data["inspection_settings"]["selected_types"] = selected_types
+        if isinstance(inspection_groups, list):
+            # Sadece geçerli alanları sakla (types + opsiyonel duration)
+            normalized_groups = []
+            for group in inspection_groups:
+                group_types = [str(t).strip() for t in group.get("types", []) if str(t).strip()]
+                if len(group_types) < 2:
+                    continue
+                entry = {"types": group_types}
+                duration = group.get("duration")
+                if isinstance(duration, (int, float)) and duration > 0:
+                    entry["duration"] = int(duration)
+                normalized_groups.append(entry)
+            event_data["inspection_settings"]["inspection_groups"] = normalized_groups
         if print_note is not None:
             event_data["inspection_settings"]["print_note"] = str(print_note).strip()
         
@@ -184,6 +227,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
 
     @bp.get("/inspection-slots")
     @require_login
+    @require_roles("mufettis")
     def get_inspection_slots():
         """
         İnceleme slotlarını listeler.
@@ -285,7 +329,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
 
     @bp.route("/inspection-slots/<int:slot_id>", methods=["PUT", "POST"])
     @require_login
-    @require_event_manager
+    @require_roles("mufettis", "bas_mufettis")
     def update_inspection_slot(slot_id: int):
         """
         İnceleme slotu günceller.
@@ -331,6 +375,11 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 return jsonify({"error": "Bu takım için aynı saatte başka bir inceleme var"}), 400
         
         try:
+            # type_notes verilmişse dict'e indirge (JSON map bekleniyor)
+            type_notes = data.get("type_notes")
+            if type_notes is not None and not isinstance(type_notes, dict):
+                type_notes = None
+
             datastore.update_inspection_slot(
                 slot_id=slot_id,
                 team_number=data.get("team_number"),
@@ -342,6 +391,8 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 status=data.get("status"),
                 notes=data.get("notes"),
                 station_name=data.get("station_name"),
+                inspector_username=data.get("inspector_username"),
+                type_notes=type_notes,
             )
             
             # WebSocket ile tüm audience ekranlarına inspection güncellemesini bildir
@@ -359,7 +410,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
 
     @bp.post("/inspection-slots/bulk-update")
     @require_login
-    @require_event_manager
+    @require_roles("mufettis", "bas_mufettis")
     def bulk_update_inspection_slots():
         """
         Seçili inceleme slotlarını toplu günceller.
@@ -388,6 +439,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         new_status = data.get("status")
         new_station = data.get("station_name")
         new_inspector = data.get("inspector_name")
+        new_inspector_username = data.get("inspector_username")
 
         slots = datastore.get_inspection_slots()
         slot_map = {s["id"]: s for s in slots}
@@ -431,6 +483,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
                 status=new_status,
                 station_name=new_station,
                 inspector_name=new_inspector,
+                inspector_username=new_inspector_username,
             )
             updated_count += 1
 
@@ -499,6 +552,11 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
         start_date = data.get("start_date", "").strip()
         start_time = data.get("start_time", "").strip()
         inspection_types = data.get("inspection_types", [])
+        # Birimler (units): gruplama destekli üretim için. Her birim bir veya
+        # birden fazla inceleme tipini tek slotta birleştirir ve ortak süre alır.
+        # Biçim: [{"types": ["size", "general_hardware"], "duration": 25}, ...]
+        # Verilmezse inspection_types'tan her tip ayrı birim olacak şekilde türetilir.
+        inspection_units = data.get("inspection_units", [])
         break_minutes = data.get("break_minutes", 5)
         inspector_names = data.get("inspector_names", [])
         # İstasyon isimleri listesi (yeni özellik)
@@ -511,7 +569,7 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             return jsonify({"error": "Başlangıç tarihi gerekli"}), 400
         if not start_time:
             return jsonify({"error": "Başlangıç saati gerekli"}), 400
-        if not inspection_types:
+        if not inspection_types and not inspection_units:
             return jsonify({"error": "En az bir inceleme tipi seçilmeli"}), 400
         
         # İstasyon isimleri yoksa, sayıya göre oluştur
@@ -539,7 +597,37 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             "weight": 5,
             "custom": 15,
         })
-        
+
+        # İnceleme birimlerini (units) normalize et.
+        # Her birim: {"type_key": "size+general_hardware", "duration": 25}
+        # - Gruplanan birimlerde type_key tipler "+" ile birleştirilmiş composite anahtardır.
+        # - inspection_units verilmezse her inceleme tipi tek başına bir birim olur.
+        units = []
+        if inspection_units:
+            for unit in inspection_units:
+                if not isinstance(unit, dict):
+                    continue
+                unit_types = [str(t).strip() for t in unit.get("types", []) if str(t).strip()]
+                if not unit_types:
+                    continue
+                type_key = "+".join(unit_types)
+                # Süre: birimde belirtilmişse onu kullan, yoksa üye sürelerinin toplamı
+                raw_duration = unit.get("duration")
+                if isinstance(raw_duration, (int, float)) and raw_duration > 0:
+                    duration = int(raw_duration)
+                else:
+                    duration = sum(int(type_durations.get(t, 15)) for t in unit_types)
+                units.append({"type_key": type_key, "duration": duration})
+        else:
+            for inspection_type in inspection_types:
+                units.append({
+                    "type_key": inspection_type,
+                    "duration": int(type_durations.get(inspection_type, 15)),
+                })
+
+        if not units:
+            return jsonify({"error": "En az bir inceleme tipi seçilmeli"}), 400
+
         # Tüm takımları al
         teams = datastore.get_teams()
         if not teams:
@@ -579,11 +667,12 @@ def register_inspection_routes(bp, datastore, require_login, require_event_manag
             # Bu takımın atandığı istasyon (döngüsel dağıtım)
             station_idx = team_idx % station_count
             
-            # Bu takım için tüm inceleme tiplerini sırayla işle
-            # Her inceleme tipi, önceki inceleme tipinin bitiş zamanından sonra başlar
-            for inspection_type in inspection_types:
-                duration = type_durations.get(inspection_type, 15)
-                
+            # Bu takım için tüm inceleme birimlerini sırayla işle
+            # Her birim, önceki birimin bitiş zamanından sonra başlar
+            for unit in units:
+                inspection_type = unit["type_key"]
+                duration = unit["duration"]
+
                 # Bu istasyonun mevcut zamanını kullan
                 slot_datetime = station_times[station_idx]
                 

@@ -55,6 +55,7 @@ from routes.archive import register_archive_routes
 from routes.match_control import register_match_control_routes
 from routes.screens import register_screen_routes
 from routes.referee_panel import register_referee_panel_routes
+from routes.head_inspector import register_head_inspector_routes
 
 
 def _deep_merge(base: dict, updates: dict) -> dict:
@@ -266,6 +267,8 @@ def create_app() -> Flask:
     require_login = decorators["require_login"]
     require_admin = decorators["require_admin"]
     require_event_manager = decorators["require_event_manager"]
+    require_roles = decorators["require_roles"]
+    home_for_role = decorators["home_for_role"]
 
 
     # ============================================================================
@@ -341,41 +344,34 @@ def create_app() -> Flask:
 
     @app.get("/inspection-tracking")
     @require_login
+    @require_roles("mufettis", "bas_mufettis")
     def inspection_tracking():
         """
         İnceleme takip paneli.
-        
+
         Takımların inceleme durumlarını gösteren dashboard.
         Bar chart ve liste görünümü içerir.
         """
         return render_template("inspection_tracking.html")
-    
-    @app.get("/inspection-schedule")
-    @require_login
-    def inspection_schedule():
-        """
-        İnceleme programı oluşturma sayfası.
-        
-        Takımlar için basit inceleme programı oluşturur (yazdırılabilir).
-        """
-        return render_template("inspection_schedule.html")
-    
+
     @app.get("/inspection-progress")
     @require_login
+    @require_roles("mufettis", "bas_mufettis")
     def inspection_progress():
         """
         İnceleme durum girişi sayfası.
-        
+
         Takımların inceleme sonuçlarını (geçti/geçmedi) ve notlarını girme ekranı.
         """
         return render_template("inspection_progress.html")
 
     @app.get("/award-assignment")
     @require_login
+    @require_roles("seremoni")
     def award_assignment():
         """
         Ödül atama sayfası.
-        
+
         Jüri üyeleri için ödül-takım eşleştirmesi yapma ekranı.
         """
         return render_template("award_assignment.html")
@@ -428,7 +424,25 @@ def create_app() -> Flask:
         template_name = step_map.get(step)
         if not template_name:
             return jsonify({"error": "Geçersiz adım"}), 404
-        
+
+        # Rol bazlı adım erişim kontrolü (sunucu-taraflı; frontend gizlemesinin
+        # backend karşılığı). Admin/yönetici tüm adımlara erişir.
+        role_lower = (datastore.get_user_role(session.get("user")) or "").lower()
+        is_manager = (
+            role_lower == "admin"
+            or "etkinlik_yoneticisi" in role_lower
+            or "yonetici" in role_lower
+        )
+        # İnceleme takvimi (inspection-schedule) yalnız yönetici/admin tarafından
+        # Kurulum adımında oluşturulur. Müfettişler setup adımlarına erişemez;
+        # işlerini İnceleme Durum Girişi / Baş Müfettiş paneli üzerinden yapar.
+        if not is_manager:
+            allowed_steps = set()
+            if "seremoni" in role_lower:
+                allowed_steps = {"awards"}
+            if step not in allowed_steps:
+                return jsonify({"error": "forbidden", "message": "Bu adıma erişim yetkiniz yok"}), 403
+
         try:
             return render_template(f"setup/{template_name}")
         except Exception as e:
@@ -1364,7 +1378,7 @@ def create_app() -> Flask:
     # Inspection route'larını Blueprint'e kaydet
     from flask import Blueprint
     inspection_bp = Blueprint("inspection", __name__, url_prefix="/api")
-    register_inspection_routes(inspection_bp, datastore, require_login, require_event_manager, socketio)
+    register_inspection_routes(inspection_bp, datastore, require_login, require_event_manager, socketio, require_roles=require_roles)
     app.register_blueprint(inspection_bp)
 
     # Practice Matches route'larını Blueprint'e kaydet
@@ -1394,8 +1408,13 @@ def create_app() -> Flask:
     
     # Hakem Paneli route'larını Blueprint'e kaydet
     referee_panel_bp = Blueprint("referee_panel", __name__, url_prefix="")
-    register_referee_panel_routes(referee_panel_bp, datastore, require_login, socketio)
+    register_referee_panel_routes(referee_panel_bp, datastore, require_login, socketio, require_roles=require_roles)
     app.register_blueprint(referee_panel_bp)
+
+    # Baş Müfettiş Paneli route'larını Blueprint'e kaydet
+    head_inspector_bp = Blueprint("head_inspector", __name__, url_prefix="")
+    register_head_inspector_routes(head_inspector_bp, datastore, require_login, require_roles)
+    app.register_blueprint(head_inspector_bp)
     
     # Seyirci ekranları route'larını Blueprint'e kaydet
     screens_bp = Blueprint("screens", __name__, url_prefix="")

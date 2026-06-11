@@ -6,9 +6,21 @@ Bu modül inceleme slotları (inspection slots) yönetimi için tüm CRUD işlem
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+
+
+def _parse_type_notes(raw: Any) -> Dict[str, str]:
+    """type_notes kolonundaki JSON metnini güvenle dict'e çevirir."""
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (ValueError, TypeError):
+        return {}
 
 
 class InspectionStorage:
@@ -61,7 +73,7 @@ class InspectionStorage:
         if event_id is None:
             return []
         
-        query = "SELECT id, team_number, inspection_type, slot_date, slot_time, duration_minutes, inspector_name, status, notes, station_name FROM inspection_slots WHERE event_id = ?"
+        query = "SELECT id, team_number, inspection_type, slot_date, slot_time, duration_minutes, inspector_name, status, notes, station_name, inspector_username, type_notes FROM inspection_slots WHERE event_id = ?"
         params = [event_id]
         
         if team_number:
@@ -94,6 +106,8 @@ class InspectionStorage:
                 "status": row[7],
                 "notes": row[8] or "",
                 "station_name": row[9] if len(row) > 9 and row[9] else "",
+                "inspector_username": row[10] if len(row) > 10 and row[10] else "",
+                "type_notes": _parse_type_notes(row[11]) if len(row) > 11 else {},
             }
             for row in rows
         ]
@@ -109,6 +123,8 @@ class InspectionStorage:
         status: str = "scheduled",
         notes: str = "",
         station_name: str = "",
+        inspector_username: str = "",
+        type_notes: Dict[str, str] | None = None,
         event_id: int | None = None,
     ) -> int:
         """
@@ -138,49 +154,32 @@ class InspectionStorage:
             raise ValueError("Aktif etkinlik bulunamadı")
         
         with self._get_connection() as conn:
-            # station_name kolonu var mı kontrol et
+            # Mevcut kolonlara göre dinamik INSERT (eski şemalarla geriye dönük uyumlu)
             columns = [row[1] for row in conn.execute("PRAGMA table_info(inspection_slots)").fetchall()]
-            has_station = "station_name" in columns
-            
-            if has_station:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO inspection_slots 
-                    (event_id, team_number, inspection_type, slot_date, slot_time, duration_minutes, inspector_name, status, notes, station_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        event_id,
-                        team_number,
-                        inspection_type,
-                        slot_date,
-                        slot_time,
-                        duration_minutes,
-                        inspector_name,
-                        status,
-                        notes,
-                        station_name,
-                    ),
-                )
-            else:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO inspection_slots 
-                    (event_id, team_number, inspection_type, slot_date, slot_time, duration_minutes, inspector_name, status, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        event_id,
-                        team_number,
-                        inspection_type,
-                        slot_date,
-                        slot_time,
-                        duration_minutes,
-                        inspector_name,
-                        status,
-                        notes,
-                    ),
-                )
+
+            insert_cols = [
+                "event_id", "team_number", "inspection_type", "slot_date",
+                "slot_time", "duration_minutes", "inspector_name", "status", "notes",
+            ]
+            values = [
+                event_id, team_number, inspection_type, slot_date,
+                slot_time, duration_minutes, inspector_name, status, notes,
+            ]
+            if "station_name" in columns:
+                insert_cols.append("station_name")
+                values.append(station_name)
+            if "inspector_username" in columns:
+                insert_cols.append("inspector_username")
+                values.append(inspector_username)
+            if "type_notes" in columns:
+                insert_cols.append("type_notes")
+                values.append(json.dumps(type_notes) if type_notes else None)
+
+            placeholders = ", ".join(["?"] * len(insert_cols))
+            cursor = conn.execute(
+                f"INSERT INTO inspection_slots ({', '.join(insert_cols)}) VALUES ({placeholders})",
+                values,
+            )
             conn.commit()
             return cursor.lastrowid
     
@@ -196,6 +195,8 @@ class InspectionStorage:
         status: str | None = None,
         notes: str | None = None,
         station_name: str | None = None,
+        inspector_username: str | None = None,
+        type_notes: Dict[str, str] | None = None,
     ) -> None:
         """
         İnceleme slotu günceller.
@@ -244,7 +245,13 @@ class InspectionStorage:
         if station_name is not None:
             updates.append("station_name = ?")
             params.append(station_name)
-        
+        if inspector_username is not None:
+            updates.append("inspector_username = ?")
+            params.append(inspector_username)
+        if type_notes is not None:
+            updates.append("type_notes = ?")
+            params.append(json.dumps(type_notes) if type_notes else None)
+
         if not updates:
             return
         
