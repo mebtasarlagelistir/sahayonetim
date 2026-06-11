@@ -46,6 +46,7 @@
       .stat-card.total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
       .stat-card.passed { background: linear-gradient(135deg, #4caf50 0%, #43a047 100%); }
       .stat-card.failed { background: linear-gradient(135deg, #f44336 0%, #e53935 100%); }
+      .stat-card.inprogress { background: linear-gradient(135deg, #2196f3 0%, #1e88e5 100%); }
       .stat-card.pending { background: linear-gradient(135deg, #ff9800 0%, #fb8c00 100%); }
       
       .stat-card .value {
@@ -94,6 +95,7 @@
         border: 1px solid #ddd;
         border-radius: 22px;
         background: white;
+        color: #333;
         cursor: pointer;
         font-size: 0.95rem;
         touch-action: manipulation;
@@ -138,6 +140,11 @@
       .team-card.status-failed {
         border-left-color: #f44336;
         background: #ffebee;
+      }
+
+      .team-card.status-in_progress {
+        border-left-color: #2196f3;
+        background: #e3f2fd;
       }
       
       .team-card-header {
@@ -186,6 +193,12 @@
         background: #ffebee;
         color: #c62828;
       }
+
+      .status-select.status-in_progress {
+        border-color: #2196f3;
+        background: #e3f2fd;
+        color: #1565c0;
+      }
       
       .notes-input {
         width: 100%;
@@ -197,7 +210,64 @@
         min-height: 50px;
         margin-top: 8px;
       }
+
+      /* Tip bazlı not kutuları */
+      .type-notes {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .type-note-label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #3730a3;
+      }
+      .type-note-input {
+        width: 100%;
+        padding: 7px;
+        border: 1px solid #c7d2fe;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 400;
+        color: #333;
+        resize: vertical;
+        min-height: 42px;
+      }
       
+      /* Üzerime al / bırak satırı */
+      .claim-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 8px;
+        padding: 6px 8px;
+        background: #eef2ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 6px;
+      }
+      .claim-row.mine { background: #e8f5e9; border-color: #a5d6a7; }
+      .claim-label { font-size: 0.85rem; font-weight: 600; color: #3730a3; }
+      .claim-row.mine .claim-label { color: #2e7d32; }
+      .claim-label.muted-claim { color: #999; font-weight: 400; }
+      .claim-btn {
+        min-height: 40px;
+        padding: 8px 16px;
+        border: 1px solid #4f46e5;
+        background: #4f46e5;
+        color: white;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .claim-btn.release { background: white; color: #c62828; border-color: #e57373; }
+
       .save-indicator {
         font-size: 0.7rem;
         color: #999;
@@ -235,6 +305,9 @@
           font-size: 1.05rem;
         }
         .notes-input { min-height: 60px; font-size: 0.95rem; }
+        .type-note-label { font-size: 0.85rem; }
+        .type-note-input { min-height: 56px; font-size: 0.95rem; }
+        .claim-btn { min-height: 44px; font-size: 0.95rem; }
         .filter-row { gap: 8px; }
         .filter-btn { flex: 1 1 auto; }
         .search-box { min-width: 100%; }
@@ -260,7 +333,6 @@
       <div class="header-bottom">
         <div class="actions">
           <a href="/dashboard" class="button btn-small">← Dashboard</a>
-          <a href="/inspection-schedule" class="button btn-small">📋 Program Oluştur</a>
           <a href="/inspection-tracking" class="button btn-small">📊 Takip Paneli</a>
         </div>
       </div>
@@ -284,6 +356,10 @@
             <div class="value" id="stat_failed">0</div>
             <div class="label">Kaldı ✗</div>
           </div>
+          <div class="stat-card inprogress">
+            <div class="value" id="stat_in_progress">0</div>
+            <div class="label">Devam Ediyor 🔄</div>
+          </div>
           <div class="stat-card pending">
             <div class="value" id="stat_not_started">0</div>
             <div class="label">Başlamadı</div>
@@ -300,6 +376,7 @@
         <div class="filter-row">
           <button class="filter-btn active" data-filter="all">Tümü</button>
           <button class="filter-btn" data-filter="not-started">📋 Başlamadı</button>
+          <button class="filter-btn" data-filter="in_progress">🔄 Devam Ediyor</button>
           <button class="filter-btn" data-filter="passed">✅ Geçti</button>
           <button class="filter-btn" data-filter="failed">❌ Kaldı</button>
           <input type="text" class="search-box" id="search_box" placeholder="Takım ara..." />
@@ -308,8 +385,8 @@
         <div id="teams_container" class="teams-grid">
           <div class="empty-state">
             <div class="icon">📋</div>
-            <p>Henüz program oluşturulmamış</p>
-            <p><a href="/inspection-schedule">Program Oluştur</a></p>
+            <p>Henüz inceleme programı oluşturulmamış</p>
+            <p class="muted">Program, etkinlik yöneticisi tarafından Kurulum adımında oluşturulur.</p>
           </div>
         </div>
       </section>
@@ -319,6 +396,7 @@
     <script src="/static/js/constants.js"></script>
     <script src="/static/js/event.js"></script>
     <script src="/static/js/users.js"></script>
+    <script src="/static/js/inspection.js"></script>
     <script src="/static/js/network_utils.js"></script>
     <script src="/static/app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -332,8 +410,22 @@
       let saveTimers = {};
       let socket = null;
       let refreshInterval = null;
+      let currentUser = '';
+      let isPrivileged = false;
       const REFRESH_INTERVAL = 5000; // 5 saniyede bir güncelle
-      
+
+      async function loadMe() {
+        try {
+          const r = await fetch('/api/user/role');
+          if (r.ok) {
+            const d = await r.json();
+            currentUser = d.username || '';
+            const rl = String(d.role || '').toLowerCase();
+            isPrivileged = rl === 'admin' || rl.includes('etkinlik_yoneticisi') || rl.includes('yonetici') || rl.includes('bas_mufettis');
+          }
+        } catch (e) { /* yoksay */ }
+      }
+
       async function init() {
         try {
           socket = io();
@@ -359,8 +451,9 @@
           renderTeams();
         });
         
+        await loadMe();
         await loadTeams();
-        
+
         // Otomatik yenileme başlat (5 saniyede bir)
         startAutoRefresh();
       }
@@ -388,13 +481,16 @@
         const total = teamsData.length;
         const passed = teamsData.filter(t => t.status === 'passed').length;
         const failed = teamsData.filter(t => t.status === 'failed').length;
-        const notStarted = total - passed - failed;
-        
+        const inProgress = teamsData.filter(t => t.status === 'in_progress').length;
+        const notStarted = total - passed - failed - inProgress;
+
         document.getElementById('stat_total').textContent = total;
         document.getElementById('stat_passed').textContent = passed;
         document.getElementById('stat_failed').textContent = failed;
+        document.getElementById('stat_in_progress').textContent = inProgress;
         document.getElementById('stat_not_started').textContent = notStarted;
-        
+
+        // İlerleme: tamamlanan (geçti+kaldı) oranı
         const pct = total > 0 ? Math.round(((passed + failed) / total) * 100) : 0;
         const bar = document.getElementById('progress_bar');
         bar.style.width = pct + '%';
@@ -405,10 +501,11 @@
         const container = document.getElementById('teams_container');
         
         let filtered = teamsData.filter(team => {
-          if (currentFilter === 'not-started' && (team.status === 'passed' || team.status === 'failed')) return false;
+          if (currentFilter === 'not-started' && (team.status === 'passed' || team.status === 'failed' || team.status === 'in_progress')) return false;
+          if (currentFilter === 'in_progress' && team.status !== 'in_progress') return false;
           if (currentFilter === 'passed' && team.status !== 'passed') return false;
           if (currentFilter === 'failed' && team.status !== 'failed') return false;
-          
+
           if (searchTerm) {
             const num = (team.team_number || '').toLowerCase();
             const name = (team.team_name || '').toLowerCase();
@@ -424,7 +521,7 @@
         
         if (filtered.length === 0) {
           if (teamsData.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Henüz program oluşturulmamış</p><p><a href="/inspection-schedule">Program Oluştur</a></p></div>';
+            container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Henüz inceleme programı oluşturulmamış</p><p class="muted">Program, etkinlik yöneticisi tarafından Kurulum adımında oluşturulur.</p></div>';
           } else {
             container.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Filtreye uygun takım bulunamadı</p></div>';
           }
@@ -440,12 +537,83 @@
         container.querySelectorAll('.notes-input').forEach(input => {
           input.addEventListener('input', handleNotesChange);
         });
+
+        container.querySelectorAll('.type-note-input').forEach(input => {
+          input.addEventListener('input', handleTypeNoteChange);
+        });
+
+        container.querySelectorAll('.claim-btn').forEach(btn => {
+          btn.addEventListener('click', handleClaim);
+        });
+      }
+
+      async function handleClaim(e) {
+        const btn = e.currentTarget;
+        const id = btn.dataset.id;
+        const act = btn.dataset.act;
+        if (act === 'claim' && !currentUser) return;
+        const username = act === 'claim' ? currentUser : '';
+
+        const ok = await saveSlot(id, { inspector_username: username, inspector_name: username });
+        if (ok) {
+          const team = teamsData.find(t => t.id == id);
+          if (team) { team.inspector_username = username; team.inspector_name = username; }
+          renderTeams();
+        }
       }
       
+      function typeMeta(t) {
+        // inspection.js varsa zengin etiket; yoksa ham anahtar
+        if (typeof getTypeIcon === 'function' && typeof getTypeName === 'function') {
+          return getTypeIcon(t) + ' ' + getTypeName(t);
+        }
+        return t;
+      }
+
+      function renderTypeNotes(team) {
+        const members = String(team.inspection_type || '').split('+').filter(Boolean);
+        const tn = team.type_notes || {};
+        // Tek tipli slotta da tip etiketiyle göster; gruplu slotta her üye ayrı kutu
+        return '<div class="type-notes">' + members.map(function (t) {
+          return '<label class="type-note-label">' + esc(typeMeta(t)) +
+            '<textarea class="type-note-input" data-id="' + team.id + '" data-type="' + esc(t) + '" placeholder="' + esc(typeMeta(t)) + ' açıklaması...">' + esc(tn[t] || '') + '</textarea>' +
+          '</label>';
+        }).join('') + '</div>';
+      }
+
+      function renderClaim(team) {
+        const assignedTo = team.inspector_username || '';
+        const mine = assignedTo && currentUser && assignedTo === currentUser;
+        if (mine) {
+          return '<div class="claim-row mine">' +
+            '<span class="claim-label">👮 Üzerinde</span>' +
+            '<button class="claim-btn release" data-id="' + team.id + '" data-act="release">Bırak</button>' +
+            '</div>';
+        }
+        if (assignedTo) {
+          return '<div class="claim-row">' +
+            '<span class="claim-label">👮 ' + esc(assignedTo) + '</span>' +
+            '<button class="claim-btn" data-id="' + team.id + '" data-act="claim">Üzerime al</button>' +
+            '</div>';
+        }
+        return '<div class="claim-row">' +
+          '<span class="claim-label muted-claim">Atanmadı</span>' +
+          '<button class="claim-btn" data-id="' + team.id + '" data-act="claim">Üzerime al</button>' +
+          '</div>';
+      }
+
+      function statusClassOf(status) {
+        if (status === 'passed') return 'status-passed';
+        if (status === 'failed') return 'status-failed';
+        if (status === 'in_progress') return 'status-in_progress';
+        return '';
+      }
+
       function renderTeamCard(team) {
-        const statusClass = team.status === 'passed' ? 'status-passed' : (team.status === 'failed' ? 'status-failed' : '');
+        const statusClass = statusClassOf(team.status);
+        const notStarted = team.status !== 'passed' && team.status !== 'failed' && team.status !== 'in_progress';
         const date = team.slot_date ? team.slot_date.split('-').reverse().join('/') : '';
-        
+
         return '<div class="team-card ' + statusClass + '" data-id="' + team.id + '">' +
           '<div class="team-card-header">' +
             '<div class="team-info">' +
@@ -454,12 +622,15 @@
               '<div class="team-time">📅 ' + date + ' ⏰ ' + esc(team.slot_time) + '</div>' +
             '</div>' +
             '<select class="status-select ' + statusClass + '" data-id="' + team.id + '">' +
-              '<option value="not-started"' + (team.status !== 'passed' && team.status !== 'failed' ? ' selected' : '') + '>📋 Başlamadı</option>' +
+              '<option value="not-started"' + (notStarted ? ' selected' : '') + '>📋 Başlamadı</option>' +
+              '<option value="in_progress"' + (team.status === 'in_progress' ? ' selected' : '') + '>🔄 Devam Ediyor</option>' +
               '<option value="passed"' + (team.status === 'passed' ? ' selected' : '') + '>✅ Geçti</option>' +
               '<option value="failed"' + (team.status === 'failed' ? ' selected' : '') + '>❌ Kaldı</option>' +
             '</select>' +
           '</div>' +
-          '<textarea class="notes-input" data-id="' + team.id + '" placeholder="Notlar...">' + esc(team.notes || '') + '</textarea>' +
+          renderClaim(team) +
+          renderTypeNotes(team) +
+          '<textarea class="notes-input" data-id="' + team.id + '" placeholder="Genel not...">' + esc(team.notes || '') + '</textarea>' +
           '<div class="save-indicator" id="ind_' + team.id + '"></div>' +
         '</div>';
       }
@@ -471,10 +642,11 @@
         const team = teamsData.find(t => t.id == id);
         if (team) team.status = newStatus;
         
+        const cls = statusClassOf(newStatus);
         const card = document.querySelector('.team-card[data-id="' + id + '"]');
-        card.className = 'team-card' + (newStatus === 'passed' ? ' status-passed' : (newStatus === 'failed' ? ' status-failed' : ''));
-        e.target.className = 'status-select' + (newStatus === 'passed' ? ' status-passed' : (newStatus === 'failed' ? ' status-failed' : ''));
-        
+        card.className = ('team-card ' + cls).trim();
+        e.target.className = ('status-select ' + cls).trim();
+
         await saveSlot(id, { status: newStatus });
         updateStats();
         
@@ -497,6 +669,27 @@
         }, 800);
       }
       
+      function handleTypeNoteChange(e) {
+        const id = e.target.dataset.id;
+        // Bu karttaki tüm tip-notlarını topla
+        const card = document.querySelector('.team-card[data-id="' + id + '"]');
+        const map = {};
+        card.querySelectorAll('.type-note-input').forEach(function (inp) {
+          map[inp.dataset.type] = inp.value;
+        });
+
+        const team = teamsData.find(t => t.id == id);
+        if (team) team.type_notes = map;
+
+        showIndicator(id, 'saving', 'Kaydediliyor...');
+
+        clearTimeout(saveTimers['tn_' + id]);
+        saveTimers['tn_' + id] = setTimeout(async () => {
+          const ok = await saveSlot(id, { type_notes: map });
+          showIndicator(id, ok ? 'saved' : 'error', ok ? '✓ Kaydedildi' : '✗ Hata');
+        }, 800);
+      }
+
       async function saveSlot(id, data) {
         try {
           const response = await fetch('/api/inspection-slots/' + id, {

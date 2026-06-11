@@ -99,6 +99,15 @@
             <input type="number" data-duration-input="safety" value="10" min="5" max="120" style="width: 40px; padding: 2px 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; text-align: center;" />dk
           </label>
         </div>
+
+        <!-- Gruplama: seçili tipleri tek slotta birleştir -->
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e1e4ee;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+            <button type="button" id="group_inspection_types" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">🔗 Seçilenleri Grupla</button>
+            <small style="color: #666;">İşaretlediğin tipler tek bir slotta, ortak süreyle planlanır. Bir müfettiş hepsini o blokta yapar.</small>
+          </div>
+          <div id="inspection_groups_list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
       </div>
     </details>
   </div>
@@ -106,19 +115,16 @@
     #inspection_duration_settings details[open] summary span:first-child { transform: rotate(90deg); }
     #inspection_duration_settings .insp-chip:has(input[type="checkbox"]:checked) { background: #e0e7ff; border: 1px solid #4f46e5; }
     #inspection_duration_settings .insp-chip:hover { background: #e8e8f0; }
+    #inspection_duration_settings .insp-chip.insp-chip-grouped { opacity: 0.45; background: #ececf2; border: 1px dashed #b0b0c0; cursor: not-allowed; }
+    #inspection_groups_list .insp-group-pill {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 8px 12px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px;
+    }
+    #inspection_groups_list .insp-group-label { font-weight: 600; color: #3730a3; font-size: 13px; }
+    #inspection_groups_list .insp-group-dur { font-size: 12px; color: #555; display: inline-flex; align-items: center; gap: 4px; }
+    #inspection_groups_list .insp-group-dur input { width: 56px; padding: 2px 4px; border: 1px solid #c7d2fe; border-radius: 4px; text-align: center; }
+    #inspection_groups_list .insp-group-remove { margin-left: auto; padding: 4px 10px; font-size: 12px; }
   </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const updateCount = () => {
-        const count = document.querySelectorAll('#inspection_duration_settings input[type="checkbox"]:checked').length;
-        const countEl = document.getElementById('inspection_type_count');
-        if (countEl) countEl.textContent = count + ' seçili';
-      };
-      document.querySelectorAll('#inspection_duration_settings input[type="checkbox"]').forEach(cb => cb.addEventListener('change', updateCount));
-      updateCount();
-    });
-  </script>
-
   <!-- Otomatik Takvim Oluşturma -->
   <div class="card-section">
     <h3>Otomatik Takvim Oluştur</h3>

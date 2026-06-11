@@ -187,6 +187,153 @@ function getTypeColor(typeId) {
 }
 
 /**
+ * Bir inceleme tipi anahtarının ekranda gösterilecek bilgilerini döndürür.
+ *
+ * Gruplanan slotlar composite anahtar taşır ("size+general_hardware"). Bu durumda
+ * üye tiplerin ikon ve isimleri birleştirilerek tek etikette gösterilir.
+ *
+ * @param {string} typeId - Tek tip ("size") veya composite ("size+general_hardware")
+ * @returns {{name: string, label: string, icon: string, color: string, isGroup: boolean}}
+ */
+function describeInspectionType(typeId) {
+  const raw = String(typeId || "");
+  if (raw.includes("+")) {
+    const members = raw.split("+").filter(Boolean);
+    const names = members.map((m) => getTypeName(m));
+    const icons = members.map((m) => getTypeIcon(m)).join("");
+    const name = names.join(" + ");
+    // Grup rengi: ilk üyenin rengi
+    const color = getTypeColor(members[0]);
+    return { name, label: `${icons} ${name}`.trim(), icon: icons, color, isGroup: true };
+  }
+  const info = getInspectionType(raw);
+  const name = info ? info.name : raw;
+  const icon = info ? info.icon : "📋";
+  const color = info ? info.color : "#95a5a6";
+  return { name, label: info ? `${icon} ${name}` : name, icon, color, isGroup: false };
+}
+
+/**
+ * Gruplanan inceleme tipleri.
+ * Her grup tek bir slotta birleştirilir ve ortak süre alır.
+ * Biçim: { types: ["size", "general_hardware"], duration: 25 }
+ */
+let inspectionGroups = [];
+
+/** Herhangi bir gruba dahil olan tüm tiplerin kümesini döndürür. */
+function getGroupedInspectionTypes() {
+  const set = new Set();
+  inspectionGroups.forEach((g) => (g.types || []).forEach((t) => set.add(t)));
+  return set;
+}
+
+/** Bir inceleme tipinin güncel süre kutusundaki değerini döndürür. */
+function getMemberDuration(type) {
+  const inp = document.querySelector(
+    `#inspection_duration_settings input[data-duration-input][data-inspection-type="${type}"]`
+  );
+  if (inp && Number(inp.value) > 0) return Number(inp.value);
+  return getInspectionType(type)?.duration || 15;
+}
+
+/** "6 seçili" rozetini güncel checked sayısına göre yeniler. */
+function updateInspectionTypeCount() {
+  const count = document.querySelectorAll(
+    '#inspection_duration_settings input[type="checkbox"][data-inspection-type]:checked'
+  ).length;
+  const el = document.getElementById("inspection_type_count");
+  if (el) el.textContent = count + " seçili";
+}
+
+/**
+ * Grup üyesi tiplerin tekil chip'lerini devre dışı bırakır ve işaretler;
+ * gruptan çıkanları tekrar aktif eder.
+ */
+function applyGroupStateToChips() {
+  const grouped = getGroupedInspectionTypes();
+  document.querySelectorAll("#inspection_duration_settings .insp-chip").forEach((chip) => {
+    const cb = chip.querySelector('input[type="checkbox"][data-inspection-type]');
+    if (!cb) return;
+    const dur = chip.querySelector("input[data-duration-input]");
+    const type = cb.dataset.inspectionType;
+    if (grouped.has(type)) {
+      cb.checked = false;
+      cb.disabled = true;
+      if (dur) dur.disabled = true;
+      chip.classList.add("insp-chip-grouped");
+      chip.title = "Bu tip bir grupta — değiştirmek için grubu çözün";
+    } else {
+      cb.disabled = false;
+      if (dur) dur.disabled = false;
+      chip.classList.remove("insp-chip-grouped");
+      chip.title = "";
+    }
+  });
+}
+
+/** Gruplar listesini ekrana çizer. */
+function renderInspectionGroups() {
+  const container = document.getElementById("inspection_groups_list");
+  if (!container) return;
+  if (inspectionGroups.length === 0) {
+    container.innerHTML =
+      '<p style="color:#888;font-size:13px;margin:4px 0;">Henüz grup yok. Yukarıdan birden fazla tip seçip <strong>Seçilenleri Grupla</strong> deyin — grup tek slotta, ortak süreyle planlanır.</p>';
+    return;
+  }
+  container.innerHTML = "";
+  inspectionGroups.forEach((g, idx) => {
+    const desc = describeInspectionType((g.types || []).join("+"));
+    const defaultDur = g.duration || (g.types || []).reduce((s, t) => s + getMemberDuration(t), 0);
+    g.duration = defaultDur;
+    const pill = document.createElement("div");
+    pill.className = "insp-group-pill";
+    pill.innerHTML = `
+      <span class="insp-group-label">${escapeHtml(desc.label)}</span>
+      <label class="insp-group-dur">Ortak süre
+        <input type="number" min="5" max="240" value="${defaultDur}" data-group-index="${idx}" /> dk
+      </label>
+      <button type="button" class="btn-danger insp-group-remove" data-group-index="${idx}">Çöz</button>
+    `;
+    container.appendChild(pill);
+  });
+  container.querySelectorAll("input[data-group-index]").forEach((inp) => {
+    inp.addEventListener("change", () => {
+      const i = Number(inp.dataset.groupIndex);
+      if (inspectionGroups[i]) inspectionGroups[i].duration = Number(inp.value) || undefined;
+    });
+  });
+  container.querySelectorAll(".insp-group-remove").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.groupIndex);
+      inspectionGroups.splice(i, 1);
+      applyGroupStateToChips();
+      renderInspectionGroups();
+      updateInspectionTypeCount();
+    });
+  });
+}
+
+/** Seçili (işaretli) tipleri tek bir gruba birleştirir. */
+function groupSelectedInspectionTypes() {
+  const selected = [];
+  document
+    .querySelectorAll('#inspection_duration_settings input[type="checkbox"][data-inspection-type]:checked')
+    .forEach((cb) => {
+      if (!cb.disabled) selected.push(cb.dataset.inspectionType);
+    });
+  if (selected.length < 2) {
+    showToast("Gruplamak için en az 2 tip seçin", "warning");
+    return;
+  }
+  const duration = selected.reduce((s, t) => s + getMemberDuration(t), 0);
+  inspectionGroups.push({ types: selected, duration });
+  applyGroupStateToChips();
+  renderInspectionGroups();
+  updateInspectionTypeCount();
+  showToast(`${selected.length} tip tek slotta gruplandı`, "success");
+}
+
+/**
  * İnceleme slotlarını yükler ve tabloya ekler
  * 
  * API: GET /api/inspection-slots?team=...&type=...&date=...&status=...
@@ -238,10 +385,9 @@ async function loadInspectionSlots() {
     slots.forEach((slot) => {
            const tr = document.createElement("tr");
            
-           // Get type metadata from FRC system
-           const typeInfo = getInspectionType(slot.inspection_type);
-           const typeName = typeInfo ? `${typeInfo.icon} ${typeInfo.name}` : (typeNames[slot.inspection_type] || slot.inspection_type);
-           
+           // Get type metadata (composite/group anahtarlarını da çözer)
+           const typeName = describeInspectionType(slot.inspection_type).label;
+
            // Apply status color class
            const statusClass = `status-${slot.status}`;
            tr.className = statusClass;
@@ -480,10 +626,19 @@ async function generateInspectionSlots() {
     .map((s) => s.trim())
     .filter(Boolean);
   
-  // Seçilen inceleme tiplerini topla (sadece süre ayarları bölümündeki checkbox'ları kullan)
+  // İnceleme birimlerini (units) topla: önce gruplar (tek slot, ortak süre),
+  // sonra gruba dahil olmayan tekil seçili tipler.
+  const inspectionUnits = [];
+  inspectionGroups.forEach((g) => {
+    const duration = g.duration || g.types.reduce((s, t) => s + getMemberDuration(t), 0);
+    inspectionUnits.push({ types: g.types.slice(), duration });
+  });
+  // Tekil seçili tipler (devre dışı = gruba dahil olanlar hariç)
   const inspectionTypes = [];
   document.querySelectorAll('#inspection_duration_settings input[type="checkbox"][data-inspection-type]:checked').forEach((cb) => {
+    if (cb.disabled) return;
     inspectionTypes.push(cb.dataset.inspectionType);
+    inspectionUnits.push({ types: [cb.dataset.inspectionType], duration: getMemberDuration(cb.dataset.inspectionType) });
   });
   
   // İstasyon isimlerini topla
@@ -507,12 +662,14 @@ async function generateInspectionSlots() {
     return;
   }
   
-  if (inspectionTypes.length === 0) {
+  if (inspectionUnits.length === 0) {
     showToast("Lütfen en az bir inceleme tipi seçin", "warning");
     return;
   }
-  
-  if (!confirm(`Tüm takımlar için ${inspectionTypes.length} inceleme tipi için otomatik takvim oluşturulsun mu?`)) {
+
+  const groupCount = inspectionGroups.length;
+  const groupNote = groupCount > 0 ? ` (${groupCount} grup dahil)` : "";
+  if (!confirm(`Tüm takımlar için ${inspectionUnits.length} inceleme bloğu${groupNote} için otomatik takvim oluşturulsun mu?`)) {
     return;
   }
   
@@ -523,6 +680,7 @@ async function generateInspectionSlots() {
       start_date: startDate,
       start_time: startTime,
       inspection_types: inspectionTypes,
+      inspection_units: inspectionUnits,
       break_minutes: breakMinutes,
       inspector_names: inspectorNames,
       station_names: stationNames,
@@ -627,7 +785,15 @@ async function loadInspectionDurations() {
       const type = checkbox.dataset.inspectionType;
       checkbox.checked = selectedTypes.includes(type);
     });
-    
+
+    // Grupları yükle ve UI'a uygula
+    inspectionGroups = (data.inspection_groups || [])
+      .filter((g) => Array.isArray(g.types) && g.types.length >= 2)
+      .map((g) => ({ types: g.types.slice(), duration: g.duration }));
+    applyGroupStateToChips();
+    renderInspectionGroups();
+    updateInspectionTypeCount();
+
     if (qs("inspection_print_note")) {
       qs("inspection_print_note").value = data.print_note || "";
     }
@@ -662,7 +828,8 @@ async function saveInspectionDurations() {
     
     await apiPost("/api/inspection-settings", {
       type_durations: durations,
-      selected_types: selectedTypes
+      selected_types: selectedTypes,
+      inspection_groups: inspectionGroups.map((g) => ({ types: g.types, duration: g.duration })),
     });
 
     showToast("İnceleme tipi süreleri kaydedildi", "success");
@@ -841,11 +1008,11 @@ async function renderInspectionGrid() {
       });
       
       if (slot) {
-        // Use FRC type system for color and name
-        const typeInfo = getInspectionType(slot.inspection_type);
-        const color = typeInfo ? typeInfo.color : (typeColors[slot.inspection_type] || "#95a5a6");
-        const typeName = typeInfo ? typeInfo.name : (typeNames[slot.inspection_type] || slot.inspection_type);
-        const typeIcon = typeInfo ? typeInfo.icon : "";
+        // Use FRC type system for color and name (composite/group anahtarları dahil)
+        const typeDesc = describeInspectionType(slot.inspection_type);
+        const color = typeDesc.color;
+        const typeName = typeDesc.name;
+        const typeIcon = typeDesc.icon;
         
         const inspector = slot.inspector_name ? ` (${escapeHtml(slot.inspector_name)})` : "";
         const stationName = slot.station_name ? slot.station_name : "";
@@ -897,8 +1064,7 @@ async function renderInspectionGrid() {
       // Slot detaylarını göster veya düzenle
       const slot = slots.find(s => s.id == slotId);
       if (slot) {
-        const typeInfo = getInspectionType(slot.inspection_type);
-        const typeName = typeInfo ? `${typeInfo.icon} ${typeInfo.name}` : (typeNames[slot.inspection_type] || slot.inspection_type);
+        const typeName = describeInspectionType(slot.inspection_type).label;
         alert(`Slot Detayları:\nTakım: ${slot.team_number}\nTip: ${typeName}\nTarih: ${slot.slot_date}\nSaat: ${slot.slot_time}\nSüre: ${slot.duration_minutes} dk\nMüfettiş: ${slot.inspector_name || "Atanmamış"}\nDurum: ${slot.status}`);
       }
     });

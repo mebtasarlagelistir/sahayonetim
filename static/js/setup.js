@@ -598,6 +598,19 @@ function setupInspectionListeners() {
   if (qs("save_inspection_durations")) {
     qs("save_inspection_durations").addEventListener("click", saveInspectionDurations);
   }
+  // Gruplama: seçili tipleri tek slotta birleştir
+  if (qs("group_inspection_types")) {
+    qs("group_inspection_types").addEventListener("click", groupSelectedInspectionTypes);
+  }
+  // Tip seçim sayacını canlı tut (inline script innerHTML ile çalışmaz)
+  const durationSettings = qs("inspection_duration_settings");
+  if (durationSettings && typeof updateInspectionTypeCount === "function") {
+    durationSettings.addEventListener("change", (e) => {
+      if (e.target.matches('input[type="checkbox"][data-inspection-type]')) {
+        updateInspectionTypeCount();
+      }
+    });
+  }
   if (qs("save_inspection_print_note")) {
     qs("save_inspection_print_note").addEventListener("click", saveInspectionPrintNote);
   }

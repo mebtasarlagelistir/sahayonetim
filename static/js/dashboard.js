@@ -523,10 +523,32 @@ function updateDashboardSectionsForRole() {
     (roleLower.includes("hakem") && !isHeadReferee) ||
     roleLower.startsWith("hakem_");
 
+  const isHeadInspector = roleLower.includes("bas_mufettis") || roleLower.includes("baş_müfettiş");
+  const isInspector = !isHeadInspector && (roleLower.includes("mufettis") || roleLower.includes("inspector"));
+  const isCeremony = roleLower.includes("seremoni");
+
   const isAdminOrManager =
     roleLower === "admin" ||
     roleLower.includes("etkinlik_yoneticisi") ||
     roleLower.includes("yonetici");
+
+  // Baş Müfettiş Paneli linki yalnız baş müfettişe gösterilir
+  document.querySelectorAll(".head-inspector-only").forEach((el) => {
+    el.style.display = isHeadInspector || isAdminOrManager ? "" : "none";
+  });
+
+  // Yardımcı: yalnız izin verilen başlıklı bölümleri göster
+  const showOnlySections = (allowed) => {
+    document.querySelectorAll(".dashboard-section").forEach((section) => {
+      const heading = section.querySelector("h2");
+      const headingText = heading ? heading.textContent.trim() : "";
+      section.style.display = allowed.some((a) => headingText.includes(a)) ? "" : "none";
+    });
+    const eventSwitcher = document.querySelector(".event-switcher");
+    if (eventSwitcher) eventSwitcher.style.display = "none";
+    const setupLink = document.querySelector('a[href="/setup"]');
+    if (setupLink) setupLink.style.display = "none";
+  };
 
   if (isAdminOrManager) {
     // Admin / etkinlik yöneticisi: tüm bölümler
@@ -585,14 +607,30 @@ function updateDashboardSectionsForRole() {
     return;
   }
 
-  // Diğer roller (müfettiş, seremoni vb.): şimdilik tüm bölümler
+  if (isInspector || isHeadInspector) {
+    // Müfettiş / Baş müfettiş: sadece İnceleme bölümü
+    showOnlySections(["Inspection", "İnceleme"]);
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "";
+    return;
+  }
+
+  if (isCeremony) {
+    // Seremoni: sadece Jüri ve Maç Yönetimi (ödül) bölümü
+    showOnlySections(["Jüri ve Maç Yönetimi"]);
+    const summary = document.querySelector(".dashboard-summary");
+    if (summary) summary.style.display = "";
+    return;
+  }
+
+  // Bilinmeyen roller: güvenli varsayılan — yalnız özet, bölüm yok
   document.querySelectorAll(".dashboard-section").forEach((section) => {
-    section.style.display = "";
+    section.style.display = "none";
   });
   const summary = document.querySelector(".dashboard-summary");
   if (summary) summary.style.display = "";
   const eventSwitcher = document.querySelector(".event-switcher");
-  if (eventSwitcher) eventSwitcher.style.display = "";
+  if (eventSwitcher) eventSwitcher.style.display = "none";
 }
 
 /**

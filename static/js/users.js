@@ -86,11 +86,11 @@ function updateSectionsForRole() {
     
     if (isAdmin || isEventManager) {
       shouldShow = true; // Admin ve etkinlik yöneticisi tüm adımları görebilir
-    } else if (isInspector && (stepId === "step-judging" || stepId === "step-inspection-schedule")) {
-      shouldShow = true; // Müfettiş sadece inceleme adımlarını görebilir
     } else if (isCeremony && stepId === "step-awards") {
       shouldShow = true; // Seremoni sadece ödül adımını görebilir
     }
+    // Müfettiş setup adımlarına erişmez; inceleme takvimini yalnız yönetici oluşturur.
+    // Müfettişler işlerini İnceleme Durum Girişi / Baş Müfettiş paneli üzerinden yapar.
     
     const listItem = link.closest("li");
     if (listItem) {

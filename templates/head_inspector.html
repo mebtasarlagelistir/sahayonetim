@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEMSKOR - Baş Müfettiş Paneli</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .hi-layout { max-width: 1300px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+      .card { background: white; border-radius: 8px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 16px; }
+      .card h2 { margin: 0 0 14px 0; font-size: 1.2rem; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
+
+      .inspector-item { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid #e1e4ee; border-radius: 8px; margin-bottom: 8px; background: #f8f9fc; }
+      .inspector-item .uname { font-weight: 700; color: #3730a3; }
+      .inspector-item .cred { font-size: 0.85rem; color: #555; display: flex; align-items: center; gap: 6px; }
+      .inspector-item code { background: #eef2ff; padding: 1px 6px; border-radius: 4px; }
+      .copy-btn { border: 1px solid #c7d2fe; background: white; border-radius: 4px; cursor: pointer; font-size: 0.75rem; padding: 1px 6px; }
+
+      .filter-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: end; }
+      .filter-row label { font-size: 0.8rem; color: #555; display: flex; flex-direction: column; gap: 3px; }
+      .filter-row input, .filter-row select { padding: 8px 10px; min-height: 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+
+      .bulk-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; padding: 12px; background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 8px; margin-bottom: 14px; }
+
+      table.slots { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+      table.slots th, table.slots td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+      table.slots th { background: #f4f5fa; position: sticky; top: 0; }
+      table.slots select.assign { padding: 6px 8px; min-height: 38px; border: 1px solid #c7d2fe; border-radius: 6px; min-width: 150px; }
+      table.slots tr.assigned td { background: #f1f8e9; }
+      .muted { color: #999; }
+
+      .station-map { background: #f7f8fb; border: 1px solid #e1e4ee; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+      .station-map h3 { margin: 0 0 6px; font-size: 1rem; color: #333; }
+      .station-map-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+      .station-map-row .st-name { flex: 0 0 42%; font-weight: 600; color: #3730a3; }
+      .station-map-row select { flex: 1; padding: 8px; min-height: 40px; border: 1px solid #c7d2fe; border-radius: 6px; }
+
+      @media (max-width: 900px) {
+        .hi-layout { grid-template-columns: 1fr; }
+      }
+
+      /* Telefon: filtreler/toplu satır dikey, dokunmatik hedefler büyük,
+         5 sütunlu tablo etiketli kartlara dönüşür */
+      @media (max-width: 700px) {
+        .hi-layout { padding: 10px; gap: 12px; }
+        .card { padding: 14px; }
+
+        .filter-row { flex-direction: column; align-items: stretch; gap: 8px; }
+        .filter-row label { width: 100%; }
+        .filter-row input, .filter-row select { width: 100%; min-height: 44px; font-size: 1rem; }
+        .filter-row .button { width: 100%; min-height: 44px; }
+
+        .bulk-row { flex-direction: column; align-items: stretch; gap: 8px; }
+        .bulk-row label { width: 100%; }
+        .bulk-row select { width: 100%; min-height: 44px; }
+        .bulk-row .button { width: 100%; min-height: 44px; }
+
+        /* Tabloyu kartlara çevir */
+        table.slots thead { display: none; }
+        table.slots, table.slots tbody, table.slots tr, table.slots td { display: block; width: 100%; }
+        table.slots tr { border: 1px solid #e1e4ee; border-radius: 10px; margin-bottom: 12px; padding: 4px 2px; }
+        table.slots tr.assigned { background: #f1f8e9; }
+        table.slots td { border: none; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        table.slots td::before { content: attr(data-label); font-weight: 600; color: #666; font-size: 0.8rem; flex: 0 0 auto; }
+        table.slots td.assign-cell { flex-direction: column; align-items: stretch; gap: 4px; }
+        table.slots td.assign-cell::before { margin-bottom: 2px; }
+        table.slots select.assign { width: 100%; min-height: 46px; min-width: 0; font-size: 1rem; }
+
+        .inspector-item .cred { flex-wrap: wrap; }
+        .copy-btn { min-height: 32px; padding: 4px 10px; }
+
+        .station-map-row { flex-direction: column; align-items: stretch; gap: 4px; }
+        .station-map-row .st-name { flex: none; }
+        .station-map-row select { min-height: 46px; }
+      }
+    </style>
+  </head>
+  <body data-page="head-inspector">
+    <header class="header">
+      <div class="header-top">
+        <div class="header-left">
+          <h1>MEMSKOR</h1>
+          <div class="event-status" id="event-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="event-name-display">Etkinlik yükleniyor...</span>
+          </div>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="current-user"></span>
+          <span id="user-role"></span>
+        </div>
+      </div>
+      <div class="header-bottom">
+        <div class="actions">
+          <a href="/dashboard" class="button btn-small">← Dashboard</a>
+          <a href="/inspection-tracking" class="button btn-small">📊 Takip Paneli</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="hi-layout">
+      <!-- Sol: Müfettiş hesapları -->
+      <section class="card">
+        <h2>👮 Müfettiş Hesapları</h2>
+        <div id="inspectors_list">
+          <p class="muted">Yükleniyor...</p>
+        </div>
+      </section>
+
+      <!-- Sağ: Slot atamaları -->
+      <section class="card">
+        <h2>🔧 Slot Atamaları</h2>
+
+        <!-- İstasyon → Müfettiş otomatik eşleme -->
+        <div class="station-map" id="station_map_section">
+          <h3>🪄 İstasyon → Müfettiş Eşlemesi</h3>
+          <p class="muted" style="margin: 0 0 10px; font-size: 0.82rem;">Her istasyona bir müfettiş ata; o istasyondaki tüm slotlar o müfettişe geçer. "Otomatik Doldur" sırayla dağıtır — istersen değiştirip "Uygula" de. Sonradan tek tek de değiştirebilirsin.</p>
+          <div id="station_map_rows"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+            <button class="button btn-small" id="auto_fill_map">🪄 Otomatik Doldur</button>
+            <button class="button btn-small" id="apply_map">Eşlemeyi Uygula</button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <label>Takım
+            <input type="text" id="f_team" placeholder="Takım no" />
+          </label>
+          <label>İstasyon
+            <input type="text" id="f_station" placeholder="İstasyon" />
+          </label>
+          <label>Tarih
+            <input type="date" id="f_date" />
+          </label>
+          <button class="button btn-small" id="apply_filters">Filtrele</button>
+          <button class="button btn-small" id="clear_filters">Temizle</button>
+        </div>
+
+        <div class="bulk-row">
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:0.8rem;color:#555;">Toplu ata (filtredeki tüm slotlar)
+            <select id="bulk_inspector" style="padding:8px 10px;min-height:40px;border:1px solid #c7d2fe;border-radius:6px;min-width:180px;">
+              <option value="">Müfettiş seç...</option>
+            </select>
+          </label>
+          <button class="button btn-small" id="bulk_apply">Filtredekilere Ata</button>
+          <span class="muted" id="bulk_count"></span>
+        </div>
+
+        <div style="max-height: 60vh; overflow:auto; border:1px solid #eee; border-radius:6px;">
+          <table class="slots">
+            <thead>
+              <tr>
+                <th>Takım</th>
+                <th>İnceleme Tipi</th>
+                <th>Tarih / Saat</th>
+                <th>İstasyon</th>
+                <th>Atanan Müfettiş</th>
+              </tr>
+            </thead>
+            <tbody id="slots_body">
+              <tr><td colspan="5" class="muted">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/constants.js"></script>
+    <script src="/static/js/event.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/inspection.js"></script>
+    <script src="/static/js/network_utils.js"></script>
+    <script src="/static/app.js"></script>
+    <script>
+    (function () {
+      'use strict';
+
+      let inspectors = [];
+      let slots = [];
+
+      function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function typeLabel(t) {
+        // inspection.js içindeki describeInspectionType varsa onu kullan
+        if (typeof describeInspectionType === 'function') {
+          return describeInspectionType(t).label;
+        }
+        return t;
+      }
+
+      async function loadInspectors() {
+        try {
+          const res = await fetch('/api/inspection/inspectors');
+          if (!res.ok) throw new Error('inspectors');
+          inspectors = await res.json();
+        } catch (e) {
+          inspectors = [];
+        }
+        renderInspectors();
+        renderInspectorOptions(document.getElementById('bulk_inspector'));
+        renderStationMapping();
+      }
+
+      function renderInspectors() {
+        const box = document.getElementById('inspectors_list');
+        if (!inspectors.length) {
+          box.innerHTML = '<p class="muted">Bu etkinlikte müfettiş hesabı bulunamadı. Hesaplar Kurulum → Varsayılan Hesaplar adımında oluşturulur.</p>';
+          return;
+        }
+        box.innerHTML = inspectors.map(function (u) {
+          return '<div class="inspector-item">' +
+            '<span class="uname">' + esc(u.username) + '</span>' +
+            '<span class="cred">Şifre: <code>' + esc(u.password || '—') + '</code>' +
+            '<button class="copy-btn" data-copy="' + esc(u.username) + '\t' + esc(u.password || '') + '">kopyala</button></span>' +
+            '</div>';
+        }).join('');
+        box.querySelectorAll('.copy-btn').forEach(function (b) {
+          b.addEventListener('click', function () {
+            const parts = b.dataset.copy.split('\t');
+            const text = 'Kullanıcı: ' + parts[0] + '  Şifre: ' + parts[1];
+            if (navigator.clipboard) navigator.clipboard.writeText(text);
+            b.textContent = '✓';
+            setTimeout(function () { b.textContent = 'kopyala'; }, 1200);
+          });
+        });
+      }
+
+      function renderInspectorOptions(select, selected) {
+        const opts = ['<option value="">— Atanmadı —</option>'].concat(
+          inspectors.map(function (u) {
+            const sel = (selected && selected === u.username) ? ' selected' : '';
+            return '<option value="' + esc(u.username) + '"' + sel + '>' + esc(u.username) + '</option>';
+          })
+        );
+        select.innerHTML = opts.join('');
+      }
+
+      function currentFilteredSlots() {
+        const team = (document.getElementById('f_team').value || '').trim().toLowerCase();
+        const station = (document.getElementById('f_station').value || '').trim().toLowerCase();
+        const date = (document.getElementById('f_date').value || '').trim();
+        return slots.filter(function (s) {
+          if (team && !String(s.team_number || '').toLowerCase().includes(team)) return false;
+          if (station && !String(s.station_name || '').toLowerCase().includes(station)) return false;
+          if (date && s.slot_date !== date) return false;
+          return true;
+        });
+      }
+
+      async function loadSlots() {
+        try {
+          const res = await fetch('/api/inspection-slots');
+          if (!res.ok) throw new Error('slots');
+          slots = await res.json();
+        } catch (e) {
+          slots = [];
+        }
+        renderSlots();
+        renderStationMapping();
+      }
+
+      function getDistinctStations() {
+        const list = [];
+        slots.forEach(function (s) {
+          const st = s.station_name || '';
+          if (list.indexOf(st) === -1) list.push(st);
+        });
+        return list;
+      }
+
+      function renderStationMapping() {
+        const box = document.getElementById('station_map_rows');
+        if (!box) return;
+        const stations = getDistinctStations();
+        if (!stations.length) {
+          box.innerHTML = '<p class="muted">Önce inceleme programı oluşturulmalı.</p>';
+          return;
+        }
+        box.innerHTML = stations.map(function (st) {
+          return '<div class="station-map-row">' +
+            '<span class="st-name">' + esc(st || '(İstasyonsuz)') + '</span>' +
+            '<select class="map-select" data-station="' + esc(st) + '"></select>' +
+            '</div>';
+        }).join('');
+        box.querySelectorAll('.map-select').forEach(function (sel) {
+          const st = sel.dataset.station;
+          // O istasyonda hâlihazırda atanmış bir müfettiş varsa onu varsayılan seç
+          const existing = slots.find(function (s) { return (s.station_name || '') === st && s.inspector_username; });
+          renderInspectorOptions(sel, existing ? existing.inspector_username : '');
+        });
+      }
+
+      function autoFillStationMapping() {
+        if (!inspectors.length) {
+          if (typeof showToast === 'function') showToast('Müfettiş hesabı bulunamadı', 'warning');
+          return;
+        }
+        const selects = document.querySelectorAll('#station_map_rows .map-select');
+        if (!selects.length) return;
+        selects.forEach(function (sel, i) {
+          sel.value = inspectors[i % inspectors.length].username;
+        });
+        if (typeof showToast === 'function') showToast('Sırayla dolduruldu — kontrol edip Uygula deyin', 'success');
+      }
+
+      async function applyStationMapping() {
+        const selects = Array.from(document.querySelectorAll('#station_map_rows .map-select'));
+        const mapping = selects
+          .map(function (sel) { return { station: sel.dataset.station, username: sel.value }; })
+          .filter(function (m) { return m.username; });
+        if (!mapping.length) {
+          if (typeof showToast === 'function') showToast('Önce en az bir istasyona müfettiş seçin', 'warning');
+          return;
+        }
+        const totalSlots = slots.filter(function (s) {
+          return mapping.some(function (m) { return m.station === (s.station_name || ''); });
+        }).length;
+        if (!confirm(mapping.length + ' istasyon (' + totalSlots + ' slot) için atama uygulansın mı?')) return;
+
+        let total = 0;
+        for (const m of mapping) {
+          const ids = slots.filter(function (s) { return (s.station_name || '') === m.station; }).map(function (s) { return s.id; });
+          if (!ids.length) continue;
+          try {
+            await fetch('/api/inspection-slots/bulk-update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slot_ids: ids, inspector_username: m.username, inspector_name: m.username })
+            });
+            total += ids.length;
+          } catch (e) { /* devam */ }
+        }
+        if (typeof showToast === 'function') showToast(total + ' slot atandı', 'success');
+        await loadSlots();
+      }
+
+      function renderSlots() {
+        const body = document.getElementById('slots_body');
+        const filtered = currentFilteredSlots().sort(function (a, b) {
+          return ((a.slot_date || '') + (a.slot_time || '')).localeCompare((b.slot_date || '') + (b.slot_time || ''));
+        });
+        document.getElementById('bulk_count').textContent = filtered.length + ' slot';
+        if (!filtered.length) {
+          body.innerHTML = '<tr><td colspan="5" class="muted">Filtreye uygun slot yok.</td></tr>';
+          return;
+        }
+        body.innerHTML = filtered.map(function (s) {
+          const date = s.slot_date ? s.slot_date.split('-').reverse().join('/') : '';
+          const assigned = s.inspector_username ? ' assigned' : '';
+          return '<tr class="' + assigned + '" data-id="' + s.id + '">' +
+            '<td data-label="Takım"><strong>' + esc(s.team_number) + '</strong></td>' +
+            '<td data-label="Tip">' + esc(typeLabel(s.inspection_type)) + '</td>' +
+            '<td data-label="Tarih/Saat">' + date + ' ' + esc(s.slot_time || '') + '</td>' +
+            '<td data-label="İstasyon">' + esc(s.station_name || '—') + '</td>' +
+            '<td data-label="Müfettiş" class="assign-cell"><select class="assign" data-id="' + s.id + '"></select></td>' +
+            '</tr>';
+        }).join('');
+
+        body.querySelectorAll('select.assign').forEach(function (sel) {
+          const id = sel.dataset.id;
+          const slot = slots.find(function (x) { return String(x.id) === String(id); });
+          renderInspectorOptions(sel, slot ? slot.inspector_username : '');
+          sel.addEventListener('change', function () {
+            assignSlot(id, sel.value);
+          });
+        });
+      }
+
+      async function assignSlot(id, username) {
+        const slot = slots.find(function (x) { return String(x.id) === String(id); });
+        try {
+          const res = await fetch('/api/inspection-slots/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inspector_username: username, inspector_name: username })
+          });
+          if (res.ok && slot) {
+            slot.inspector_username = username;
+            slot.inspector_name = username;
+            const tr = document.querySelector('tr[data-id="' + id + '"]');
+            if (tr) tr.className = username ? 'assigned' : '';
+            if (typeof showToast === 'function') showToast(username ? (username + ' atandı') : 'Atama kaldırıldı', 'success');
+          }
+        } catch (e) {
+          if (typeof showToast === 'function') showToast('Atama kaydedilemedi', 'error');
+        }
+      }
+
+      async function bulkAssign() {
+        const username = document.getElementById('bulk_inspector').value;
+        const filtered = currentFilteredSlots();
+        if (!filtered.length) { if (typeof showToast === 'function') showToast('Filtrede slot yok', 'warning'); return; }
+        if (!confirm(filtered.length + ' slot ' + (username ? ('"' + username + '" müfettişine') : 'atanmamışa') + ' atansın mı?')) return;
+        const ids = filtered.map(function (s) { return s.id; });
+        try {
+          const res = await fetch('/api/inspection-slots/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slot_ids: ids, inspector_username: username, inspector_name: username })
+          });
+          if (res.ok) {
+            if (typeof showToast === 'function') showToast(ids.length + ' slot güncellendi', 'success');
+            await loadSlots();
+          } else {
+            if (typeof showToast === 'function') showToast('Toplu atama başarısız', 'error');
+          }
+        } catch (e) {
+          if (typeof showToast === 'function') showToast('Toplu atama hatası', 'error');
+        }
+      }
+
+      function init() {
+        document.getElementById('apply_filters').addEventListener('click', renderSlots);
+        document.getElementById('clear_filters').addEventListener('click', function () {
+          document.getElementById('f_team').value = '';
+          document.getElementById('f_station').value = '';
+          document.getElementById('f_date').value = '';
+          renderSlots();
+        });
+        document.getElementById('bulk_apply').addEventListener('click', bulkAssign);
+        document.getElementById('auto_fill_map').addEventListener('click', autoFillStationMapping);
+        document.getElementById('apply_map').addEventListener('click', applyStationMapping);
+        loadInspectors();
+        loadSlots();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+    </script>
+  </body>
+</html>
