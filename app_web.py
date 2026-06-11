@@ -56,6 +56,7 @@ from routes.match_control import register_match_control_routes
 from routes.screens import register_screen_routes
 from routes.referee_panel import register_referee_panel_routes
 from routes.head_inspector import register_head_inspector_routes
+from routes.judging import register_judging_routes
 
 
 def _deep_merge(base: dict, updates: dict) -> dict:
@@ -1133,6 +1134,53 @@ def create_app() -> Flask:
 
     # --- TAKIM YÖNETİMİ ---
     
+    @app.get("/api/sponsors")
+    @require_login
+    def get_sponsors():
+        """
+        Aktif etkinliğin sponsor listesini döndürür.
+
+        Returns:
+            JSON: [{"name": "...", "level": "...", "website": "..."}, ...]
+        """
+        try:
+            event_data = datastore.get_event()
+            return jsonify(event_data.get("sponsors", []))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/sponsors")
+    @require_login
+    @require_event_manager
+    def save_sponsors():
+        """
+        Aktif etkinliğin sponsor listesini kaydeder (tüm listeyi değiştirir).
+
+        Request Body: [{"name": "...", "level": "...", "website": "..."}, ...]
+        """
+        data = request.get_json(force=True)
+        if not isinstance(data, list):
+            return jsonify({"error": "Sponsor listesi bir dizi olmalı"}), 400
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
+        cleaned = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            cleaned.append({
+                "name": name[:120],
+                "level": str(item.get("level", "")).strip()[:60],
+                "website": str(item.get("website", "")).strip()[:200],
+            })
+        event_data = datastore.get_event()
+        event_data["sponsors"] = cleaned
+        datastore.save_event(event_data)
+        return jsonify({"ok": True, "count": len(cleaned)})
+
     @app.get("/api/teams")
     @require_login
     def get_teams():
@@ -1415,6 +1463,11 @@ def create_app() -> Flask:
     head_inspector_bp = Blueprint("head_inspector", __name__, url_prefix="")
     register_head_inspector_routes(head_inspector_bp, datastore, require_login, require_roles)
     app.register_blueprint(head_inspector_bp)
+
+    # Jüri Görüşme route'larını Blueprint'e kaydet
+    judging_bp = Blueprint("judging", __name__, url_prefix="")
+    register_judging_routes(judging_bp, datastore, require_login, require_event_manager, require_roles, socketio)
+    app.register_blueprint(judging_bp)
     
     # Seyirci ekranları route'larını Blueprint'e kaydet
     screens_bp = Blueprint("screens", __name__, url_prefix="")

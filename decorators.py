@@ -159,6 +159,10 @@ def create_decorators(datastore):
             return "/head-inspector"
         if "mufettis" in role_lower or "inspector" in role_lower:
             return "/inspection-progress"
+        if "juri_danismani" in role_lower or "juri_danışmanı" in role_lower:
+            return "/judge-advisor"
+        if "juri" in role_lower or "jüri" in role_lower:
+            return "/judging-progress"
         if "bas_hakem" in role_lower:
             return "/head-referee"
         if "hakem" in role_lower:

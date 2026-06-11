@@ -20,6 +20,7 @@ from .events import EventsStorage
 from .teams import TeamsStorage
 from .users import UsersStorage
 from .inspection import InspectionStorage
+from .judging import JudgingStorage
 from .practice_matches import PracticeMatchesStorage
 from .match_schedule import MatchScheduleStorage
 from .awards import AwardWinnersStorage
@@ -33,6 +34,7 @@ class DataStore(
     TeamsStorage,
     UsersStorage,
     InspectionStorage,
+    JudgingStorage,
     PracticeMatchesStorage,
     MatchScheduleStorage,
     AwardWinnersStorage,

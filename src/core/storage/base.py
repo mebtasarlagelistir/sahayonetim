@@ -145,6 +145,24 @@ class BaseStorage:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS judging_slots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL,
+                    team_number TEXT NOT NULL,
+                    slot_date TEXT NOT NULL,
+                    slot_time TEXT NOT NULL,
+                    duration_minutes INTEGER DEFAULT 10,
+                    room TEXT,
+                    judge_username TEXT,
+                    judge_name TEXT,
+                    status TEXT DEFAULT 'scheduled',
+                    notes TEXT,
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS practice_matches (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_id INTEGER NOT NULL,
