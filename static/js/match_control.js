@@ -89,13 +89,18 @@ async function initializeMatchControl() {
       }
       
       var hasNewScores = state.scoresJustUpdated && state.scores && (state.scores.red != null || state.scores.blue != null);
-      if (hasNewScores && typeof applyScoringData === "function") {
-        var scoringData = {
-          red: state.scores.red || {},
-          blue: state.scores.blue || {},
-          team_statuses: state.teamStatuses || {}
-        };
-        applyScoringData(scoringData);
+      if (hasNewScores) {
+        // Yarış-durumu koruması: operatör skor giriyorsa ezme (applyRemoteScores).
+        // team_statuses aşağıda ayrıca uygulanıyor.
+        if (typeof applyRemoteScores === "function") {
+          applyRemoteScores({ red: state.scores.red || {}, blue: state.scores.blue || {} });
+        } else if (typeof applyScoringData === "function") {
+          applyScoringData({
+            red: state.scores.red || {},
+            blue: state.scores.blue || {},
+            team_statuses: state.teamStatuses || {}
+          });
+        }
       }
       
       var ts = state.teamStatuses != null ? state.teamStatuses : {};

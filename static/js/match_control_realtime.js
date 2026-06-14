@@ -64,12 +64,15 @@ function startRealtimeScoreUpdates(matchId, matchSource) {
         
         const scores = data.scores || {};
         if (scores.red || scores.blue) {
-          if (typeof applyScoringDataToInputs === "function") {
+          // Yarış-durumu koruması: operatör skor giriyorsa ezme (applyRemoteScores)
+          if (typeof applyRemoteScores === "function") {
+            applyRemoteScores(scores);
+          } else if (typeof applyScoringDataToInputs === "function") {
             applyScoringDataToInputs("red", scores.red || {});
             applyScoringDataToInputs("blue", scores.blue || {});
-          }
-          if (typeof calculateScoreBreakdown === "function") {
-            calculateScoreBreakdown();
+            if (typeof calculateScoreBreakdown === "function") {
+              calculateScoreBreakdown();
+            }
           }
         }
         

@@ -482,6 +482,65 @@ function applyScoringData(scoringData) {
   }
 }
 
+// ============================================================================
+// Yerel düzenleme dokunulmazlık penceresi (yarış-durumu koruması)
+// Operatör skor girerken (yazma veya +/- butonu) gelen sunucu "scores" eko'sunun
+// kaydedilmemiş yerel girişi ezmesini önler. Operatör duraklayınca senkron sürer.
+// NOT: Bu guard SADECE canlı eko yolu (applyRemoteScores) için geçerlidir;
+// maç yükleme/seçim (applyScoringData) bundan etkilenmez.
+// ============================================================================
+let lastLocalScoreEditAt = 0;
+const LOCAL_SCORE_EDIT_GRACE_MS = 2000; // autosave debounce (800ms) + ağ gidiş-dönüşü için pay
+let _pendingRemoteScores = null;
+let _deferredRemoteApplyTimer = null;
+
+function markLocalScoreEdit() {
+  lastLocalScoreEditAt = Date.now();
+}
+
+function isLocalScoreEditActive() {
+  return (Date.now() - lastLocalScoreEditAt) < LOCAL_SCORE_EDIT_GRACE_MS;
+}
+
+/**
+ * Sunucudan gelen (WebSocket "scores" eko'su / MatchCore) skorları input'lara uygular.
+ * Operatör aktif olarak skor giriyorsa ezmez; pencereyi bekleyip en güncel
+ * uzak skoru sonra uygular (eventual consistency — çapraz-cihaz senkronu korunur).
+ */
+function applyRemoteScores(scores) {
+  if (!scores || (scores.red == null && scores.blue == null)) return;
+  if (isLocalScoreEditActive()) {
+    _pendingRemoteScores = scores;
+    if (_deferredRemoteApplyTimer) clearTimeout(_deferredRemoteApplyTimer);
+    _deferredRemoteApplyTimer = setTimeout(function reapply() {
+      _deferredRemoteApplyTimer = null;
+      if (isLocalScoreEditActive()) {
+        // Hâlâ giriş yapılıyor: tekrar ertele
+        _deferredRemoteApplyTimer = setTimeout(reapply, LOCAL_SCORE_EDIT_GRACE_MS);
+        return;
+      }
+      const s = _pendingRemoteScores;
+      _pendingRemoteScores = null;
+      if (s) {
+        applyScoringDataToInputs("red", s.red || {});
+        applyScoringDataToInputs("blue", s.blue || {});
+        if (typeof calculateScoreBreakdown === "function") calculateScoreBreakdown();
+      }
+    }, LOCAL_SCORE_EDIT_GRACE_MS + 100);
+    return;
+  }
+  _pendingRemoteScores = null;
+  applyScoringDataToInputs("red", scores.red || {});
+  applyScoringDataToInputs("blue", scores.blue || {});
+  if (typeof calculateScoreBreakdown === "function") calculateScoreBreakdown();
+}
+
+if (typeof window !== "undefined") {
+  window.applyRemoteScores = applyRemoteScores;
+  window.markLocalScoreEdit = markLocalScoreEdit;
+  window.isLocalScoreEditActive = isLocalScoreEditActive;
+}
+
 /**
  * Puanlama verilerini input alanlarına uygular
  */
@@ -1026,6 +1085,8 @@ async function autoSaveScoreFromMatchControl() {
  * Otomatik skor kaydetmeyi planlar (debounce)
  */
 function scheduleAutoSaveScore() {
+  // Yerel düzenleme zaman damgasını işaretle (gelen eko'nun bu girişi ezmesini önler)
+  markLocalScoreEdit();
   if (autoSaveScoreTimer) {
     clearTimeout(autoSaveScoreTimer);
   }

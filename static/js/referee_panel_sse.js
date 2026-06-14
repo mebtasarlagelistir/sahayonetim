@@ -10,9 +10,9 @@
 
 // WebSocket bağlantısı
 let matchSocket = null;
-let retryCount = 0;
-const MAX_RETRY_COUNT = 5;
-const RETRY_DELAY_BASE = 1000;
+let sseRetryCount = 0;
+const SSE_MAX_RETRY_COUNT = 5;
+const SSE_RETRY_DELAY_BASE = 1000;
 
 /**
  * Gerçek zamanlı güncellemeleri başlatır (WebSocket)
@@ -40,7 +40,7 @@ function startRealtimeUpdates(matchId, matchSource) {
   stopRealtimeUpdates();
   
   // Retry sayacını sıfırla (başarılı bağlantıda)
-  retryCount = 0;
+  sseRetryCount = 0;
   
   // Yeni WebSocket bağlantısı aç
   const source = matchSource || currentMatch?.match_source || "schedule";
@@ -52,7 +52,7 @@ function startRealtimeUpdates(matchId, matchSource) {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: MAX_RETRY_COUNT,
+      reconnectionAttempts: SSE_MAX_RETRY_COUNT,
       timeout: 20000
     });
     
@@ -61,7 +61,7 @@ function startRealtimeUpdates(matchId, matchSource) {
     // Bağlantı kurulduğunda
     matchSocket.on("connect", () => {
       console.log("WebSocket bağlantısı kuruldu");
-      retryCount = 0; // Başarılı bağlantıda retry sayacını sıfırla
+      sseRetryCount = 0; // Başarılı bağlantıda retry sayacını sıfırla
       
       // Maça abone ol
       matchSocket.emit("subscribe_match", {
@@ -113,7 +113,10 @@ function startRealtimeUpdates(matchId, matchSource) {
         if (scores && assignedAlliance && scores[assignedAlliance]) {
           const scoringData = scores[assignedAlliance].scoring_data || scores[assignedAlliance];
           if (scoringData) {
-            if (typeof applyScoringDataToForm === "function") {
+            // Yarış-durumu koruması: hakem giriş yapıyorsa ezme (applyRemoteRefScores)
+            if (typeof applyRemoteRefScores === "function") {
+              applyRemoteRefScores(scoringData);
+            } else if (typeof applyScoringDataToForm === "function") {
               applyScoringDataToForm(scoringData);
             }
           }
@@ -192,13 +195,13 @@ function startRealtimeUpdates(matchId, matchSource) {
       
       // Eğer beklenmeyen bir kesilme ise (reconnect değilse) yeniden bağlanmayı dene
       if (reason === "io server disconnect" || reason === "transport close") {
-        if (retryCount < MAX_RETRY_COUNT && currentMatch && currentMatch.id === matchId) {
-          const retryDelay = Math.min(30000, RETRY_DELAY_BASE * Math.pow(2, retryCount));
-          retryCount++;
+        if (sseRetryCount < SSE_MAX_RETRY_COUNT && currentMatch && currentMatch.id === matchId) {
+          const retryDelay = Math.min(30000, SSE_RETRY_DELAY_BASE * Math.pow(2, sseRetryCount));
+          sseRetryCount++;
           
           setTimeout(() => {
             if (currentMatch && currentMatch.id === matchId) {
-              console.log(`WebSocket yeniden bağlanma denemesi ${retryCount}/${MAX_RETRY_COUNT}...`);
+              console.log(`WebSocket yeniden bağlanma denemesi ${sseRetryCount}/${SSE_MAX_RETRY_COUNT}...`);
               startRealtimeUpdates(matchId, source);
             }
           }, retryDelay);
@@ -219,7 +222,7 @@ function startRealtimeUpdates(matchId, matchSource) {
     // Yeniden bağlanma başarılı
     matchSocket.on("reconnect", (attemptNumber) => {
       console.log(`WebSocket yeniden bağlandı (deneme: ${attemptNumber})`);
-      retryCount = 0;
+      sseRetryCount = 0;
       
       // Maça tekrar abone ol
       if (currentMatch && currentMatch.id === matchId) {
@@ -252,7 +255,7 @@ function stopRealtimeUpdates() {
     matchSocket.disconnect();
     matchSocket = null;
   }
-  retryCount = 0;
+  sseRetryCount = 0;
   
   // Auto-save timer'ı da temizle
   if (autoSaveTimer) {

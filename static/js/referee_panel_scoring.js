@@ -144,15 +144,65 @@ function collectScoringDataFromForm() {
   return data;
 }
 
+// ============================================================================
+// Yerel düzenleme dokunulmazlık penceresi (yarış-durumu koruması)
+// Hakem skor girerken gelen sunucu "scores" eko'sunun kaydedilmemiş girişi
+// ezmesini önler. Hakem duraklayınca senkron sürer (eventual consistency).
+// ============================================================================
+let lastRefScoreEditAt = 0;
+const REF_SCORE_EDIT_GRACE_MS = 2000;
+let _pendingRefScores = null;
+let _deferredRefApplyTimer = null;
+
+function markRefScoreEdit() {
+  lastRefScoreEditAt = Date.now();
+}
+
+function isRefScoreEditActive() {
+  return (Date.now() - lastRefScoreEditAt) < REF_SCORE_EDIT_GRACE_MS;
+}
+
+/**
+ * Sunucudan gelen skorları forma uygular; hakem aktif giriş yapıyorsa ezmez,
+ * pencere bitince en güncel uzak skoru uygular.
+ */
+function applyRemoteRefScores(scoringData) {
+  if (!scoringData) return;
+  if (isRefScoreEditActive()) {
+    _pendingRefScores = scoringData;
+    if (_deferredRefApplyTimer) clearTimeout(_deferredRefApplyTimer);
+    _deferredRefApplyTimer = setTimeout(function reapply() {
+      _deferredRefApplyTimer = null;
+      if (isRefScoreEditActive()) {
+        _deferredRefApplyTimer = setTimeout(reapply, REF_SCORE_EDIT_GRACE_MS);
+        return;
+      }
+      const s = _pendingRefScores;
+      _pendingRefScores = null;
+      if (s && typeof applyScoringDataToForm === "function") applyScoringDataToForm(s);
+    }, REF_SCORE_EDIT_GRACE_MS + 100);
+    return;
+  }
+  _pendingRefScores = null;
+  if (typeof applyScoringDataToForm === "function") applyScoringDataToForm(scoringData);
+}
+
+if (typeof window !== "undefined") {
+  window.applyRemoteRefScores = applyRemoteRefScores;
+  window.markRefScoreEdit = markRefScoreEdit;
+}
+
 /**
  * Otomatik kaydetme için zamanlayıcı ayarlar (debounce)
  */
 function scheduleAutoSave() {
+  // Yerel düzenleme zaman damgasını işaretle (gelen eko'nun bu girişi ezmesini önler)
+  markRefScoreEdit();
   // Önceki timer'ı iptal et
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer);
   }
-  
+
   // Yeni timer başlat
   autoSaveTimer = setTimeout(() => {
     autoSaveScore();
