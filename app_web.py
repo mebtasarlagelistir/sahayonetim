@@ -250,6 +250,8 @@ def create_app() -> Flask:
     
     # SocketIO instance'ını app'e ekle (route modüllerinde kullanmak için)
     app.socketio = socketio
+    # DataStore'u app'e ekle (otomatik yedekleme zamanlayıcısı __main__'de erişir)
+    app.datastore = datastore
 
     # Rate limiting yapılandırması - constants modülünden al
     limiter = Limiter(
@@ -703,6 +705,25 @@ def create_app() -> Flask:
             return jsonify({"ok": True})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/admin/backup")
+    @require_login
+    @require_admin
+    def manual_backup():
+        """
+        Operatörün talep üzerine anlık veritabanı yedeği almasını sağlar
+        (örn. riskli bir işlemden önce). Otomatik yedek zaten arka planda çalışır.
+        """
+        try:
+            from src.core.backup_scheduler import run_backup, _auto_backup_dir
+            path = run_backup(datastore, keep=int(os.environ.get("MEMSKOR_BACKUP_KEEP", "48")))
+            if not path:
+                return jsonify({"ok": False, "error": "Yedek alınamadı"}), 500
+            backup_dir = _auto_backup_dir(datastore)
+            count = len(list(backup_dir.glob("data_*.db")))
+            return jsonify({"ok": True, "file": path.name, "total_auto_backups": count})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
     @app.get("/api/awards")
     @require_login
@@ -1559,7 +1580,17 @@ if __name__ == "__main__":
     # Ortam tespiti
     flask_env = os.environ.get("FLASK_ENV", "development").lower()
     is_production = flask_env == "production"
-    
+
+    # Otomatik veritabanı yedekleme (etkinlik sırasında veri kaybına karşı).
+    # Ayarlanabilir: MEMSKOR_BACKUP_INTERVAL_MIN (vars. 10 dk), MEMSKOR_BACKUP_KEEP (vars. 48).
+    try:
+        from src.core.backup_scheduler import start_backup_scheduler
+        _bk_interval = int(os.environ.get("MEMSKOR_BACKUP_INTERVAL_MIN", "10")) * 60
+        _bk_keep = int(os.environ.get("MEMSKOR_BACKUP_KEEP", "48"))
+        start_backup_scheduler(socketio_instance, application.datastore, interval_seconds=_bk_interval, keep=_bk_keep)
+    except Exception as _bk_err:
+        logging.getLogger(__name__).warning("Otomatik yedekleme başlatılamadı: %s", _bk_err)
+
     if is_production:
         # Üretim modunda direkt çalıştırmayı önle
         logger = logging.getLogger(__name__)
