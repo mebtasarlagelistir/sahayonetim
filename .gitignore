@@ -73,3 +73,5 @@ commit_msg*.txt
 hata.txt
 user_feedback.py
 feedback.txt
+# Watchdog runtime log
+watchdog.log
