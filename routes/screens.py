@@ -226,9 +226,13 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
         screen_id = (request.args.get("screen_id") or "").strip()
         global_settings = _get_global_screen_settings(datastore)
         screen = _screen_registry.get(screen_id, {})
-        # Varsayılan olarak global ayarları takip et (yeni ekranlar için)
+        # Varsayılan olarak global ayarları takip et (yeni ekranlar için).
+        # Per-screen kontrol yapıldıysa (/api/screens/control) prefs.follow_global=False
+        # olur ve ekran kendi desired_view'ında sabitlenir; aksi halde global "Aktif
+        # Ekran" ayarını izler. Böylece operatör global dropdown ile tüm (bireysel
+        # sabitlenmemiş) ekranları aynı anda değiştirebilir.
         prefs = _get_screen_prefs(datastore, screen_id) if screen_id else {}
-        follow_global = False
+        follow_global = bool(prefs.get("follow_global", True))
         desired_view = screen.get("desired_view") or prefs.get("desired_view") or "match"
         override_view = screen.get("override_view")
         override_until = screen.get("override_until")
