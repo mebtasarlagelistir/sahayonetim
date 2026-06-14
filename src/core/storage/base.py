@@ -240,6 +240,23 @@ class BaseStorage:
                 )
                 """
             )
+            # Pit (saha/etkinlik alanı) takım durumu tablosu
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pit_team_status (
+                    event_id INTEGER NOT NULL,
+                    team_number TEXT NOT NULL,
+                    checked_in INTEGER NOT NULL DEFAULT 0,
+                    checked_in_at TEXT,
+                    certificate_status TEXT DEFAULT 'pending',
+                    notes TEXT,
+                    lost_items TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                    UNIQUE(event_id, team_number)
+                )
+                """
+            )
             conn.commit()
         # Migration'ları çalıştır
         self._ensure_user_token_column()

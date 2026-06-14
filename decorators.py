@@ -169,6 +169,8 @@ def create_decorators(datastore):
             return "/referee-panel"
         if "seremoni" in role_lower:
             return "/award-assignment"
+        if "pit" in role_lower:
+            return "/pit-admin"
         return "/setup"
 
     def require_roles(*allowed_substrings):

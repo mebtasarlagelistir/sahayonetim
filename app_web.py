@@ -48,6 +48,7 @@ from src.core.storage import DataStore
 from src.core.constants import RateLimitConstants
 from decorators import create_decorators
 from routes.inspection import register_inspection_routes
+from routes.pit import register_pit_routes
 from routes.practice_matches import register_practice_matches_routes
 from routes.match_schedule import register_match_schedule_routes
 from routes.wifi import register_wifi_routes
@@ -1449,6 +1450,11 @@ def create_app() -> Flask:
     inspection_bp = Blueprint("inspection", __name__, url_prefix="/api")
     register_inspection_routes(inspection_bp, datastore, require_login, require_event_manager, socketio, require_roles=require_roles)
     app.register_blueprint(inspection_bp)
+
+    # Pit (saha/etkinlik alanı) yönetimi route'ları (url_prefix yok: yollar tam tanımlı)
+    pit_bp = Blueprint("pit", __name__)
+    register_pit_routes(pit_bp, datastore, require_login, require_roles)
+    app.register_blueprint(pit_bp)
 
     # Practice Matches route'larını Blueprint'e kaydet
     practice_matches_bp = Blueprint("practice_matches", __name__, url_prefix="/api")

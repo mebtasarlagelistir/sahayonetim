@@ -24,6 +24,7 @@ from .judging import JudgingStorage
 from .practice_matches import PracticeMatchesStorage
 from .match_schedule import MatchScheduleStorage
 from .awards import AwardWinnersStorage
+from .pit import PitStorage
 
 from pathlib import Path
 
@@ -38,6 +39,7 @@ class DataStore(
     PracticeMatchesStorage,
     MatchScheduleStorage,
     AwardWinnersStorage,
+    PitStorage,
 ):
     """
     Veritabanı işlemlerini yöneten ana sınıf.
