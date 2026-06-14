@@ -421,6 +421,52 @@ body.vs-preview-mode .audience-container {
   color: #1d4ed8;
 }
 
+/* Çift eleme: skor + kazanan vurgusu (rapor) */
+.bracket-match-time {
+  margin-left: 8px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.bracket-side {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.bracket-side.red { background: rgba(220, 53, 69, 0.10); border-left: 5px solid #dc3545; }
+.bracket-side.blue { background: rgba(13, 110, 253, 0.10); border-left: 5px solid #0d6efd; }
+.bracket-side.is-winner { outline: 2px solid #1a9e3a; }
+.bracket-side.is-loser { opacity: 0.55; }
+.bracket-side-teams { display: flex; flex-direction: column; gap: 2px; }
+.bracket-score {
+  font-size: 18px;
+  font-weight: 800;
+  color: #334155;
+  min-width: 30px;
+  text-align: right;
+}
+.bracket-score.win { color: #1a9e3a; }
+.bracket-status {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.bracket-status.done { color: #1a9e3a; }
+.bracket-status.live { color: #dc3545; }
+.bracket-match.is-played { border-color: #1a9e3a; }
+
+/* Çift eleme: skor + kazanan vurgusu (seyirci) */
+.ap-time { font-size: 0.7em; opacity: 0.85; margin-left: 6px; }
+.ap-live { font-size: 0.7em; color: #ff5b6e; font-weight: 800; margin-left: 6px; }
+.ap-match-live { box-shadow: 0 0 0 3px rgba(255, 91, 110, 0.6); }
+.ap-alliance.ap-win { outline: 3px solid #2fd66b; }
+.ap-alliance.ap-lose { opacity: 0.5; }
+.ap-score { float: right; font-weight: 900; font-size: 1.15em; margin-left: 8px; }
+.ap-score-win { color: #2fd66b; }
+
 .muted {
   color: #666;
   font-size: 14px;

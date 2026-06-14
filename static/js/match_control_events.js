@@ -361,17 +361,14 @@ function setupEventListeners() {
         setButtonLoading(btnShowLive, true);
       }
       try {
-        // Maç sonrası görüntü: Sonuçları göster ile aynı yeri çağır (seyirci ekranında bar + sonuçlar)
-        if (typeof sendMatchResultsToScreens === "function" && currentMatch) {
-          await sendMatchResultsToScreens();
-        } else {
-          // Seçili maç yoksa preview'i temizle, canlı maç görünümü gelsin
-          await apiPost("/api/screens/preview", {
-            view: "match",
-            mode: "live"
-          });
-          showToast("Maç ekranı canlı moda alındı", "success");
-        }
+        // "Maçı Göster": Seyirci ekranını canlı maç görünümüne alır.
+        // Önizleme/sonuç katmanını temizler; ekran oynanacak/oynanan maçı
+        // takımlar + skor + sayaç ile gösterir. (Sonuçlar için ayrı "Sonuçları Göster" butonu var.)
+        await apiPost("/api/screens/preview", {
+          view: "match",
+          mode: "live"
+        });
+        showToast("Maç ekranı canlı moda alındı (takımlar gösteriliyor)", "success");
       } catch (err) {
         console.error("Maçı göster error:", err);
         showToast("Maç ekranı güncellenemedi", "error");

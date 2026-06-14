@@ -493,7 +493,7 @@ class MatchStateManager:
                 MATCH_TIMINGS = {
                     "autonomous": 30,
                     "prepare_teleop": 10,  # PREPARE_TELEOP_DURATION ile aynı
-                    "driver_controlled": 120,
+                    "driver_controlled": 90,
                     "end_game": 30,
                     "post_match": 10,
                 }
@@ -509,9 +509,9 @@ class MatchStateManager:
                 
                 # State geçişleri
                 needs_update = False
-                # SKS (driver_controlled) bitince doğrudan Maç Sonrası'na geç; Oyun Sonu aşaması yok
+                # Akış: Otonom -> Hazırlık -> SKS -> Oyun Sonu -> Maç Sonrası
                 if time_remaining == 0 and current_state not in ["post_match", "completed"]:
-                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"]
+                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"]
                     if current_state in state_order:
                         current_index = state_order.index(current_state)
                         if current_index < len(state_order) - 1:

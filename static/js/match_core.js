@@ -720,13 +720,14 @@ class MatchCore {
   
   /**
    * Sonraki durumu döndürür.
-   * SKS (driver_controlled) bitince doğrudan Maç Sonrası'na geçer; Oyun Sonu aşaması yok.
+   * Akış: Otonom -> Hazırlık -> SKS -> Oyun Sonu -> Maç Sonrası.
    */
   getNextState(currentState) {
     const stateOrder = [
       "autonomous",
       "prepare_teleop",
       "driver_controlled",
+      "end_game",
       "post_match"
     ];
     

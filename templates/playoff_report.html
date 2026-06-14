@@ -30,6 +30,8 @@
         </div>
         <div class="actions">
           <button id="playoff_refresh" class="btn-secondary">Yenile</button>
+          <button id="playoff_print_bracket" class="btn-primary">🖨️ Bracket Kağıdı</button>
+          <button id="playoff_print_schedule" class="btn-secondary">🗓️ Zaman Çizelgesi</button>
         </div>
       </div>
     </header>
@@ -42,9 +44,10 @@
           Maçlar tamamlandıkça rapor kendini günceller.
         </p>
         <div class="playoff-info">
-          <p><strong>Çeyrek Final:</strong> İlk 16 takım 8 ittifak olarak eşleşir. 1-16 ittifağı 2-15 ile, 3-14 ittifağı 4-13 ile eşleşir ve bu şekilde devam eder. A/B/C/D olmak üzere 4 grupta 4 maç oynanır.</p>
-          <p><strong>Yarı Final:</strong> Çeyrek finalistlerden 2 eşleşme oluşur. Kazananlar Büyük Final'e, kaybedenler Üçüncülük Maçı'na gider.</p>
-          <p><strong>Final:</strong> Üçüncülük Maçı 3-4'ü, Büyük Final ise şampiyonu belirler. Toplam maç sayısı 8'dir (4 ÇF + 2 YF + 2 Final).</p>
+          <p><strong>Sistem:</strong> 6 ittifak <strong>çift eleme</strong>. Bir ittifağın elenmesi için iki kez yenilmesi gerekir. Tüm ittifaklar Üst Kademe'de başlar; ilk yenilgide Alt Kademe'ye düşer, orada da yenilirse elenir.</p>
+          <p><strong>Üst Kademe (M1–M7):</strong> İlk 6 ittifak buradan başlar; M7 Üst Kademe şampiyonunu belirler.</p>
+          <p><strong>Alt Kademe (M5–M9):</strong> Üst Kademeden düşen ittifaklar ikinci şanslarını kullanır; M9 Alt Kademe şampiyonunu belirler.</p>
+          <p><strong>Büyük Final (M10, gerekirse M11):</strong> Üst ve Alt Kademe şampiyonları karşılaşır. Alt Kademeden gelen kazanırsa rövanş (M11) oynanır.</p>
         </div>
         <div id="playoff_bracket" class="playoff-bracket">
           <div class="empty-state">Eşleşmeler yükleniyor...</div>

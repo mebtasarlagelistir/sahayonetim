@@ -253,8 +253,8 @@ async function nextMatchState() {
         showImportantMoment(newState);
       }
     } else {
-      // Fallback: Eski yöntem (Match Core yoksa). SKS bitince doğrudan Maç Sonrası.
-      const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"];
+      // Fallback: Eski yöntem (Match Core yoksa). Akış: Otonom -> Hazırlık -> SKS -> Oyun Sonu -> Maç Sonrası.
+      const stateOrder = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"];
       const currentIndex = stateOrder.indexOf(currentState);
       
       if (currentIndex === -1 || currentIndex >= stateOrder.length - 1) {

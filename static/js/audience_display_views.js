@@ -546,12 +546,19 @@ async function renderAudiencePlayoff() {
     const columns = rounds.map((round) => {
       const cards = (round.matches || []).map((m) => {
         const empty = !(m.red_alliance && m.red_alliance.length) && !(m.blue_alliance && m.blue_alliance.length);
+        const played = m.status === "completed";
+        const live = m.status === "in_progress";
+        const winCls = (side) => played && m.winner === side ? " ap-win"
+          : (played && m.winner && m.winner !== "tie" ? " ap-lose" : "");
+        const score = (side, val) => played ? `<span class="ap-score${m.winner === side ? " ap-score-win" : ""}">${escapeHtml(String(val ?? 0))}</span>` : "";
+        const time = m.match_time ? `<span class="ap-time">${escapeHtml(m.match_time)}</span>` : "";
+        const badge = live ? `<span class="ap-live">● CANLI</span>` : "";
         return `
-          <div class="ap-match ${empty ? "ap-empty" : ""}">
-            <div class="ap-label">${escapeHtml(m.label || "")}</div>
-            <div class="ap-alliance ap-red">${allianceHtml(m.red_alliance_info, m.red_alliance)}</div>
+          <div class="ap-match ${empty ? "ap-empty" : ""} ${live ? "ap-match-live" : ""}">
+            <div class="ap-label">${escapeHtml(m.label || "")} ${time} ${badge}</div>
+            <div class="ap-alliance ap-red${winCls("red")}">${allianceHtml(m.red_alliance_info, m.red_alliance)}${score("red", m.red_score)}</div>
             <div class="ap-vs">VS</div>
-            <div class="ap-alliance ap-blue">${allianceHtml(m.blue_alliance_info, m.blue_alliance)}</div>
+            <div class="ap-alliance ap-blue${winCls("blue")}">${allianceHtml(m.blue_alliance_info, m.blue_alliance)}${score("blue", m.blue_score)}</div>
           </div>
         `;
       }).join("");

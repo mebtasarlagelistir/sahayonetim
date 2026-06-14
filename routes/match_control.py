@@ -2010,10 +2010,15 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
             if (m.get("match_type") or "qualification").strip() == "qualification"
         ]
 
-        if not qualification_matches:
+        # Playoff (final) maçları zaten oluşturulmuşsa, sıralama maçları tamamlanmamış
+        # olsa bile bracket'i göster: manuel ittifak seçimi (çift eleme) sıralama
+        # gerektirmez; eşleşmeler maçların kendisinde saklıdır.
+        playoff_matches = datastore.get_match_schedule(event_id=event_id, match_type="final")
+
+        if not qualification_matches and not playoff_matches:
             return jsonify({
                 "ok": False,
-                "error": "Tamamlanmış sıralama maçı bulunamadı",
+                "error": "Tamamlanmış sıralama maçı veya playoff maçı bulunamadı",
                 "completed_count": 0,
             })
 
@@ -2038,8 +2043,9 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
         from src.core.tournament.bracket_generator import BracketGenerator
 
         rankings_calculator = TeamRankingsCalculator()
-        rankings = rankings_calculator.calculate_team_rankings(qualification_matches)
-        if not rankings:
+        rankings = rankings_calculator.calculate_team_rankings(qualification_matches) if qualification_matches else []
+        # Sıralama yoksa ama playoff maçları varsa devam et (bracket maçlardan çizilir)
+        if not rankings and not playoff_matches:
             return jsonify({
                 "ok": False,
                 "error": "Takım sıralaması hesaplanamadı",
@@ -2099,6 +2105,21 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                 latest_bracket = max(bracket_counts, key=bracket_counts.get)
                 meta_items = [(m, meta) for m, meta in meta_items if meta.get("bracket_id") == latest_bracket]
 
+            def _winner_of(match_obj):
+                """Tamamlanmış maç için kazananı döner: 'red' | 'blue' | 'tie' | None."""
+                if (match_obj.get("status") or "") != "completed":
+                    return None
+                try:
+                    rs = int(match_obj.get("red_score") or 0)
+                    bs = int(match_obj.get("blue_score") or 0)
+                except (TypeError, ValueError):
+                    return None
+                if rs > bs:
+                    return "red"
+                if bs > rs:
+                    return "blue"
+                return "tie"
+
             round_map = {}
             for match_obj, meta in meta_items:
                 round_key = meta.get("round")
@@ -2112,6 +2133,13 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "blue_alliance": match_obj.get("blue_alliance") or [],
                     "red_alliance_info": _build_alliance_info(match_obj.get("red_alliance") or []),
                     "blue_alliance_info": _build_alliance_info(match_obj.get("blue_alliance") or []),
+                    "status": match_obj.get("status") or "scheduled",
+                    "red_score": match_obj.get("red_score") or 0,
+                    "blue_score": match_obj.get("blue_score") or 0,
+                    "winner": _winner_of(match_obj),
+                    "match_date": match_obj.get("match_date") or "",
+                    "match_time": match_obj.get("match_time") or "",
+                    "field_number": match_obj.get("field_number"),
                 })
 
             round_order = [

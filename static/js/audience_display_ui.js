@@ -326,6 +326,7 @@ function playSoundEffectInternal(audioContext, frequency, duration, type, volume
  * 
  * Her maç durumu için farklı ses efekti:
  * - autonomous: Yüksek ton, kısa bip (çocuklar otonom başladığını anlasın)
+ * - prepare_teleop: Çift bip (otonom bitti, kontrol ünitelerini hazırlayın)
  * - driver_controlled: Orta ton, bip (sürücü kontrol başladı)
  * - end_game: Düşük ton, uzun bip (oyun sonu uyarısı)
  * - post_match: Çift bip (maç bitti)
@@ -342,6 +343,12 @@ function announceState(state) {
     autonomous: {
       frequency: 800,  // Yüksek ton
       duration: 0.3,
+      type: "sine",
+      volume: 0.4
+    },
+    prepare_teleop: {
+      frequency: 700,  // Otonom-bitiş uyarısı (çift bip)
+      duration: 0.18,
       type: "sine",
       volume: 0.4
     },
@@ -371,8 +378,8 @@ function announceState(state) {
     return;
   }
   
-  // Özel durum: post_match için çift bip
-  if (state === "post_match") {
+  // Özel durum: post_match ve prepare_teleop için çift bip
+  if (state === "post_match" || state === "prepare_teleop") {
     playSoundEffect(effect.frequency, effect.duration, effect.type, effect.volume);
     setTimeout(() => {
       playSoundEffect(effect.frequency, effect.duration, effect.type, effect.volume);

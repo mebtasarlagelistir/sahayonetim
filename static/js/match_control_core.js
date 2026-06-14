@@ -34,7 +34,7 @@ const MATCH_STATES = {
   },
   driver_controlled: { 
     label: (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.STATES) ? MATCH_CONSTANTS.STATES.driver_controlled : "Sürücü Kontrollü", 
-    duration: (typeof MATCH_CONSTANTS !== "undefined") ? MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION : 120, 
+    duration: (typeof MATCH_CONSTANTS !== "undefined") ? MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION : 90,
     color: "#2196f3" 
   },
   end_game: { 
