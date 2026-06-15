@@ -64,7 +64,12 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
   if (isActive && stateOrTimeChanged) {
     audienceTimerState = currentState;
     audienceTimerInitialTime = timeRemaining;
-    audienceTimerStartTime = Date.now() - timeOffset;
+    // Maç kontrol / hakem tabletleri gibi: alınan time_remaining'den YEREL say.
+    // server_timestamp offset'i KULLANMA — seyirci ekranı ayrı bir cihaz (TV/
+    // projeksiyon) olabilir ve saati sunucudan farklıysa (örn. 26 sn ileri)
+    // otonom 30 yerine 4'ten başlardı. Faz geçişinde match_update anında geldiği
+    // için tam süreden başlamak <1 sn hatayla doğrudur.
+    audienceTimerStartTime = Date.now();
     applyTimerDisplay(timeRemaining);
     audienceTimerInterval = setInterval(function () {
       var elapsed = Math.floor((Date.now() - audienceTimerStartTime) / 1000);
