@@ -96,6 +96,7 @@ def _generate(app, teams_per_alliance, matches_per_team=None, num_matches=None, 
         "start_time": "09:00",
         "teams_per_alliance": teams_per_alliance,
         "algorithm": "balanced",
+        "field_count": 2,
         "clear_existing": True,
     }
     if matches_per_team is not None:
@@ -111,25 +112,32 @@ def _generate(app, teams_per_alliance, matches_per_team=None, num_matches=None, 
 # ---------------------------------------------------------------------------
 def compute_metrics(matches):
     """Sıralı maç listesinden adalet metriklerini hesaplar."""
+    import math
     match_count = defaultdict(int)
     red_count = defaultdict(int)
     blue_count = defaultdict(int)
     partner_pairs = defaultdict(int)   # (a,b) -> kaç kez partner
     opponent_pairs = defaultdict(int)  # (a,b) -> kaç kez rakip
     appearances = defaultdict(list)    # team -> [match_index,...]
+    field_per_team = defaultdict(lambda: defaultdict(int))  # team -> {field: count}
 
     ordered = sorted(matches, key=lambda m: m["match_number"])
+    all_fields = set()
     for idx, m in enumerate(ordered):
         red = [str(t) for t in m["red_alliance"]]
         blue = [str(t) for t in m["blue_alliance"]]
+        fld = m.get("field_number")
+        all_fields.add(fld)
         for t in red:
             match_count[t] += 1
             red_count[t] += 1
             appearances[t].append(idx)
+            field_per_team[t][fld] += 1
         for t in blue:
             match_count[t] += 1
             blue_count[t] += 1
             appearances[t].append(idx)
+            field_per_team[t][fld] += 1
         for a, b in itertools.combinations(sorted(red), 2):
             partner_pairs[(a, b)] += 1
         for a, b in itertools.combinations(sorted(blue), 2):
@@ -151,6 +159,15 @@ def compute_metrics(matches):
     partner_repeats = sum(c - 1 for c in partner_pairs.values() if c > 1)
     opponent_repeats = sum(c - 1 for c in opponent_pairs.values() if c > 1)
 
+    # Saha dengesi: her takımın tek bir sahada yığılması (en kötü saha sayısı - ideal).
+    nfields = max(len(all_fields), 1)
+    max_field_imbalance = 0
+    for t, fmap in field_per_team.items():
+        total = sum(fmap.values())
+        ideal = math.ceil(total / nfields)
+        worst = max(fmap.values()) if fmap else 0
+        max_field_imbalance = max(max_field_imbalance, worst - ideal)
+
     counts = list(match_count.values())
     return {
         "num_matches": len(ordered),
@@ -163,6 +180,8 @@ def compute_metrics(matches):
         "max_color_imbalance": max(
             (abs(red_count[t] - blue_count[t]) for t in match_count), default=0
         ),
+        "max_field_imbalance": max_field_imbalance,
+        "num_fields": nfields,
         "match_count": dict(match_count),
     }
 
@@ -186,7 +205,7 @@ SCENARIOS = [
 
 def run_scenario(n_teams, teams_per_alliance, matches_per_team=None, num_matches=None):
     app, datastore = _build_app_on_temp_db()
-    _setup_event_and_teams(datastore, n_teams, teams_per_alliance)
+    _setup_event_and_teams(datastore, n_teams, teams_per_alliance, fields=2)
     resp = _generate(
         app, teams_per_alliance,
         matches_per_team=matches_per_team, num_matches=num_matches,
@@ -247,6 +266,13 @@ def assert_fairness(label, n_teams, teams_per_alliance, metrics):
         f"[{label}] Kırmızı/mavi dengesiz: max|kırmızı-mavi|={metrics['max_color_imbalance']} > 2"
     )
 
+    # 5. Saha dengesi: takım-bazlı dengeli saha ataması ile hiçbir takım tek sahaya
+    #    sıkışmamalı (en kötü saha sayısı - ideal <= 1). Eskiden round-robin ile bazı
+    #    takımlar tüm maçlarını aynı sahada oynayabiliyordu.
+    assert metrics["max_field_imbalance"] <= 1, (
+        f"[{label}] Saha dağılımı dengesiz: max_field_imbalance={metrics['max_field_imbalance']} > 1"
+    )
+
 
 # ---------------------------------------------------------------------------
 # pytest giriş noktaları
@@ -263,7 +289,7 @@ def test_fairness_scenarios():
 def main():
     header = (
         f"{'Senaryo':>8} {'Takım':>6} {'Maç':>5} {'MinC':>5} {'MaxC':>5} "
-        f"{'PartnerTk':>10} {'RakipTk':>8} {'MinGap':>7} {'Ardışık':>8} {'RenkDng':>8}"
+        f"{'PartnerTk':>10} {'RakipTk':>8} {'MinGap':>7} {'Ardışık':>8} {'RenkDng':>8} {'SahaDng':>8}"
     )
     print("=" * (len(header) + 14))
     print(" MAÇ TAKVİMİ ADALET RAPORU  (PB=partner-balanced, BAL=balanced)")
@@ -285,7 +311,7 @@ def main():
             f"{m.get('min_count', '?'):>5} {m.get('max_count', '?'):>5} "
             f"{m.get('partner_repeats', '?'):>10} {m.get('opponent_repeats', '?'):>8} "
             f"{m.get('min_gap', '?'):>7} {m.get('back_to_back', '?'):>8} "
-            f"{m.get('max_color_imbalance', '?'):>8}   [{status}]"
+            f"{m.get('max_color_imbalance', '?'):>8} {m.get('max_field_imbalance', '?'):>8}   [{status}]"
         )
     print("-" * (len(header) + 14))
     print("PartnerTk/RakipTk = tekrar sayısı (0 ideal) · MinGap = en az dinlenme aralığı")

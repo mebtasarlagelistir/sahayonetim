@@ -160,7 +160,9 @@ def generate_partner_balanced_fixture(
         return None
 
     # --- 1. katman: partner-dengeli (kombinasyon araması) ---
-    def _partner_balanced() -> Optional[List[Dict[str, List[str]]]]:
+    # hard=True → partner tekrarı içeren bölünmeler tamamen elenir (mümkünse 0 tekrar).
+    # hard=False → ağır ceza ile minimize edilir (feasible değilse de takvim üretir, gap korunur).
+    def _partner_balanced(hard: bool) -> Optional[List[Dict[str, List[str]]]]:
         match_counts = {team: 0 for team in team_numbers}
         partner_history = {team: set() for team in team_numbers}
         opponent_history = {team: set() for team in team_numbers}
@@ -222,7 +224,7 @@ def generate_partner_balanced_fixture(
 
                 # Hard kural: partner tekrarı içeren bölünmeleri ele (uygun bölünme
                 # bulunamazsa bu combo atlanır, gerekirse üst katmana düşülür).
-                if hard_unique_partners and partner_repeat_count > 0:
+                if hard and partner_repeat_count > 0:
                     continue
 
                 partner_pen = partner_repeat_count * partner_penalty
@@ -482,11 +484,43 @@ def generate_partner_balanced_fixture(
                 return matches
         return None
 
+    def _quality(pairs) -> tuple:
+        """(ardışık_maç_sayısı, partner_tekrarı) — küçük daha iyi. Adalet ölçütü."""
+        last_seen: Dict[str, int] = {}
+        b2b = 0
+        partners: Dict[tuple, int] = {}
+        pr = 0
+        for i, p in enumerate(pairs):
+            teams = list(p.get("red_alliance", [])) + list(p.get("blue_alliance", []))
+            for t in teams:
+                if t in last_seen and (i - last_seen[t] - 1) < 1:
+                    b2b += 1
+                last_seen[t] = i
+            for side in (p.get("red_alliance", []), p.get("blue_alliance", [])):
+                for a in range(len(side)):
+                    for b in range(a + 1, len(side)):
+                        key = tuple(sorted((side[a], side[b])))
+                        partners[key] = partners.get(key, 0) + 1
+                        if partners[key] > 1:
+                            pr += 1
+        return (b2b, pr)
+
+    def _first_success(hard):
+        for _ in range(max_attempts):
+            r = _partner_balanced(hard)
+            if r is not None:
+                return r
+        return None
+
+    # KATI (0 partner tekrarı hedefi) ve CEZA (gap dostu) tier-1 sonuçlarını üret;
+    # (ardışık, partner-tekrar) ölçütüyle daha iyisini seç. Büyük havuzda katı (0,0)
+    # kazanır; küçük havuzda katı gap'i bozarsa ceza sonucu (daha iyi gap) seçilir.
     result = None
-    for _ in range(max_attempts):
-        result = _partner_balanced()
-        if result is not None:
-            break
+    cand_hard = _first_success(True)
+    cand_soft = None if hard_unique_partners else _first_success(False)
+    candidates = [c for c in (cand_hard, cand_soft) if c is not None]
+    if candidates:
+        result = min(candidates, key=_quality)
 
     if result is None:
         for _ in range(relaxed_attempts):
