@@ -681,19 +681,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
             created_count = 0
             current_time = initial_datetime
-            # Saha dengesi: takım-bazlı en-az-kullanılan saha (round-robin yerine).
+            # Saha ataması: ardışık maçlar sahalar arasında ALTERNATİF (1,2,1,2...) —
+            # iki saha paralel çalıştırılabilsin diye.
             _nf = max(1, field_count)
-            field_usage = {team: [0] * _nf for team in team_numbers}
-
-            def _choose_field(match_teams):
-                if _nf == 1:
-                    return 0
-                best_f, best_cost = 0, None
-                for f in range(_nf):
-                    cost = sum(field_usage.get(t, [0] * _nf)[f] for t in match_teams)
-                    if best_cost is None or cost < best_cost:
-                        best_cost, best_f = cost, f
-                return best_f
 
             for match_data in schedule_pairs:
                 current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
@@ -716,9 +706,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     current_time += timedelta(minutes=match_duration)
                     continue
 
-                _match_teams = match_data["red_alliance"] + match_data["blue_alliance"]
-                _fi = _choose_field(_match_teams)
-                field_number = _fi + 1
+                field_number = (created_count % _nf) + 1  # alternatif: 1,2,1,2...
                 datastore.create_match(
                     match_number=next_number,
                     match_type=match_type,
@@ -734,9 +722,6 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
                 created_count += 1
                 next_number += 1
-                for team in _match_teams:
-                    if team in field_usage:
-                        field_usage[team][_fi] += 1
                 current_time += timedelta(minutes=match_duration)
 
             return jsonify({"ok": True, "created_count": created_count})
@@ -874,19 +859,8 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         current_time = initial_datetime
         max_attempts = num_matches * 10
         attempts = 0
-        # Saha dengesi: takım-bazlı en-az-kullanılan saha (round-robin yerine).
+        # Saha ataması: ardışık maçlar ALTERNATİF (1,2,1,2...) — paralel iki saha için.
         _nf = max(1, field_count)
-        field_usage = {team: [0] * _nf for team in team_numbers}
-
-        def _choose_field(match_teams):
-            if _nf == 1:
-                return 0
-            best_f, best_cost = 0, None
-            for f in range(_nf):
-                cost = sum(field_usage.get(t, [0] * _nf)[f] for t in match_teams)
-                if best_cost is None or cost < best_cost:
-                    best_cost, best_f = cost, f
-            return best_f
 
         while created_count < num_matches and attempts < max_attempts:
             attempts += 1
@@ -979,11 +953,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     if team_stats[team]["match_count"] >= matches_per_team:
                         surrogate_teams.append(team)
 
-            _match_teams = red_alliance + blue_alliance
-            _fi = _choose_field(_match_teams)
             try:
-                # Saha: takım-bazlı dengeli atama (her takım sahalara eşit dağılır)
-                field_number = _fi + 1
+                # Saha: ardışık maçlar arası alternatif (1,2,1,2...) — paralel iki saha.
+                field_number = (created_count % _nf) + 1
                 datastore.create_match(
                     match_number=next_number,
                     match_type=match_type,
@@ -1003,9 +975,6 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
             created_count += 1
             next_number += 1
-            for team in _match_teams:
-                if team in field_usage:
-                    field_usage[team][_fi] += 1
 
             # İstatistikleri güncelle
             for team in red_alliance:

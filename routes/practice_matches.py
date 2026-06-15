@@ -641,21 +641,9 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
 
         # Üretilen ittifak çiftlerini zaman/saha ile veritabanına yaz.
         match_count_tracker = {team: 0 for team in team_numbers}
-        # Saha dengesi: her takımın sahalara dağılımını izleyip her maçta katılımcı
-        # takımların EN AZ kullandığı sahayı seç (round-robin yerine; "hep aynı saha"yı önler).
+        # Saha ataması: ardışık maçlar sahalar arasında ALTERNATİF (1,2,1,2...) —
+        # böylece iki saha paralel çalıştırılabilir (bir saha 1, bir saha 2).
         _nf = max(1, field_count)
-        field_usage = {team: [0] * _nf for team in team_numbers}
-
-        def _choose_field(match_teams):
-            if _nf == 1:
-                return 0
-            best_f, best_cost = 0, None
-            for f in range(_nf):
-                cost = sum(field_usage.get(t, [0] * _nf)[f] for t in match_teams)
-                if best_cost is None or cost < best_cost:
-                    best_cost, best_f = cost, f
-            return best_f
-
         for pair in schedule_pairs:
             red_alliance = pair["red_alliance"]
             blue_alliance = pair["blue_alliance"]
@@ -687,9 +675,7 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
 
             try:
                 match_number = f"P{match_counter}"
-                _match_teams = red_alliance + blue_alliance
-                _fi = _choose_field(_match_teams)
-                field_number = _fi + 1
+                field_number = (created_count % _nf) + 1  # alternatif: 1,2,1,2...
                 datastore.create_practice_match(
                     match_number=match_number,
                     field_number=field_number,
@@ -704,10 +690,8 @@ def register_practice_matches_routes(bp, datastore, require_login, require_event
                 )
                 created_count += 1
                 match_counter += 1
-                for team in _match_teams:
+                for team in red_alliance + blue_alliance:
                     match_count_tracker[team] += 1
-                    if team in field_usage:
-                        field_usage[team][_fi] += 1
                 current_time += timedelta(minutes=match_duration)
             except Exception as e:
                 print(f"Error creating practice match: {e}")

@@ -159,7 +159,7 @@ def compute_metrics(matches):
     partner_repeats = sum(c - 1 for c in partner_pairs.values() if c > 1)
     opponent_repeats = sum(c - 1 for c in opponent_pairs.values() if c > 1)
 
-    # Saha dengesi: her takımın tek bir sahada yığılması (en kötü saha sayısı - ideal).
+    # Saha dengesi (bilgi): her takımın tek bir sahada yığılması.
     nfields = max(len(all_fields), 1)
     max_field_imbalance = 0
     for t, fmap in field_per_team.items():
@@ -167,6 +167,15 @@ def compute_metrics(matches):
         ideal = math.ceil(total / nfields)
         worst = max(fmap.values()) if fmap else 0
         max_field_imbalance = max(max_field_imbalance, worst - ideal)
+
+    # Saha ALTERNASYONU: ardışık maçlar farklı sahada olmalı (paralel iki saha için).
+    consecutive_same_field = 0
+    prev_field = None
+    for m in ordered:
+        f = m.get("field_number")
+        if prev_field is not None and f == prev_field:
+            consecutive_same_field += 1
+        prev_field = f
 
     counts = list(match_count.values())
     return {
@@ -181,6 +190,7 @@ def compute_metrics(matches):
             (abs(red_count[t] - blue_count[t]) for t in match_count), default=0
         ),
         "max_field_imbalance": max_field_imbalance,
+        "consecutive_same_field": consecutive_same_field,
         "num_fields": nfields,
         "match_count": dict(match_count),
     }
@@ -266,11 +276,10 @@ def assert_fairness(label, n_teams, teams_per_alliance, metrics):
         f"[{label}] Kırmızı/mavi dengesiz: max|kırmızı-mavi|={metrics['max_color_imbalance']} > 2"
     )
 
-    # 5. Saha dengesi: takım-bazlı dengeli saha ataması ile hiçbir takım tek sahaya
-    #    sıkışmamalı (en kötü saha sayısı - ideal <= 1). Eskiden round-robin ile bazı
-    #    takımlar tüm maçlarını aynı sahada oynayabiliyordu.
-    assert metrics["max_field_imbalance"] <= 1, (
-        f"[{label}] Saha dağılımı dengesiz: max_field_imbalance={metrics['max_field_imbalance']} > 1"
+    # 5. Saha ALTERNASYONU: ardışık maçlar farklı sahada olmalı (1,2,1,2...) ki iki
+    #    saha paralel çalıştırılabilsin. Strict alternasyon → ardışık-aynı-saha = 0.
+    assert metrics["consecutive_same_field"] == 0, (
+        f"[{label}] Sahalar alternatif değil: ardışık aynı saha={metrics['consecutive_same_field']}"
     )
 
 
@@ -289,7 +298,7 @@ def test_fairness_scenarios():
 def main():
     header = (
         f"{'Senaryo':>8} {'Takım':>6} {'Maç':>5} {'MinC':>5} {'MaxC':>5} "
-        f"{'PartnerTk':>10} {'RakipTk':>8} {'MinGap':>7} {'Ardışık':>8} {'RenkDng':>8} {'SahaDng':>8}"
+        f"{'PartnerTk':>10} {'RakipTk':>8} {'MinGap':>7} {'Ardışık':>8} {'RenkDng':>8} {'ArdSaha':>8}"
     )
     print("=" * (len(header) + 14))
     print(" MAÇ TAKVİMİ ADALET RAPORU  (PB=partner-balanced, BAL=balanced)")
@@ -311,7 +320,7 @@ def main():
             f"{m.get('min_count', '?'):>5} {m.get('max_count', '?'):>5} "
             f"{m.get('partner_repeats', '?'):>10} {m.get('opponent_repeats', '?'):>8} "
             f"{m.get('min_gap', '?'):>7} {m.get('back_to_back', '?'):>8} "
-            f"{m.get('max_color_imbalance', '?'):>8} {m.get('max_field_imbalance', '?'):>8}   [{status}]"
+            f"{m.get('max_color_imbalance', '?'):>8} {m.get('consecutive_same_field', '?'):>8}   [{status}]"
         )
     print("-" * (len(header) + 14))
     print("PartnerTk/RakipTk = tekrar sayısı (0 ideal) · MinGap = en az dinlenme aralığı")
