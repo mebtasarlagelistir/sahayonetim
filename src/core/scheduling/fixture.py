@@ -28,6 +28,93 @@ import random
 from typing import Dict, List, Optional
 
 
+def _balance_sides(pairs: List[Dict[str, List[str]]]) -> None:
+    """
+    Maçların kırmızı/mavi taraflarını yer değiştirerek (MATCHUP'LARI DEĞİŞTİRMEDEN)
+    her takımın kırmızı/mavi sayısını dengeler.
+
+    Bir maçı çevirmek (kırmızı↔mavi) kimin kiminle/kime karşı oynadığını değiştirmez;
+    bu yüzden partner tekrarı, rakip çeşitliliği ve maç sayısı adaleti AYNEN korunur —
+    yalnızca taraf etiketi değişir. Greedy: toplam |kırmızı-mavi| azaldıkça maç çevrilir.
+    Yerinde (in-place) çalışır.
+    """
+    if not pairs:
+        return
+
+    # Her maçı (A-takımları, B-takımları) olarak temsil et. orient[m]=0 → A kırmızı,
+    # orient[m]=1 → B kırmızı (çevrilmiş). Yönelim seçimi matchup'ı DEĞİŞTİRMEZ; bu
+    # yüzden partner/rakip/maç-sayısı/dinlenme adaleti tamamen korunur.
+    base = [(list(p.get("red_alliance", [])), list(p.get("blue_alliance", []))) for p in pairs]
+    teams = sorted({t for A, B in base for t in (A + B)})
+    if not teams:
+        return
+
+    def _eval(orient):
+        net = {t: 0 for t in teams}  # net = kırmızı - mavi
+        for m, (A, B) in enumerate(base):
+            r, b = (A, B) if orient[m] == 0 else (B, A)
+            for t in r:
+                net[t] += 1
+            for t in b:
+                net[t] -= 1
+        return net
+
+    def _obj(net):
+        mx = 0
+        tot = 0
+        for v in net.values():
+            a = abs(v)
+            tot += a
+            if a > mx:
+                mx = a
+        return (mx, tot)
+
+    def _descend(orient):
+        """Leksikografik (max, toplam) inişi: kesin iyileştiren yönelim çevirmeleri."""
+        net = _eval(orient)
+        cur = _obj(net)
+        guard = 0
+        improving = True
+        while improving and guard < 300:
+            improving = False
+            guard += 1
+            for m, (A, B) in enumerate(base):
+                # m'yi çevir: kırmızı↔mavi (her takımın net'i ±2 değişir)
+                r, b = (A, B) if orient[m] == 0 else (B, A)
+                for t in r:
+                    net[t] -= 2
+                for t in b:
+                    net[t] += 2
+                new = _obj(net)
+                if new < cur:
+                    cur = new
+                    orient[m] ^= 1
+                    improving = True
+                else:
+                    for t in r:
+                        net[t] += 2
+                    for t in b:
+                        net[t] -= 2
+        return cur
+
+    # Mevcut yönelimden başla (attempt 0) + rastgele yeniden başlatmalar; en iyiyi tut.
+    best_orient = [0] * len(base)
+    best_obj = _descend(best_orient)
+    for attempt in range(1, 80):
+        if best_obj[0] <= 1:
+            break
+        orient = [random.randint(0, 1) for _ in base]
+        obj = _descend(orient)
+        if obj < best_obj:
+            best_obj = obj
+            best_orient = orient
+
+    # En iyi yönelimi pairs'e uygula (yalnızca çevrilmesi gerekenleri ters çevir).
+    for m, p in enumerate(pairs):
+        if best_orient[m] == 1:
+            p["red_alliance"], p["blue_alliance"] = p["blue_alliance"], p["red_alliance"]
+
+
 def generate_partner_balanced_fixture(
     team_numbers: List[str],
     teams_per_alliance: int,
@@ -37,6 +124,7 @@ def generate_partner_balanced_fixture(
     min_gap_matches: int = 1,
     partner_penalty: int = 120,
     opponent_penalty: int = 80,
+    side_penalty: int = 100,
     hard_unique_partners: bool = True,
     max_attempts: int = 100,
     relaxed_attempts: int = 20,
@@ -77,6 +165,8 @@ def generate_partner_balanced_fixture(
         partner_history = {team: set() for team in team_numbers}
         opponent_history = {team: set() for team in team_numbers}
         last_match_index = {team: None for team in team_numbers}
+        red_count = {team: 0 for team in team_numbers}
+        blue_count = {team: 0 for team in team_numbers}
         schedule_pairs: List[Dict[str, List[str]]] = []
 
         def _team_priority(team, match_index):
@@ -114,7 +204,8 @@ def generate_partner_balanced_fixture(
 
         def _best_split_for_combo(combo, match_index):
             best = None
-            best_score = float("-inf")
+            best_key = None
+            best_sel = float("-inf")
             combo_list = list(combo)
             for red_alliance in itertools.combinations(combo_list, teams_per_alliance):
                 red_alliance = list(red_alliance)
@@ -142,18 +233,28 @@ def generate_partner_balanced_fixture(
                         if red_team in opponent_history[blue_team]:
                             opponent_pen += opponent_penalty
 
-                # Eşit skorlu bölünmelerde kırmızı/mavi atamasının hep aynı (sıralı)
-                # çıkmaması için küçük jitter eklenir (adalet farklarını ezmeyecek kadar).
-                total = (
-                    _combo_score(combo_list, match_index)
-                    - partner_pen
-                    - opponent_pen
-                    + _rng.random() * 0.001
-                )
-                if total > best_score:
-                    best_score = total
+                # SEÇİM skoru: yalnız partner+rakip+öncelik. Taraf cezası BURAYA girmez,
+                # aksi halde hangi takımların seçildiğini (combo) etkiler ve dinlenme/
+                # rakip adaletini bozar.
+                sel = _combo_score(combo_list, match_index) - partner_pen - opponent_pen
+
+                # Taraf (kırmızı/mavi) dengesi: AYNI partner-eşleşmesinin iki yönelimi aynı
+                # partner+rakip cezasına sahip olduğundan, taraf yalnızca eşit-skorlu
+                # bölünmeler arasında TIEBREAK olarak kullanılır (combo seçimini etkilemez).
+                side_pen = 0
+                for t in red_alliance:
+                    side_pen += max(0, red_count[t] - blue_count[t])
+                for t in blue_alliance:
+                    side_pen += max(0, blue_count[t] - red_count[t])
+
+                # Anahtar: önce seçim skoru (yüksek iyi), sonra düşük taraf cezası, en son jitter.
+                key = (sel, -side_pen, _rng.random())
+                if best_key is None or key > best_key:
+                    best_key = key
                     best = (red_alliance[:], blue_alliance[:])
-            return best, best_score
+                    best_sel = sel
+            # Üst combo döngüsüne SADECE seçim skorunu döndür (taraf cezasından bağımsız).
+            return best, best_sel
 
         for _match_index in range(1, num_matches + 1):
             eligible = [t for t, c in match_counts.items() if c < matches_per_team]
@@ -219,6 +320,10 @@ def generate_partner_balanced_fixture(
             for team in candidates:
                 match_counts[team] += 1
                 last_match_index[team] = _match_index
+            for team in red_alliance:
+                red_count[team] += 1
+            for team in blue_alliance:
+                blue_count[team] += 1
 
             schedule_pairs.append(
                 {"blue_alliance": blue_alliance[:], "red_alliance": red_alliance[:]}
@@ -377,14 +482,22 @@ def generate_partner_balanced_fixture(
                 return matches
         return None
 
+    result = None
     for _ in range(max_attempts):
         result = _partner_balanced()
         if result is not None:
-            return result
+            break
 
-    for _ in range(relaxed_attempts):
-        result = _relaxed()
-        if result is not None:
-            return result
+    if result is None:
+        for _ in range(relaxed_attempts):
+            result = _relaxed()
+            if result is not None:
+                break
 
-    return _shuffle()
+    if result is None:
+        result = _shuffle()
+
+    # Tüm katmanlardan bağımsız: kırmızı/mavi taraf dengesini düzelt (matchup'lar sabit).
+    if result is not None:
+        _balance_sides(result)
+    return result

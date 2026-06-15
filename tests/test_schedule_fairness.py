@@ -240,6 +240,13 @@ def assert_fairness(label, n_teams, teams_per_alliance, metrics):
         f"[{label}] Çok fazla partner tekrarı: {metrics['partner_repeats']} > {pr_limit}"
     )
 
+    # 4. Renk (kırmızı/mavi) dengesi: hiçbir takım hep aynı tarafta kalmamalı.
+    #    Build-time taraf cezası + son-geçiş ile her takımın |kırmızı-mavi| farkı <= 2
+    #    olmalı (çoğu senaryoda <= 1). Eskiden sınırsızdı (4-0 "hep kırmızı" görülürdü).
+    assert metrics["max_color_imbalance"] <= 2, (
+        f"[{label}] Kırmızı/mavi dengesiz: max|kırmızı-mavi|={metrics['max_color_imbalance']} > 2"
+    )
+
 
 # ---------------------------------------------------------------------------
 # pytest giriş noktaları
