@@ -4,21 +4,10 @@
  */
 
 /** Yerel timer (akıcı geri sayım, WebSocket ile senkron) */
-// Anchor tabanlı: yerel saat sürekli geri sayar; sunucu güncellemesi yalnızca
-// durum değişince veya drift büyükse yeniden ankrajlar → küçük gecikmelerde atlama olmaz.
-let audienceTimerLoop = null;
-let audienceTimerAnchorRemaining = null;  // ankraj anındaki kalan süre (sn)
-let audienceTimerAnchorAt = 0;            // ankraj anı (Date.now(), offset düşülmüş)
+let audienceTimerInterval = null;
+let audienceTimerStartTime = null;
+let audienceTimerInitialTime = null;
 let audienceTimerState = null;
-let audienceTimerActive = false;
-const AUDIENCE_TIMER_RESYNC_SEC = 2;      // bu kadar drift birikirse sert düzelt
-
-/** Yerel saate göre o anki kalan süreyi (sn, kesirli) hesaplar. */
-function _audienceCurrentRemaining() {
-  if (audienceTimerAnchorRemaining == null) return 0;
-  const elapsed = (Date.now() - audienceTimerAnchorAt) / 1000;
-  return Math.max(0, audienceTimerAnchorRemaining - elapsed);
-}
 
 /**
  * Zamanı formatlar (MM:SS formatında)
@@ -64,41 +53,32 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
     }
   }
 
-  const isActive = timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed";
+  var isActive = timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed";
+  var stateOrTimeChanged = audienceTimerState !== currentState || audienceTimerInitialTime !== timeRemaining;
 
-  if (!isActive) {
-    // Aktif değil: yerel sayımı durdur, sunucu değerini göster.
-    if (audienceTimerLoop) { clearInterval(audienceTimerLoop); audienceTimerLoop = null; }
-    audienceTimerActive = false;
+  if (audienceTimerInterval) {
+    clearInterval(audienceTimerInterval);
+    audienceTimerInterval = null;
+  }
+
+  if (isActive && stateOrTimeChanged) {
     audienceTimerState = currentState;
-    audienceTimerAnchorRemaining = Math.max(0, timeRemaining);
-    audienceTimerAnchorAt = Date.now() - timeOffset;
-    applyTimerDisplay(Math.max(0, timeRemaining));
-    return;
-  }
-
-  // Sert yeniden-ankraj YALNIZCA: durum değişti / ilk ankraj / drift büyük.
-  // Küçük drift'lerde ankraj korunur → yerel saat akıcı sayar, ATLAMA olmaz.
-  const stateChanged = audienceTimerState !== currentState;
-  const predicted = _audienceCurrentRemaining();
-  if (stateChanged || audienceTimerAnchorRemaining == null ||
-      Math.abs(predicted - timeRemaining) >= AUDIENCE_TIMER_RESYNC_SEC) {
-    audienceTimerAnchorRemaining = timeRemaining;
-    audienceTimerAnchorAt = Date.now() - timeOffset;
-  }
-  audienceTimerState = currentState;
-  audienceTimerActive = true;
-
-  applyTimerDisplay(Math.round(_audienceCurrentRemaining()));
-  if (!audienceTimerLoop) {
-    audienceTimerLoop = setInterval(function () {
-      if (!audienceTimerActive) {
-        clearInterval(audienceTimerLoop); audienceTimerLoop = null; return;
+    audienceTimerInitialTime = timeRemaining;
+    audienceTimerStartTime = Date.now() - timeOffset;
+    applyTimerDisplay(timeRemaining);
+    audienceTimerInterval = setInterval(function () {
+      var elapsed = Math.floor((Date.now() - audienceTimerStartTime) / 1000);
+      var remaining = Math.max(0, audienceTimerInitialTime - elapsed);
+      applyTimerDisplay(remaining);
+      if (remaining <= 0) {
+        clearInterval(audienceTimerInterval);
+        audienceTimerInterval = null;
       }
-      const r = _audienceCurrentRemaining();
-      applyTimerDisplay(Math.round(r));
-      if (r <= 0) { clearInterval(audienceTimerLoop); audienceTimerLoop = null; }
-    }, 200);
+    }, 100);
+  } else {
+    audienceTimerState = currentState;
+    audienceTimerInitialTime = timeRemaining;
+    applyTimerDisplay(timeRemaining);
   }
 }
 
