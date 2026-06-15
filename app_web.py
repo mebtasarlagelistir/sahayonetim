@@ -741,6 +741,18 @@ def create_app() -> Flask:
             awards = []
         return jsonify(awards)
 
+    @app.get("/api/public/teams")
+    def get_teams_public():
+        """
+        Seyirci ekranı için takım listesini döndürür (giriş gerektirmez).
+        Seyirci ekranları oturum açmadan açılabilsin diye public; takım adlarını
+        maç/sıralama görünümlerinde göstermek için kullanılır.
+        """
+        try:
+            return jsonify(datastore.get_teams())
+        except Exception:
+            return jsonify([])
+
     @app.get("/api/public/awards")
     def get_awards_public():
         """

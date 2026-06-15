@@ -363,6 +363,7 @@ class UsersStorage:
             "seremoni_1",
             "seremoni_2",
             "seremoni_3",
+            "pit_yoneticisi",
         ]
         created: List[Dict[str, str]] = []
         with self._get_connection() as conn:

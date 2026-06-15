@@ -111,7 +111,9 @@ async function loadAudienceEventInfo() {
  */
 async function loadAudienceTeams() {
   try {
-    const data = await apiGet("/api/teams");
+    // Public uç nokta: seyirci ekranı oturum açmadan açılabilsin (401 → login
+    // yönlendirmesini önler). Takım adları maç/sıralama görünümlerinde kullanılır.
+    const data = await apiGet("/api/public/teams");
     if (!Array.isArray(data)) return;
     audienceTeamsMap = {};
     data.forEach((t) => {
