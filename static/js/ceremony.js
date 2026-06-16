@@ -477,24 +477,43 @@ async function showSpecificAward(awardName) {
 /**
  * Seyirci ekranında töreni gösterir
  */
+/**
+ * TÜM bağlı seyirci ekranlarını belirtilen görünüme zorlar (per-screen kontrol).
+ * Global active_view, per-screen kontrol edilmiş (follow_global=false) ekranlara
+ * ULAŞMAZ; bu yüzden tören/ödül gösterimi her ekrana tek tek uygulanır.
+ */
+async function _forceAllScreensToView(view) {
+  try {
+    const screens = await apiGet("/api/screens");
+    if (Array.isArray(screens) && screens.length) {
+      await Promise.all(screens.map((s) =>
+        apiPost("/api/screens/control", {
+          screen_id: s.screen_id,
+          desired_view: view,
+          follow_global: false,
+        }).catch(() => {})
+      ));
+    }
+  } catch (err) {
+    console.warn("_forceAllScreensToView:", err);
+  }
+}
+
 async function showCeremonyOnScreen() {
   try {
-    // Ekran view'ını ceremony olarak ayarla
+    // Ekran view'ını ceremony olarak ayarla (global)
     const screenSelect = qs("mc_screen_active_view");
     if (screenSelect) {
       screenSelect.value = "ceremony";
     }
-    
-    // Ayarları kaydet (match_control_screens.js'deki fonksiyon)
     if (typeof saveScreenSettings === "function") {
       await saveScreenSettings();
     } else {
-      // Manuel API çağrısı
-      await apiPost("/api/screens/settings", {
-        active_view: "ceremony"
-      });
+      await apiPost("/api/screens/settings", { active_view: "ceremony" });
     }
-    
+    // GLOBAL'i takip etmeyen (per-screen kontrol edilmiş) ekranlara da uygula
+    await _forceAllScreensToView("ceremony");
+
     showToast("Seyirci ekranı tören moduna alındı", "success");
   } catch (err) {
     console.error("Show ceremony on screen error:", err);
@@ -512,15 +531,14 @@ async function showAllWinnersOnScreen() {
     if (screenSelect) {
       screenSelect.value = "awards";
     }
-    
     if (typeof saveScreenSettings === "function") {
       await saveScreenSettings();
     } else {
-      await apiPost("/api/screens/settings", {
-        active_view: "awards"
-      });
+      await apiPost("/api/screens/settings", { active_view: "awards" });
     }
-    
+    // GLOBAL'i takip etmeyen ekranlara da uygula
+    await _forceAllScreensToView("awards");
+
     showToast("Tüm kazananlar gösteriliyor", "success");
   } catch (err) {
     console.error("Show all winners error:", err);
