@@ -8,10 +8,13 @@
      CANLI (WebSocket ceremony_update) güncelleniyor mu → sonraki ödül → stop(idle)
 Sonunda: töreni durdur, kazananları+ödülleri+etkinliği sil, gerçek etkinliği geri yükle.
 """
-import asyncio, json, time
+import asyncio, json, time, sys, io
+# Windows konsolunda emoji/Türkçe çıktısı için UTF-8 zorla (cp1252 çökmesini önler)
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 from playwright.async_api import async_playwright
 BASE = "http://localhost:5001"
-REAL_EVENT_NAME = "İstanbul ve Su 2"
 
 R = {"pass": [], "fail": [], "warn": []}
 def rec(name, ok, detail="", warn=False):
@@ -182,13 +185,14 @@ async def main():
                 for wid in winner_ids:
                     await api.request.delete(f"{BASE}/api/award-winners/{wid}")
                 await api.request.post(f"{BASE}/api/awards", data=json.dumps([]), headers={"Content-Type": "application/json"})
-                events = await (await api.request.get(f"{BASE}/api/events")).json()
-                real = [e for e in events if e.get("name") == REAL_EVENT_NAME]
-                if real:
-                    await api.request.post(f"{BASE}/api/events/active", data=json.dumps({"id": real[0]["id"]}), headers={"Content-Type": "application/json"})
+                # Önceki aktif etkinliği id ile geri yükle (etkinlik adına bağlı kalma — yeniden adlandırmaya dayanıklı)
+                if prev_active and prev_active != created_event_id:
+                    await api.request.post(f"{BASE}/api/events/active", data=json.dumps({"id": prev_active}), headers={"Content-Type": "application/json"})
+                restored = ((await (await api.request.get(f"{BASE}/api/event")).json()) or {}).get("id")
                 if created_event_id:
                     dr = await api.request.delete(f"{BASE}/api/events/{created_event_id}")
-                    rec("Temizlik: kazananlar/ödüller silindi, test etkinliği silindi, gerçek etkinlik aktif", dr.ok and bool(real), f"delete HTTP {dr.status}")
+                    ok = dr.ok and (prev_active is None or restored == prev_active)
+                    rec("Temizlik: kazananlar/ödüller silindi, test etkinliği silindi, gerçek etkinlik aktif", ok, f"delete HTTP {dr.status}, aktif={restored}")
             except Exception as e:
                 rec("Temizlik", False, str(e)[:80])
         await browser.close()

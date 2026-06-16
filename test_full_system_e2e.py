@@ -164,7 +164,8 @@ def api_phases(s):
             m1 = finals[0]
             ts = {"red": {"r1": "ready", "r2": "ready"}, "blue": {"r1": "ready", "r2": "ready"}}
             s.post(f"{BASE}/api/match-control/start", json={"match_id": m1["id"], "match_source": "schedule", "team_statuses": ts}, timeout=10)
-            exp = [("autonomous", 30), ("prepare_teleop", 10), ("driver_controlled", 120), ("post_match", 10)]
+            # Süreler MatchConstants ile birebir: end_game ayrı faz değil (SKS 120 sn içinde son 30 sn ses uyarısı)
+            exp = [("autonomous", 30), ("prepare_teleop", 5), ("driver_controlled", 120), ("post_match", 10)]
             tok = True
             for st, sec in exp:
                 rr = s.post(f"{BASE}/api/match-control/state", json={"match_id": m1["id"], "state": st, "match_source": "schedule"}, timeout=10)
@@ -174,7 +175,7 @@ def api_phases(s):
                         tok = False; info(f"Durum {st}: time_remaining={j.get('time_remaining')} (beklenen {sec})")
                 else:
                     tok = False
-            rec("2-Timer", "Durum süreleri (otonom30/haz10/SKS90/oyunsonu30/maçsonu10)", "PASS" if tok else "FAIL")
+            rec("2-Timer", "Durum süreleri (otonom30/haz5/SKS120/maçsonu10)", "PASS" if tok else "FAIL")
             # M1'i normal oynayıp tamamla (advancement tetiklensin)
             s.post(f"{BASE}/api/match-control/reset-active", timeout=10)
 

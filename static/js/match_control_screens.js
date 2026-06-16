@@ -98,7 +98,10 @@ async function loadMatchControlScreens() {
                 <option value="match" ${desiredView === "match" ? "selected" : ""}>Maç</option>
                 <option value="inspection" ${desiredView === "inspection" ? "selected" : ""}>İnceleme</option>
                 <option value="rankings" ${desiredView === "rankings" ? "selected" : ""}>Sıralama</option>
+                <option value="alliances" ${desiredView === "alliances" ? "selected" : ""}>İttifak Seçimi</option>
+                <option value="playoff" ${desiredView === "playoff" ? "selected" : ""}>Playoff Bracket</option>
                 <option value="awards" ${desiredView === "awards" ? "selected" : ""}>Ödüller</option>
+                <option value="ceremony" ${desiredView === "ceremony" ? "selected" : ""}>Ödül Töreni</option>
               </select>
               <label class="checkbox small">
                 <input type="checkbox" class="screen-follow-toggle" data-screen-id="${screen.screen_id}" ${followGlobal ? "checked" : ""} />

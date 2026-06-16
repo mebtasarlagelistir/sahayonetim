@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import requests
 
 BASE = os.environ.get("MEMSKOR_TEST_URL", "http://127.0.0.1:5001")
-REAL_EVENT_NAME = "İstanbul ve Su 2"
 R = {"pass": [], "fail": []}
 
 def rec(name, ok, detail=""):
@@ -178,13 +177,14 @@ def main():
             for m in fs:
                 if m.get("match_type") == "final":
                     s.delete(f"{BASE}/api/match-schedule/{m['id']}", timeout=10)
-            events = s.get(f"{BASE}/api/events", timeout=10).json()
-            real = [e for e in events if e.get("name") == REAL_EVENT_NAME]
-            if real:
-                s.post(f"{BASE}/api/events/active", json={"id": real[0]["id"]}, timeout=10)
+            # Önceki aktif etkinliği id ile geri yükle (etkinlik adına bağlı kalma — yeniden adlandırmaya dayanıklı)
+            if prev_active and prev_active != created_event_id:
+                s.post(f"{BASE}/api/events/active", json={"id": prev_active}, timeout=10)
+            restored = (s.get(f"{BASE}/api/event", timeout=10).json() or {}).get("id")
             if created_event_id:
                 dr = s.delete(f"{BASE}/api/events/{created_event_id}", timeout=10)
-                rec("Temizlik: finaller + test etkinliği silindi, gerçek etkinlik aktif", dr.ok and bool(real))
+                ok = dr.ok and (prev_active is None or restored == prev_active)
+                rec("Temizlik: finaller + test etkinliği silindi, gerçek etkinlik aktif", ok, f"aktif={restored}")
         except Exception as e:
             rec("Temizlik", False, str(e)[:80])
 
