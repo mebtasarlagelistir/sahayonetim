@@ -28,6 +28,62 @@ import random
 from typing import Dict, List, Optional
 
 
+def assign_distributed_surrogates(
+    pairs: List[Dict[str, List[str]]],
+    matches_per_team: int,
+) -> List[List[str]]:
+    """
+    Takım sayısı ittifak boyutuna tam bölünmediğinde, `num_matches = ceil(...)` ile herkes
+    `matches_per_team` GERÇEK maç oynar; fazladan slotlar surrogate (vekil) olur. Bu fonksiyon
+    her takımın FAZLA (matches_per_team üstü) görünüşlerini surrogate işaretler.
+
+    FRC standardı: surrogate maçlar oynanır ama o takım için SIRALAMAYA SAYILMAZ. Fazla
+    görünüşler TEK maça toplanmaz; mümkünse FARKLI maçlara DAĞITILIR (her takımın en geç
+    maçları + o an en az surrogate'i olan maç tercih edilerek). Böylece her maçta en fazla
+    1 surrogate olur (yeterli maç varsa) ve her gerçek maçta yeterli rekabetçi takım kalır.
+
+    Returns: pairs ile aynı uzunlukta liste; her eleman o maçtaki surrogate takım numaraları.
+    """
+    n = len(pairs)
+    surrogates: List[List[str]] = [[] for _ in range(n)]
+    if n == 0:
+        return surrogates
+
+    appear: Dict[str, List[int]] = {}
+    for i, p in enumerate(pairs):
+        for t in list(p.get("red_alliance", [])) + list(p.get("blue_alliance", [])):
+            appear.setdefault(str(t), []).append(i)
+
+    # Fazla görünüşü olan takımları, en çok fazlası olandan başlayarak işle (adil dağıtım).
+    over = sorted(
+        ((t, idxs) for t, idxs in appear.items() if len(idxs) > matches_per_team),
+        key=lambda kv: len(kv[1]),
+        reverse=True,
+    )
+    for team, idxs in over:
+        extra = len(idxs) - matches_per_team
+        # Aday maçlar: takımın görünüşleri, EN GEÇ önce (geç maçlar surrogate'e daha uygun).
+        candidates = sorted(idxs, reverse=True)
+        chosen = 0
+        for mi in candidates:
+            if chosen >= extra:
+                break
+            # Aynı maçta zaten surrogate varsa atla (dağıtımı koru); hiçbiri uygun değilse
+            # ikinci turda doldurulur.
+            if not surrogates[mi]:
+                surrogates[mi].append(team)
+                chosen += 1
+        # Yeterince dağıtılamadıysa (tüm geç maçlarında zaten surrogate var) kalanları ekle.
+        if chosen < extra:
+            for mi in candidates:
+                if chosen >= extra:
+                    break
+                if team not in surrogates[mi]:
+                    surrogates[mi].append(team)
+                    chosen += 1
+    return surrogates
+
+
 def _balance_sides(pairs: List[Dict[str, List[str]]]) -> None:
     """
     Maçların kırmızı/mavi taraflarını yer değiştirerek (MATCHUP'LARI DEĞİŞTİRMEDEN)

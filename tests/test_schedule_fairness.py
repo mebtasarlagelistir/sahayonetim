@@ -128,6 +128,7 @@ def compute_metrics(matches):
     """Sıralı maç listesinden adalet metriklerini hesaplar."""
     import math
     match_count = defaultdict(int)
+    real_count = defaultdict(int)      # surrogate olmayan (sıralamaya sayılan) maç sayısı
     red_count = defaultdict(int)
     blue_count = defaultdict(int)
     partner_pairs = defaultdict(int)   # (a,b) -> kaç kez partner
@@ -135,20 +136,35 @@ def compute_metrics(matches):
     appearances = defaultdict(list)    # team -> [match_index,...]
     field_per_team = defaultdict(lambda: defaultdict(int))  # team -> {field: count}
 
+    def _surrogate_set(m):
+        raw = m.get("surrogate_teams") or []
+        if isinstance(raw, str):
+            try:
+                import json as _j
+                raw = _j.loads(raw)
+            except Exception:
+                raw = [s for s in raw.split(",") if s]
+        return {str(t) for t in (raw or [])}
+
     ordered = sorted(matches, key=lambda m: m["match_number"])
     all_fields = set()
     for idx, m in enumerate(ordered):
         red = [str(t) for t in m["red_alliance"]]
         blue = [str(t) for t in m["blue_alliance"]]
+        sur = _surrogate_set(m)
         fld = m.get("field_number")
         all_fields.add(fld)
         for t in red:
             match_count[t] += 1
+            if t not in sur:
+                real_count[t] += 1
             red_count[t] += 1
             appearances[t].append(idx)
             field_per_team[t][fld] += 1
         for t in blue:
             match_count[t] += 1
+            if t not in sur:
+                real_count[t] += 1
             blue_count[t] += 1
             appearances[t].append(idx)
             field_per_team[t][fld] += 1
@@ -207,6 +223,8 @@ def compute_metrics(matches):
         "consecutive_same_field": consecutive_same_field,
         "num_fields": nfields,
         "match_count": dict(match_count),
+        "real_min": min(real_count.values()) if real_count else 0,
+        "real_max": max(real_count.values()) if real_count else 0,
     }
 
 
@@ -263,6 +281,16 @@ def assert_fairness(label, n_teams, teams_per_alliance, metrics):
     assert metrics["min_count"] >= target - 1, (
         f"[{label}] Bir takım çok az maç oynadı: {metrics['min_count']} < {target}-1"
     )
+
+    # 1b. Surrogate (vekil) telafisi: matches_per_team verilen senaryolarda HERKES tam
+    #     matches_per_team GERÇEK (surrogate olmayan) maç oynamalı. Takım sayısı ittifak
+    #     boyutuna tam bölünmese bile fazladan slotlar surrogate olur; gerçek maç sayısı
+    #     herkes için eşit kalır.
+    if is_pb:
+        assert metrics["real_min"] == target == metrics["real_max"], (
+            f"[{label}] Gerçek (surrogate hariç) maç sayısı eşit değil: "
+            f"min={metrics['real_min']} max={metrics['real_max']} hedef={target}"
+        )
 
     # 2. Dinlenme: yeterli takım varsa (>=12, gap>=2 mümkün) hiçbir takım arka arkaya
     #    oynamamalı. Çok küçük havuzda (ör. 8 takım) partner çeşitliliği + rakip

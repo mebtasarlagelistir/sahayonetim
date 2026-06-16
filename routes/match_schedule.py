@@ -12,6 +12,7 @@ import random
 from flask import Blueprint, jsonify, request
 
 from src.core.scheduling import generate_partner_balanced_fixture
+from src.core.scheduling.fixture import assign_distributed_surrogates
 
 logger = logging.getLogger(__name__)
 
@@ -645,9 +646,11 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
 
         # Maç sayısını belirle
         if matches_per_team:
-            # Kullanıcının beklediği formül:
-            # (takım_sayısı * maç_sayısı) / (ittifak_başı_takım * 2)
-            num_matches = (matches_per_team * len(team_numbers)) // (teams_per_alliance * 2)
+            # Takım sayısı ittifak boyutuna tam bölünmese bile HERKES tam matches_per_team
+            # GERÇEK maç oynasın diye YUKARI yuvarla (ceil). Fazladan slotlar surrogate
+            # (vekil) olur ve farklı maçlara dağıtılır (aşağıda assign_distributed_surrogates).
+            _slots = teams_per_alliance * 2
+            num_matches = -(-(matches_per_team * len(team_numbers)) // _slots)  # ceil
             if num_matches < 1:
                 return jsonify({"error": "Geçerli maç sayısı hesaplanamadı"}), 400
         elif num_matches is None:
@@ -681,13 +684,16 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     }
                 ), 400
 
+            # Fazla görünüşleri (matches_per_team üstü) surrogate olarak farklı maçlara dağıt.
+            surrogate_per_match = assign_distributed_surrogates(schedule_pairs, matches_per_team)
+
             created_count = 0
             current_time = initial_datetime
             # Saha ataması: ardışık maçlar sahalar arasında ALTERNATİF (1,2,1,2...) —
             # iki saha paralel çalıştırılabilsin diye.
             _nf = max(1, field_count)
 
-            for match_data in schedule_pairs:
+            for _pair_idx, match_data in enumerate(schedule_pairs):
                 current_time = _next_valid_time(current_time, match_duration, time_windows, breaks)
 
                 # Var olan maçlarla çakışma kontrolü
@@ -718,7 +724,7 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
                     red_alliance=match_data["red_alliance"],
                     blue_alliance=match_data["blue_alliance"],
                     status="scheduled",
-                    surrogate_teams=[],
+                    surrogate_teams=surrogate_per_match[_pair_idx],
                     event_id=event_id,
                 )
 
