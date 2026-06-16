@@ -802,6 +802,26 @@ function renderAllianceSelectionRows(captains, teams, savedAlliances) {
   });
   html += `</tbody></table>`;
   container.innerHTML = html;
+
+  // Partner KARŞILIKLI DIŞLAMA: bir takım bir ittifağa partner seçilince, diğer
+  // ittifakların dropdown'larında o takım devre dışı bırakılır (aynı takım iki
+  // ittifakta olamaz). Kaptanlar zaten partner havuzunda değil. Seçim değişince yenilenir.
+  function refreshPartnerExclusivity() {
+    const selects = Array.from(container.querySelectorAll(".alliance-partner-select"));
+    selects.forEach((sel) => {
+      Array.from(sel.options).forEach((opt) => {
+        if (!opt.value) return; // "— Partner seçin —" placeholder'ı
+        // Bu takım BAŞKA bir dropdown'da seçiliyse devre dışı bırak.
+        const chosenElsewhere = selects.some((s) => s !== sel && s.value === opt.value);
+        opt.disabled = chosenElsewhere;
+      });
+    });
+  }
+  container.querySelectorAll(".alliance-partner-select").forEach((sel) => {
+    sel.addEventListener("change", refreshPartnerExclusivity);
+  });
+  refreshPartnerExclusivity();
+
   const genBtn = qs("generate_double_elim");
   if (genBtn) genBtn.disabled = false;
 }

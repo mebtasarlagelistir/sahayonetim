@@ -610,34 +610,77 @@ async function renderAudienceAlliances() {
   const container = qs("audience_alliances_grid");
   if (!container) return;
   try {
-    const data = await apiGet("/api/public/playoff-alliances");
-    if (!data || !data.ok) {
-      container.innerHTML = `<div class="audience-empty">${escapeHtml((data && data.error) || "İttifaklar henüz hazır değil.")}</div>`;
-      return;
-    }
-    const alliances = data.alliances || [];
-    if (!alliances.length) {
-      container.innerHTML = `<div class="audience-empty">Henüz ittifak seçimi yapılmadı.</div>`;
-      return;
-    }
-    const teamHtml = (member, roleLabel, roleClass) => {
-      const name = member && member.name ? escapeHtml(member.name) : "";
-      const team = member && member.team ? escapeHtml(String(member.team)) : "-";
+    // İttifaklar + sıralama + takım adları birlikte: FRC tarzı "seçim tahtası" için.
+    const [data, rankingPayload, teamsData] = await Promise.all([
+      apiGet("/api/public/playoff-alliances").catch(() => ({})),
+      apiGet("/api/public/rankings").catch(() => ({})),
+      apiGet("/api/public/teams").catch(() => []),
+    ]);
+    const alliances = (data && data.alliances) || [];
+    const rankings = (rankingPayload && rankingPayload.rankings) || [];
+    const nameMap = {};
+    (Array.isArray(teamsData) ? teamsData : []).forEach((t) => {
+      if (t && t.number) nameMap[String(t.number)] = t.name || "";
+    });
+    const nameOf = (num) => nameMap[String(num)] || "";
+
+    // Seçilen takımlar haritası: takım -> {rol, seed}
+    const pickMap = {};
+    alliances.forEach((a) => {
+      if (a.captain && a.captain.team) pickMap[String(a.captain.team)] = { role: "captain", seed: a.seed };
+      if (a.partner && a.partner.team) pickMap[String(a.partner.team)] = { role: "partner", seed: a.seed };
+    });
+
+    // SOL PANEL: 6 ittifak kartı (kaptan + partner)
+    const memberHtml = (member, roleLabel, roleClass) => {
+      const team = member && member.team ? escapeHtml(String(member.team)) : "—";
+      const name = member ? (member.name || nameOf(member.team)) : "";
       return `
         <div class="aa-member ${roleClass}">
           <div class="aa-role">${roleLabel}</div>
           <div class="aa-team">${team}</div>
-          ${name ? `<div class="aa-name">${name}</div>` : ""}
-        </div>
-      `;
+          ${name ? `<div class="aa-name">${escapeHtml(name)}</div>` : ""}
+        </div>`;
     };
-    container.innerHTML = alliances.map((a) => `
-      <div class="aa-card">
-        <div class="aa-seed">İttifak ${escapeHtml(String(a.seed))}</div>
-        ${teamHtml(a.captain, "Kaptan", "aa-captain")}
-        ${teamHtml(a.partner, "Partner", "aa-partner")}
-      </div>
-    `).join("");
+    const allianceCards = alliances.length
+      ? alliances.map((a) => `
+          <div class="aa-card">
+            <div class="aa-seed">İttifak ${escapeHtml(String(a.seed))}</div>
+            ${memberHtml(a.captain, "Kaptan", "aa-captain")}
+            ${memberHtml(a.partner, "Partner", "aa-partner")}
+          </div>`).join("")
+      : `<div class="audience-empty" style="grid-column:1/-1;">Henüz ittifak seçimi yapılmadı.<br><span style="font-size:1rem;opacity:.8;">Sıralamadaki ilk 6 takım kaptan olacak.</span></div>`;
+
+    // SAĞ PANEL: sıralı takım havuzu (seçim durumu)
+    const poolRows = rankings.map((r) => {
+      const team = String(r.team);
+      const pick = pickMap[team];
+      let cls = "ap-available", badge = "";
+      if (pick && pick.role === "captain") { cls = "ap-captain"; badge = `Kaptan ${pick.seed}`; }
+      else if (pick && pick.role === "partner") { cls = "ap-partner"; badge = `→ İttifak ${pick.seed}`; }
+      const nm = nameOf(team);
+      return `
+        <div class="ap-row ${cls}">
+          <span class="ap-rank">${escapeHtml(String(r.rank ?? ""))}</span>
+          <span class="ap-team">${escapeHtml(team)}</span>
+          <span class="ap-name">${escapeHtml(nm)}</span>
+          <span class="ap-badge">${escapeHtml(badge)}</span>
+        </div>`;
+    }).join("");
+
+    container.innerHTML = `
+      <div class="aa-board">
+        <div class="aa-left">${allianceCards}</div>
+        <div class="aa-right">
+          <div class="aa-pool-title">Sıralama / Seçim Durumu</div>
+          <div class="aa-pool">${poolRows || `<div class="audience-empty">Sıralama yok.</div>`}</div>
+          <div class="aa-legend">
+            <span><i class="lg lg-cap"></i> Kaptan</span>
+            <span><i class="lg lg-par"></i> Seçildi (partner)</span>
+            <span><i class="lg lg-av"></i> Müsait</span>
+          </div>
+        </div>
+      </div>`;
   } catch (err) {
     console.error("renderAudienceAlliances error:", err);
     container.innerHTML = `<div class="audience-empty">İttifak verisi yüklenemedi.</div>`;

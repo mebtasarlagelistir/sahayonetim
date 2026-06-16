@@ -6149,13 +6149,71 @@ body[data-referee-mode="blue"] #active_match_card {
    Seyirci Ekranı — İttifak Seçimi Töreni (Kaptan + Partner)
    ============================================================================ */
 .audience-alliances-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  padding: 24px;
+  display: block;
+  padding: 20px;
   width: 100%;
   box-sizing: border-box;
 }
+/* FRC tarzı ittifak seçimi tahtası: solda ittifaklar, sağda sıralı takım havuzu */
+.aa-board {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+.aa-left {
+  flex: 1 1 58%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.aa-right {
+  flex: 1 1 42%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.aa-pool-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #ffd54a;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.aa-pool { display: flex; flex-direction: column; gap: 5px; }
+.ap-row {
+  display: grid;
+  grid-template-columns: 2.4rem 4.5rem 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 1.15rem;
+}
+.ap-rank { color: #aab3c5; font-weight: 700; text-align: right; }
+.ap-team { font-weight: 800; }
+.ap-name { color: #d6dcea; opacity: 0.85; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-badge { font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
+/* Kaptan: altın vurgu */
+.ap-row.ap-captain { background: rgba(255, 213, 74, 0.18); border: 1px solid rgba(255, 213, 74, 0.55); }
+.ap-row.ap-captain .ap-badge { color: #ffd54a; }
+/* Partner (seçildi): mavi + üstü çizili numara */
+.ap-row.ap-partner { background: rgba(159, 208, 255, 0.12); opacity: 0.7; }
+.ap-row.ap-partner .ap-team { text-decoration: line-through; }
+.ap-row.ap-partner .ap-badge { color: #9fd0ff; }
+.aa-legend {
+  display: flex; justify-content: center; gap: 18px; margin-top: 12px;
+  font-size: 0.9rem; color: #cfd6e4;
+}
+.aa-legend i.lg { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+.aa-legend .lg-cap { background: rgba(255, 213, 74, 0.7); }
+.aa-legend .lg-par { background: rgba(159, 208, 255, 0.5); }
+.aa-legend .lg-av { background: rgba(255, 255, 255, 0.18); }
 .aa-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.18);
