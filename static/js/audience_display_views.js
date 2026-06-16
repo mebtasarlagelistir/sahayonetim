@@ -531,46 +531,48 @@ async function renderAudiencePlayoff() {
       return;
     }
 
-    const allianceHtml = (info, fallback) => {
+    // FRC tarzı: her kademe (Üst/Alt/Büyük Final) bir BÖLÜM; maçlar bölüm içinde
+    // soldan sağa (maç no sırası = ilerleme) yatay dizilir. Bölümler dikeyde yüksekliği
+    // paylaşır → tek ekrana sığar, responsive (clamp).
+    const teamsHtml = (info, fallback) => {
       const list = (info && info.length) ? info : (fallback || []).map((t) => ({ team: t }));
-      if (!list.length) {
-        return `<span class="ap-team ap-waiting">Bekleniyor</span>`;
-      }
+      if (!list.length) return `<span class="apb-wait">Bekleniyor</span>`;
       return list.map((t) => {
-        const seed = t.rank ? `<span class="ap-seed">#${escapeHtml(String(t.rank))}</span>` : "";
-        const name = t.name ? ` ${escapeHtml(t.name)}` : "";
-        return `<span class="ap-team">${seed}${escapeHtml(String(t.team))}${name}</span>`;
+        const seed = t.rank ? `<i class="apb-seed">#${escapeHtml(String(t.rank))}</i>` : "";
+        return `<span class="apb-team">${seed}${escapeHtml(String(t.team))}</span>`;
       }).join("");
     };
-
-    const columns = rounds.map((round) => {
-      const cards = (round.matches || []).map((m) => {
-        const empty = !(m.red_alliance && m.red_alliance.length) && !(m.blue_alliance && m.blue_alliance.length);
-        const played = m.status === "completed";
-        const live = m.status === "in_progress";
-        const winCls = (side) => played && m.winner === side ? " ap-win"
-          : (played && m.winner && m.winner !== "tie" ? " ap-lose" : "");
-        const score = (side, val) => played ? `<span class="ap-score${m.winner === side ? " ap-score-win" : ""}">${escapeHtml(String(val ?? 0))}</span>` : "";
-        const time = m.match_time ? `<span class="ap-time">${escapeHtml(m.match_time)}</span>` : "";
-        const badge = live ? `<span class="ap-live">● CANLI</span>` : "";
-        return `
-          <div class="ap-match ${empty ? "ap-empty" : ""} ${live ? "ap-match-live" : ""}">
-            <div class="ap-label">${escapeHtml(m.label || "")} ${time} ${badge}</div>
-            <div class="ap-alliance ap-red${winCls("red")}">${allianceHtml(m.red_alliance_info, m.red_alliance)}${score("red", m.red_score)}</div>
-            <div class="ap-vs">VS</div>
-            <div class="ap-alliance ap-blue${winCls("blue")}">${allianceHtml(m.blue_alliance_info, m.blue_alliance)}${score("blue", m.blue_score)}</div>
-          </div>
-        `;
-      }).join("");
+    const matchCard = (m) => {
+      const played = m.status === "completed";
+      const live = m.status === "in_progress";
+      const winCls = (side) => played && m.winner === side ? " apb-win"
+        : (played && m.winner && m.winner !== "tie" ? " apb-lose" : "");
+      const score = (val) => played ? `<span class="apb-score">${escapeHtml(String(val ?? 0))}</span>` : "";
+      const num = m.match_number ? `M${escapeHtml(String(m.match_number))}` : "";
+      const lbl = (m.label && String(m.label) !== num) ? ` · ${escapeHtml(String(m.label))}` : "";
+      const time = m.match_time ? `<span class="apb-time">${escapeHtml(m.match_time)}</span>` : "";
+      const badge = live ? `<span class="apb-livebadge">● CANLI</span>` : "";
       return `
-        <div class="ap-column">
-          <div class="ap-column-title">${escapeHtml(round.name || "")}</div>
-          ${cards}
-        </div>
-      `;
-    }).join("");
+        <div class="apb-match${live ? " apb-live-card" : ""}">
+          <div class="apb-mhead">${num}${lbl}${time}${badge}</div>
+          <div class="apb-side apb-red${winCls("red")}">${teamsHtml(m.red_alliance_info, m.red_alliance)}${score(m.red_score)}</div>
+          <div class="apb-side apb-blue${winCls("blue")}">${teamsHtml(m.blue_alliance_info, m.blue_alliance)}${score(m.blue_score)}</div>
+        </div>`;
+    };
+    const sectionClass = (name) => {
+      const n = (name || "").toLowerCase();
+      if (n.includes("üst")) return "apb-upper";
+      if (n.includes("alt")) return "apb-lower";
+      if (n.includes("final")) return "apb-final";
+      return "";
+    };
+    const sections = rounds.map((round) => `
+      <div class="apb-section ${sectionClass(round.name)}">
+        <div class="apb-section-title">${escapeHtml(round.name || "")}</div>
+        <div class="apb-row">${(round.matches || []).map(matchCard).join("")}</div>
+      </div>`).join("");
 
-    container.innerHTML = `<div class="ap-shell">${columns}</div>`;
+    container.innerHTML = `<div class="apb-board">${sections}</div>`;
   } catch (err) {
     console.error("renderAudiencePlayoff error:", err);
     container.innerHTML = `<div class="audience-empty">Playoff verisi yüklenemedi.</div>`;

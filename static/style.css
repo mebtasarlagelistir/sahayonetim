@@ -6145,6 +6145,36 @@ body[data-referee-mode="blue"] #active_match_card {
 }
 .ap-waiting { color: #aab3c4; font-style: italic; font-weight: 600; }
 
+/* ============================================================
+   FRC TARZI ÇİFT-ELEME BRAKET (seyirci): Üst Kademe / Alt Kademe / Büyük Final
+   bölümleri; maçlar soldan sağa (ilerleme). Tek 16:9 ekrana sığar, clamp responsive.
+   ============================================================ */
+#audience_playoff_view h1 { font-size: clamp(20px,3.4vh,34px); margin-bottom: clamp(8px,1.5vh,18px); }
+.audience-playoff-bracket { display: flex; flex: 1 1 auto; min-height: 0; padding: clamp(4px,0.6vw,12px); width: 100%; box-sizing: border-box; }
+.apb-board { display: flex; flex-direction: column; gap: clamp(8px,1.4vh,18px); width: 100%; min-height: 0; }
+.apb-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; border-radius: 12px; padding: clamp(6px,1vh,12px) clamp(8px,1vw,14px); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); }
+.apb-section.apb-upper { border-left: 5px solid #ffd54a; }
+.apb-section.apb-lower { border-left: 5px solid #9fd0ff; }
+.apb-section.apb-final { border-left: 5px solid #2fd66b; }
+.apb-section-title { font-size: clamp(0.75rem,1.6vh,1.05rem); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #ffd54a; margin-bottom: clamp(4px,0.8vh,8px); flex: 0 0 auto; }
+.apb-lower .apb-section-title { color: #9fd0ff; }
+.apb-final .apb-section-title { color: #2fd66b; }
+.apb-row { flex: 1 1 auto; min-height: 0; display: flex; gap: clamp(8px,1vw,16px); align-items: stretch; overflow-x: auto; overflow-y: hidden; }
+.apb-match { flex: 0 0 auto; min-width: clamp(150px,14vw,240px); display: flex; flex-direction: column; gap: clamp(3px,0.5vh,6px); justify-content: center; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: clamp(5px,0.8vh,10px) clamp(7px,0.7vw,12px); }
+.apb-live-card { box-shadow: 0 0 0 3px rgba(255,91,110,0.6); }
+.apb-mhead { font-size: clamp(0.62rem,1.2vh,0.85rem); font-weight: 700; color: #cfd6e4; display: flex; align-items: center; gap: 6px; }
+.apb-time { color: #8b94a7; margin-left: auto; }
+.apb-livebadge { color: #ff5b6e; font-weight: 800; }
+.apb-side { display: flex; align-items: center; gap: 6px; border-radius: 7px; padding: clamp(4px,0.7vh,9px) 10px; font-size: clamp(0.85rem,1.8vh,1.25rem); font-weight: 800; }
+.apb-side.apb-red { background: rgba(220,53,69,0.22); border-left: 5px solid #dc3545; }
+.apb-side.apb-blue { background: rgba(13,110,253,0.22); border-left: 5px solid #0d6efd; }
+.apb-side.apb-win { outline: 3px solid #2fd66b; }
+.apb-side.apb-lose { opacity: 0.5; }
+.apb-team { white-space: nowrap; }
+.apb-seed { color: #ffd54a; font-style: normal; font-size: 0.8em; margin-right: 3px; }
+.apb-score { margin-left: auto; font-size: 1.2em; font-weight: 900; }
+.apb-wait { color: #aab3c4; font-style: italic; font-weight: 600; }
+
 /* ============================================================================
    Seyirci Ekranı — İttifak Seçimi Töreni (Kaptan + Partner)
    ============================================================================ */
