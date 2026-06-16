@@ -6229,14 +6229,12 @@ body[data-referee-mode="blue"] #active_match_card {
 .asel-card { border: 1px solid #e1e4ee; border-radius: 10px; padding: 10px 12px; background: #fafbff; display: flex; flex-direction: column; gap: 7px; }
 .asel-seed { font-weight: 800; color: #2b8a5a; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; }
 .asel-rank { font-weight: 500; color: #aaa; font-size: 11px; }
-.asel-cap { font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.asel-cap-name { color: #888; font-size: 12px; }
-.asel-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; background: #9aa3b5; border-radius: 4px; padding: 1px 6px; font-weight: 700; }
-.asel-cap .asel-tag { background: #e0a52e; }
-.asel-partner { display: flex; align-items: center; gap: 6px; }
-.asel-partner .asel-tag { background: #5b8fd6; }
-.asel-partner select { flex: 1; padding: 6px 8px; border: 1px solid #c7cde0; border-radius: 6px; font-size: 13px; min-width: 0; }
-.asel-partner select option:disabled { color: #c0c0c0; }
+.asel-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; background: #9aa3b5; border-radius: 4px; padding: 1px 6px; font-weight: 700; white-space: nowrap; min-width: 52px; text-align: center; }
+.asel-tag-cap { background: #e0a52e; }
+.asel-tag-par { background: #5b8fd6; }
+.asel-slot { display: flex; align-items: center; gap: 6px; }
+.asel-slot select { flex: 1; padding: 6px 8px; border: 1px solid #c7cde0; border-radius: 6px; font-size: 13px; min-width: 0; }
+.asel-slot select option:disabled { color: #c0c0c0; }
 .aa-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.18);

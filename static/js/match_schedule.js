@@ -749,85 +749,115 @@ async function loadAllianceCaptains() {
 function renderAllianceSelectionRows(captains, teams, savedAlliances) {
   const container = qs("alliance_selection_rows");
   if (!container) return;
-  const captainSet = new Set(captains.map((c) => c.team));
   const nameOf = (num) => {
     const t = (teams || []).find((x) => String(x.number) === String(num));
     return t && t.name ? t.name : "";
   };
-  const savedPartnerByCaptain = {};
-  (savedAlliances || []).forEach((pair) => {
-    if (Array.isArray(pair) && pair.length === 2) {
-      savedPartnerByCaptain[String(pair[0])] = String(pair[1]);
-    }
-  });
-  // Partner havuzu: kaptan olmayan tüm takımlar
-  const partnerTeams = (teams || []).filter(
-    (t) => t.number && !captainSet.has(String(t.number))
-  );
+  const saved = Array.isArray(savedAlliances) ? savedAlliances : [];
+  const hasSaved = saved.length > 0;
+  // Varsayılan kaptan: kayıt varsa ondan; yoksa sıralamadaki ilk 6. Partner: kayıttan ya da boş.
+  const defCaptain = (i) => String((saved[i] && saved[i][0]) || (captains[i] && captains[i].team) || "");
+  const defPartner = (i) => String((saved[i] && saved[i][1]) || "");
 
-  const hasSaved = Object.keys(savedPartnerByCaptain).length > 0;
-
-  // Kompakt + responsive: otomatik sütunlu ittifak kartları (çözünürlüğe göre 1-3 sütun).
-  const cards = captains.map((c) => {
-    const cName = nameOf(c.team);
-    const selected = savedPartnerByCaptain[c.team] || "";
-    const options = partnerTeams.map((t) => {
-      const num = String(t.number);
-      const lbl = t.name ? `${num} - ${escapeHtml(t.name)}` : num;
-      return `<option value="${escapeHtml(num)}" ${num === selected ? "selected" : ""}>${escapeHtml(lbl)}</option>`;
+  const allTeams = (teams || []).filter((t) => t.number).map((t) => String(t.number));
+  const optionsFor = (selectedVal) =>
+    `<option value="">— Seçin —</option>` +
+    allTeams.map((num) => {
+      const nm = nameOf(num);
+      const lbl = nm ? `${num} - ${escapeHtml(nm)}` : num;
+      return `<option value="${escapeHtml(num)}" ${num === String(selectedVal) ? "selected" : ""}>${escapeHtml(lbl)}</option>`;
     }).join("");
+
+  const rows = (captains.length ? captains : Array.from({ length: 6 })).slice(0, 6);
+  const cards = rows.map((c, i) => {
+    const seed = i + 1;
+    const rankHint = (c && c.rank) ? `sıra ${escapeHtml(String(c.rank))}` : "";
     return `
       <div class="asel-card">
-        <div class="asel-seed">İttifak ${c.seed}<span class="asel-rank">sıra ${escapeHtml(String(c.rank))}</span></div>
-        <div class="asel-cap"><span class="asel-tag">Kaptan</span><strong>${escapeHtml(c.team)}</strong>${cName ? `<span class="asel-cap-name">${escapeHtml(cName)}</span>` : ""}</div>
-        <label class="asel-partner"><span class="asel-tag">Partner</span>
-          <select class="alliance-partner-select" data-seed="${c.seed}" data-captain="${escapeHtml(c.team)}">
-            <option value="">— Partner seçin —</option>
-            ${options}
+        <div class="asel-seed">İttifak ${seed}<span class="asel-rank">${rankHint}</span></div>
+        <label class="asel-slot"><span class="asel-tag asel-tag-cap">Kaptan</span>
+          <select class="alliance-slot-select" data-seed="${seed}" data-role="captain">
+            ${optionsFor(defCaptain(i))}
+          </select>
+        </label>
+        <label class="asel-slot"><span class="asel-tag asel-tag-par">Partner</span>
+          <select class="alliance-slot-select" data-seed="${seed}" data-role="partner">
+            ${optionsFor(defPartner(i))}
           </select>
         </label>
       </div>`;
   }).join("");
+
   container.innerHTML =
-    (hasSaved ? `<p class="asel-note">ℹ️ Partnerler önceki kayıttan otomatik dolduruldu. Değiştirmek için seçin veya "Seçimleri Temizle"yi kullanın.</p>` : "") +
+    `<p class="asel-note">ℹ️ Kaptanlar ilk 6 sıraya göre otomatik gelir ama <strong>düzenlenebilir</strong> (bir takım etkinlikten ayrılırsa değiştirin). Her takım yalnızca <strong>bir</strong> slotta olabilir.${hasSaved ? " (Seçimler önceki kayıttan dolduruldu.)" : ""}</p>` +
     `<div class="asel-grid">${cards}</div>`;
 
-  // Partner KARŞILIKLI DIŞLAMA: bir takım bir ittifağa partner seçilince, diğer
-  // ittifakların dropdown'larında o takım devre dışı bırakılır (aynı takım iki
-  // ittifakta olamaz). Kaptanlar zaten partner havuzunda değil. Seçim değişince yenilenir.
-  function refreshPartnerExclusivity() {
-    const selects = Array.from(container.querySelectorAll(".alliance-partner-select"));
+  // GLOBAL TEKİLLİK: tüm slotlarda (kaptan + partner) bir takım yalnızca BİR kez seçilebilir.
+  // Bir takım bir slotta seçilince diğer tüm dropdown'larda devre dışı bırakılır.
+  function refreshExclusivity() {
+    const selects = Array.from(container.querySelectorAll(".alliance-slot-select"));
     selects.forEach((sel) => {
       Array.from(sel.options).forEach((opt) => {
-        if (!opt.value) return; // "— Partner seçin —" placeholder'ı
-        // Bu takım BAŞKA bir dropdown'da seçiliyse devre dışı bırak.
-        const chosenElsewhere = selects.some((s) => s !== sel && s.value === opt.value);
-        opt.disabled = chosenElsewhere;
+        if (!opt.value) return;
+        opt.disabled = selects.some((s) => s !== sel && s.value === opt.value);
       });
     });
   }
-  container.querySelectorAll(".alliance-partner-select").forEach((sel) => {
-    sel.addEventListener("change", refreshPartnerExclusivity);
+  container.querySelectorAll(".alliance-slot-select").forEach((sel) => {
+    sel.addEventListener("change", refreshExclusivity);
   });
-  refreshPartnerExclusivity();
+  refreshExclusivity();
 
   const genBtn = qs("generate_double_elim");
   if (genBtn) genBtn.disabled = false;
 }
 
 /**
- * Tüm partner seçimlerini temizler (önceki kayıttan otomatik dolanı sıfırlamak için).
+ * DOM'daki kaptan+partner dropdown'larından ittifak seçimini toplar: [[kaptan, partner], ...].
  */
-function clearAlliancePartners() {
-  const selects = Array.from(document.querySelectorAll(".alliance-partner-select"));
+function collectAllianceSelection() {
+  return [1, 2, 3, 4, 5, 6].map((seed) => {
+    const cap = document.querySelector(`.alliance-slot-select[data-seed="${seed}"][data-role="captain"]`);
+    const par = document.querySelector(`.alliance-slot-select[data-seed="${seed}"][data-role="partner"]`);
+    return [cap ? cap.value : "", par ? par.value : ""];
+  });
+}
+
+/**
+ * Mevcut ittifak seçimini kaydeder ve seyirci "İttifak Seçimi" ekranına yansıtır
+ * (playoff maçları üretmeden). Seçim ilerledikçe seyirciye göstermek için.
+ */
+async function savePlayoffAllianceSelection() {
+  const selects = document.querySelectorAll(".alliance-slot-select");
+  if (!selects.length) {
+    showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
+    return;
+  }
+  try {
+    await apiPost("/api/match-schedule/playoff-alliances", { alliances: collectAllianceSelection() });
+    showToast("Seçim kaydedildi — seyirci ekranına yansıdı", "success");
+  } catch (err) {
+    showToast(err.message || "Seçim kaydedilemedi", "error");
+  }
+}
+
+/**
+ * Tüm seçimleri temizler (kaptan + partner) ve seyirci ekranını da temizler.
+ */
+async function clearAlliancePartners() {
+  const selects = Array.from(document.querySelectorAll(".alliance-slot-select"));
   if (!selects.length) {
     showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
     return;
   }
   selects.forEach((s) => { s.value = ""; });
-  // Karşılıklı dışlamayı yenile (change dinleyicisi tetiklensin).
   selects[0].dispatchEvent(new Event("change"));
-  showToast("Partner seçimleri temizlendi", "success");
+  try {
+    await apiPost("/api/match-schedule/playoff-alliances", { alliances: [] });
+    showToast("Seçimler temizlendi (seyirci ekranı da güncellendi)", "success");
+  } catch (err) {
+    showToast("Seçimler temizlendi (seyirciye yansıtılamadı)", "warning");
+  }
 }
 
 /**
@@ -835,22 +865,22 @@ function clearAlliancePartners() {
  */
 async function generateDoubleElimPlayoff() {
   const btn = qs("generate_double_elim");
-  const selects = Array.from(document.querySelectorAll(".alliance-partner-select"));
-  if (selects.length !== 6) {
+  const selects = document.querySelectorAll(".alliance-slot-select");
+  if (selects.length !== 12) {
     showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
     return;
   }
   const alliances = [];
   const used = new Set();
-  for (const sel of selects) {
-    const captain = sel.dataset.captain;
-    const partner = sel.value;
-    if (!partner) {
-      showToast("Tüm ittifaklar için partner seçin", "warning");
+  const picks = collectAllianceSelection();
+  for (let i = 0; i < 6; i++) {
+    const [captain, partner] = picks[i];
+    if (!captain || !partner) {
+      showToast(`İttifak ${i + 1} için kaptan ve partner seçin`, "warning");
       return;
     }
     if (captain === partner) {
-      showToast("Bir kaptan kendisiyle ittifak olamaz", "warning");
+      showToast(`İttifak ${i + 1}: kaptan ve partner aynı takım olamaz`, "warning");
       return;
     }
     if (used.has(captain) || used.has(partner)) {

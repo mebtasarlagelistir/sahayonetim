@@ -578,6 +578,11 @@ function setupPlayoffListeners() {
       if (typeof clearAlliancePartners === "function") clearAlliancePartners();
     });
   }
+  if (qs("save_alliance_selection")) {
+    qs("save_alliance_selection").addEventListener("click", () => {
+      if (typeof savePlayoffAllianceSelection === "function") savePlayoffAllianceSelection();
+    });
+  }
 }
 
 /**

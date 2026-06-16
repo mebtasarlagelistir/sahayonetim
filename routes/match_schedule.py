@@ -1013,6 +1013,61 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
             }), 400
         return jsonify({"ok": True, "created_count": created_count})
 
+    @bp.post("/match-schedule/playoff-alliances")
+    @require_login
+    @require_event_manager
+    def save_playoff_alliances():
+        """
+        İttifak seçimini (kaptan+partner çiftleri) event_data.playoff.alliances'a kaydeder
+        veya temizler — playoff MAÇLARI üretmeden. Böylece seyirci "İttifak Seçimi" ekranı
+        seçim ilerledikçe/temizlendikçe güncellenir; bracket üretimi ayrı adımdır.
+
+        Body: { "alliances": [[kaptan, partner], ...] }  (boş liste = temizle)
+        Esnek doğrulama: eksik (boş) slotlara izin verilir (seçim sürerken); yalnız DOLU
+        takım numaraları geçerli ve TEKİL olmalı (bir takım birden fazla slotta olamaz).
+        """
+        event_id = datastore.get_active_event_id()
+        if event_id is None:
+            return jsonify({"error": "Aktif etkinlik bulunamadı"}), 400
+        data = request.get_json(force=True) or {}
+        raw = data.get("alliances")
+        if not isinstance(raw, list):
+            return jsonify({"error": "alliances bir liste olmalı"}), 400
+
+        valid_team_numbers = {
+            (t.get("number") or "").strip()
+            for t in datastore.get_teams()
+            if (t.get("number") or "").strip()
+        }
+        cleaned = []
+        seen = set()
+        for idx, alli in enumerate(raw, start=1):
+            if not isinstance(alli, list) or len(alli) != 2:
+                return jsonify({"error": f"{idx}. ittifak [kaptan, partner] biçiminde olmalı"}), 400
+            pair = [str(x or "").strip() for x in alli]
+            for tn in pair:
+                if not tn:
+                    continue  # boş slota izin ver (seçim sürerken)
+                if tn not in valid_team_numbers:
+                    return jsonify({"error": f"Geçersiz takım numarası: {tn}"}), 400
+                if tn in seen:
+                    return jsonify({"error": f"Bir takım birden fazla ittifakta olamaz: {tn}"}), 400
+                seen.add(tn)
+            cleaned.append(pair)
+
+        event_data = datastore.get_event()
+        if not isinstance(event_data, dict):
+            event_data = {}
+        playoff_cfg = dict(event_data.get("playoff") or {})
+        # Tümü boş ise alliances'ı temizle (seyirci ekranı "henüz yapılmadı" gösterir).
+        if all(not (p[0] or p[1]) for p in cleaned) or not cleaned:
+            playoff_cfg.pop("alliances", None)
+        else:
+            playoff_cfg["alliances"] = cleaned
+        event_data["playoff"] = playoff_cfg
+        datastore.save_event(event_data)
+        return jsonify({"ok": True, "alliances": playoff_cfg.get("alliances", [])})
+
     @bp.post("/match-schedule/generate-finals")
     @require_login
     @require_event_manager
