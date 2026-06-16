@@ -765,18 +765,10 @@ function renderAllianceSelectionRows(captains, teams, savedAlliances) {
     (t) => t.number && !captainSet.has(String(t.number))
   );
 
-  let html = `
-    <table style="width:100%; border-collapse:collapse;">
-      <thead>
-        <tr>
-          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">İttifak</th>
-          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Kaptan (otomatik)</th>
-          <th style="padding:8px; text-align:left; border-bottom:1px solid #e1e4ee;">Partner</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-  captains.forEach((c) => {
+  const hasSaved = Object.keys(savedPartnerByCaptain).length > 0;
+
+  // Kompakt + responsive: otomatik sütunlu ittifak kartları (çözünürlüğe göre 1-3 sütun).
+  const cards = captains.map((c) => {
     const cName = nameOf(c.team);
     const selected = savedPartnerByCaptain[c.team] || "";
     const options = partnerTeams.map((t) => {
@@ -784,24 +776,21 @@ function renderAllianceSelectionRows(captains, teams, savedAlliances) {
       const lbl = t.name ? `${num} - ${escapeHtml(t.name)}` : num;
       return `<option value="${escapeHtml(num)}" ${num === selected ? "selected" : ""}>${escapeHtml(lbl)}</option>`;
     }).join("");
-    html += `
-      <tr>
-        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">İttifak ${c.seed}</td>
-        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
-          <strong>${escapeHtml(c.team)}</strong>${cName ? " (" + escapeHtml(cName) + ")" : ""}
-          <span style="color:#888; font-size:12px;"> · sıra ${c.rank}</span>
-        </td>
-        <td style="padding:8px; border-bottom:1px solid #f0f2f7;">
-          <select class="alliance-partner-select" data-seed="${c.seed}" data-captain="${escapeHtml(c.team)}" style="min-width:200px; padding:6px;">
+    return `
+      <div class="asel-card">
+        <div class="asel-seed">İttifak ${c.seed}<span class="asel-rank">sıra ${escapeHtml(String(c.rank))}</span></div>
+        <div class="asel-cap"><span class="asel-tag">Kaptan</span><strong>${escapeHtml(c.team)}</strong>${cName ? `<span class="asel-cap-name">${escapeHtml(cName)}</span>` : ""}</div>
+        <label class="asel-partner"><span class="asel-tag">Partner</span>
+          <select class="alliance-partner-select" data-seed="${c.seed}" data-captain="${escapeHtml(c.team)}">
             <option value="">— Partner seçin —</option>
             ${options}
           </select>
-        </td>
-      </tr>
-    `;
-  });
-  html += `</tbody></table>`;
-  container.innerHTML = html;
+        </label>
+      </div>`;
+  }).join("");
+  container.innerHTML =
+    (hasSaved ? `<p class="asel-note">ℹ️ Partnerler önceki kayıttan otomatik dolduruldu. Değiştirmek için seçin veya "Seçimleri Temizle"yi kullanın.</p>` : "") +
+    `<div class="asel-grid">${cards}</div>`;
 
   // Partner KARŞILIKLI DIŞLAMA: bir takım bir ittifağa partner seçilince, diğer
   // ittifakların dropdown'larında o takım devre dışı bırakılır (aynı takım iki
@@ -824,6 +813,21 @@ function renderAllianceSelectionRows(captains, teams, savedAlliances) {
 
   const genBtn = qs("generate_double_elim");
   if (genBtn) genBtn.disabled = false;
+}
+
+/**
+ * Tüm partner seçimlerini temizler (önceki kayıttan otomatik dolanı sıfırlamak için).
+ */
+function clearAlliancePartners() {
+  const selects = Array.from(document.querySelectorAll(".alliance-partner-select"));
+  if (!selects.length) {
+    showToast("Önce 'Kaptanları Belirle' ile ittifakları yükleyin", "warning");
+    return;
+  }
+  selects.forEach((s) => { s.value = ""; });
+  // Karşılıklı dışlamayı yenile (change dinleyicisi tetiklensin).
+  selects[0].dispatchEvent(new Event("change"));
+  showToast("Partner seçimleri temizlendi", "success");
 }
 
 /**

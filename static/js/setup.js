@@ -573,6 +573,11 @@ function setupPlayoffListeners() {
   if (qs("generate_double_elim")) {
     qs("generate_double_elim").addEventListener("click", generateDoubleElimPlayoff);
   }
+  if (qs("clear_alliance_partners")) {
+    qs("clear_alliance_partners").addEventListener("click", () => {
+      if (typeof clearAlliancePartners === "function") clearAlliancePartners();
+    });
+  }
 }
 
 /**
