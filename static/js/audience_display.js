@@ -151,10 +151,11 @@ function switchView(viewName) {
     return;
   }
   
+  const _flexViews = ["awards", "ceremony", "alliances", "playoff"];
   AUDIENCE_VIEW_NAMES.forEach((view) => {
     const el = qs(`audience_${view}_view`);
     if (el) {
-      el.style.display = view === targetView ? "block" : "none";
+      el.style.display = view === targetView ? (_flexViews.includes(view) ? "flex" : "block") : "none";
     }
   });
   
@@ -305,8 +306,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Preview yok - seçilen view'ı göster
         const currentViewEl = qs(`audience_${state.currentView}_view`);
         if (currentViewEl) {
-          // Awards ve ceremony view'ları flex olarak göster
-          currentViewEl.style.display = (state.currentView === "awards" || state.currentView === "ceremony") ? "flex" : "block";
+          // Flex (sütun) gerektiren view'lar: panel yüksekliğini doldurması gerekenler.
+          // alliances/playoff: içerik (tahta/bracket) panel yüksekliğini flex ile doldurur,
+          // aksi halde 'block' .audience-panel'in flex'ini ezer ve içerik üstte sıkışır.
+          const flexViews = ["awards", "ceremony", "alliances", "playoff"];
+          currentViewEl.style.display = flexViews.includes(state.currentView) ? "flex" : "block";
         }
         
         // View'a göre içerik yükle
