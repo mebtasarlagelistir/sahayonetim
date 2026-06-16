@@ -639,7 +639,9 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         # Tekrar eden eşleşmelere uygulanan cezalar (büyük = daha güçlü kaçınma).
         # Partner tekrarı en ağır cezalı; rakip tekrarı da artık belirgin biçimde cezalı.
         PARTNER_REPEAT_PENALTY = 120
-        OPPONENT_REPEAT_PENALTY = 80
+        # 300: rakip çeşitliliği için güçlü kaçınma. best-of-K seçimle birlikte rakip
+        # tekrarını ~0'a indirir (partner=0 ve dinlenme garantilerini bozmadan).
+        OPPONENT_REPEAT_PENALTY = 300
 
         # Maç sayısını belirle
         if matches_per_team:

@@ -123,7 +123,7 @@ def generate_partner_balanced_fixture(
     *,
     min_gap_matches: int = 1,
     partner_penalty: int = 120,
-    opponent_penalty: int = 80,
+    opponent_penalty: int = 300,
     side_penalty: int = 100,
     hard_unique_partners: bool = True,
     max_attempts: int = 100,
@@ -190,6 +190,11 @@ def generate_partner_balanced_fixture(
             urgency = remaining * 50 + behind * 120
             return urgency + rest_bonus
 
+        # Dinlenme (gap) ihlali cezası rakip cezasından DAİMA yüksek tutulur; aksi halde
+        # yüksek opponent_penalty (ör. 300) küçük havuzlarda rakip çeşitliliği uğruna
+        # dinlenmeyi feda eder (ardışık maçlar artar). max(...) ile her iki ayar da korunur.
+        gap_violation_penalty = max(250, opponent_penalty + 100)
+
         def _combo_score(combo, match_index):
             base_score = sum(_team_priority(t, match_index) for t in combo)
             consecutive_penalty = 0
@@ -199,7 +204,7 @@ def generate_partner_balanced_fixture(
                     continue
                 gap_matches = match_index - last_idx - 1
                 if gap_matches < min_gap_matches:
-                    consecutive_penalty += 250
+                    consecutive_penalty += gap_violation_penalty
                 elif gap_matches == 1:
                     consecutive_penalty += 80
             return base_score - consecutive_penalty
@@ -382,11 +387,16 @@ def generate_partner_balanced_fixture(
                             if alliance[j] in partner_history[alliance[i]]:
                                 partner_repeat_penalty += partner_penalty // 2
 
+                # Relaxed tier deadlock-kurtarma katmanıdır; küçük havuzda rakip tekrarı
+                # çoğu zaman kaçınılmazdır. Hard-tier için yükseltilmiş opponent_penalty'yi
+                # (ör. 300) buraya taşımak rest/partner dengesini bozar; relaxed'in rakip
+                # ağırlığı orijinal seviyede (≤40) sabit tutulur.
+                relaxed_opp_w = min(opponent_penalty, 80) // 2
                 opponent_repeat_penalty = 0
                 for blue_team in blue_alliance:
                     for red_team in red_alliance:
                         if red_team in opponent_history[blue_team]:
-                            opponent_repeat_penalty += opponent_penalty // 2
+                            opponent_repeat_penalty += relaxed_opp_w
 
                 rest_score = 0
                 for team in candidates:
@@ -485,39 +495,60 @@ def generate_partner_balanced_fixture(
         return None
 
     def _quality(pairs) -> tuple:
-        """(ardışık_maç_sayısı, partner_tekrarı) — küçük daha iyi. Adalet ölçütü."""
+        """(ardışık_maç, partner_tekrarı, rakip_tekrarı) — küçük daha iyi. Adalet ölçütü.
+        Leksikografik: önce ardışık maç (dinlenme), sonra partner tekrarı, en son rakip
+        tekrarı. Rakip tekrarı seçim ölçütüne eklendiğinden best-of ile minimize edilir."""
         last_seen: Dict[str, int] = {}
         b2b = 0
         partners: Dict[tuple, int] = {}
+        opponents: Dict[tuple, int] = {}
         pr = 0
+        opp_rep = 0
         for i, p in enumerate(pairs):
-            teams = list(p.get("red_alliance", [])) + list(p.get("blue_alliance", []))
-            for t in teams:
+            red = list(p.get("red_alliance", []))
+            blue = list(p.get("blue_alliance", []))
+            for t in red + blue:
                 if t in last_seen and (i - last_seen[t] - 1) < 1:
                     b2b += 1
                 last_seen[t] = i
-            for side in (p.get("red_alliance", []), p.get("blue_alliance", [])):
+            for side in (red, blue):
                 for a in range(len(side)):
                     for b in range(a + 1, len(side)):
                         key = tuple(sorted((side[a], side[b])))
                         partners[key] = partners.get(key, 0) + 1
                         if partners[key] > 1:
                             pr += 1
-        return (b2b, pr)
+            for rt in red:
+                for bt in blue:
+                    key = tuple(sorted((rt, bt)))
+                    opponents[key] = opponents.get(key, 0) + 1
+                    if opponents[key] > 1:
+                        opp_rep += 1
+        return (b2b, pr, opp_rep)
 
-    def _first_success(hard):
+    def _best_of(hard):
+        """max_attempts kadar partner-dengeli çizelge üret; _quality'ye göre EN İYİSİNİ
+        tut (ilk başarılıyı değil). Kusursuz (0,0,0) bulununca erken çık. Böylece rakip
+        tekrarı, hard partner=0 ve dinlenme garantilerini bozmadan minimize edilir.
+        Hard tier'in başarısız olduğu (None) durumlarda davranış orijinalle aynıdır."""
+        best = None
+        best_q = None
         for _ in range(max_attempts):
             r = _partner_balanced(hard)
-            if r is not None:
-                return r
-        return None
+            if r is None:
+                continue
+            q = _quality(r)
+            if best_q is None or q < best_q:
+                best, best_q = r, q
+                if q == (0, 0, 0):
+                    break
+        return best
 
-    # KATI (0 partner tekrarı hedefi) ve CEZA (gap dostu) tier-1 sonuçlarını üret;
-    # (ardışık, partner-tekrar) ölçütüyle daha iyisini seç. Büyük havuzda katı (0,0)
-    # kazanır; küçük havuzda katı gap'i bozarsa ceza sonucu (daha iyi gap) seçilir.
+    # EN-İYİ-K: tek başarıyla durmak yerine birçok aday üretip (ardışık, partner, rakip)
+    # ölçütüyle en adilini seç. Büyük havuzda kusursuz (0,0,0) ulaşılabilirse bulunur.
     result = None
-    cand_hard = _first_success(True)
-    cand_soft = None if hard_unique_partners else _first_success(False)
+    cand_hard = _best_of(True)
+    cand_soft = None if hard_unique_partners else _best_of(False)
     candidates = [c for c in (cand_hard, cand_soft) if c is not None]
     if candidates:
         result = min(candidates, key=_quality)
