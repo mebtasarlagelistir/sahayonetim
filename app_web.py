@@ -700,6 +700,12 @@ def create_app() -> Flask:
                 return jsonify({"error": "Geçerli bir e-posta adresi giriniz"}), 400
         
         try:
+            # Boş ad/kod ile mevcut değerleri EZME: form kısmen boş gönderilirse (ör. match-control
+            # gibi tam etkinlik formu olmayan bir sayfadan kaydet) etkinlik adı kazara silinmesin.
+            if not str(data.get("name", "")).strip():
+                data.pop("name", None)
+            if not str(data.get("code", "")).strip():
+                data.pop("code", None)
             existing = datastore.get_event()
             merged = _deep_merge(existing, data)
             datastore.save_event(merged)

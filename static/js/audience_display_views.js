@@ -531,12 +531,28 @@ async function renderAudiencePlayoff() {
       return;
     }
 
-    // FRC tarzı: her kademe (Üst/Alt/Büyük Final) bir BÖLÜM; maçlar bölüm içinde
-    // soldan sağa (maç no sırası = ilerleme) yatay dizilir. Bölümler dikeyde yüksekliği
-    // paylaşır → tek ekrana sığar, responsive (clamp).
-    const teamsHtml = (info, fallback) => {
+    // FRC tarzı: her kademe (Üst/Alt/Büyük Final) bir BÖLÜM; maçlar M-numarasıyla,
+    // boş slotlar "M1 Kazananı / M4 Kaybedeni" gibi (win_to/lose_to yönlendirmesinden).
+    // Bölümler dikeyde yüksekliği paylaşır → tek ekrana sığar, responsive (clamp).
+    const allMatches = rounds.flatMap((r) => r.matches || []);
+    // Ters harita: hedef slot -> kaynak maç sonucu etiketi (ör. "M3:blue" -> "M1 Kazananı")
+    const slotLabels = {};
+    allMatches.forEach((m) => {
+      const L = m.label || (m.match_number ? `M${m.match_number}` : "");
+      const add = (target, kind) => {
+        if (!target || String(target).indexOf(":") < 0) return;
+        const [tl, slot] = String(target).split(":");
+        slotLabels[`${tl}:${slot}`] = `${L} ${kind}`;
+      };
+      add(m.win_to, "Kazananı");
+      add(m.lose_to, "Kaybedeni");
+    });
+    const teamsHtml = (info, fallback, matchLabel, slot) => {
       const list = (info && info.length) ? info : (fallback || []).map((t) => ({ team: t }));
-      if (!list.length) return `<span class="apb-wait">Bekleniyor</span>`;
+      if (!list.length) {
+        const ph = slotLabels[`${matchLabel}:${slot}`];
+        return `<span class="apb-wait">${ph ? escapeHtml(ph) : "Bekleniyor"}</span>`;
+      }
       return list.map((t) => {
         const seed = t.rank ? `<i class="apb-seed">#${escapeHtml(String(t.rank))}</i>` : "";
         return `<span class="apb-team">${seed}${escapeHtml(String(t.team))}</span>`;
@@ -548,15 +564,15 @@ async function renderAudiencePlayoff() {
       const winCls = (side) => played && m.winner === side ? " apb-win"
         : (played && m.winner && m.winner !== "tie" ? " apb-lose" : "");
       const score = (val) => played ? `<span class="apb-score">${escapeHtml(String(val ?? 0))}</span>` : "";
-      const num = m.match_number ? `M${escapeHtml(String(m.match_number))}` : "";
-      const lbl = (m.label && String(m.label) !== num) ? ` · ${escapeHtml(String(m.label))}` : "";
+      const L = m.label || (m.match_number ? `M${m.match_number}` : "");
+      const order = m.match_number ? `<span class="apb-order">sıra ${escapeHtml(String(m.match_number))}</span>` : "";
       const time = m.match_time ? `<span class="apb-time">${escapeHtml(m.match_time)}</span>` : "";
       const badge = live ? `<span class="apb-livebadge">● CANLI</span>` : "";
       return `
         <div class="apb-match${live ? " apb-live-card" : ""}">
-          <div class="apb-mhead">${num}${lbl}${time}${badge}</div>
-          <div class="apb-side apb-red${winCls("red")}">${teamsHtml(m.red_alliance_info, m.red_alliance)}${score(m.red_score)}</div>
-          <div class="apb-side apb-blue${winCls("blue")}">${teamsHtml(m.blue_alliance_info, m.blue_alliance)}${score(m.blue_score)}</div>
+          <div class="apb-mhead"><b class="apb-mlabel">${escapeHtml(String(L))}</b>${order}${time}${badge}</div>
+          <div class="apb-side apb-red${winCls("red")}">${teamsHtml(m.red_alliance_info, m.red_alliance, L, "red")}${score(m.red_score)}</div>
+          <div class="apb-side apb-blue${winCls("blue")}">${teamsHtml(m.blue_alliance_info, m.blue_alliance, L, "blue")}${score(m.blue_score)}</div>
         </div>`;
     };
     const sectionClass = (name) => {

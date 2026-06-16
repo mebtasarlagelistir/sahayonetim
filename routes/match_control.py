@@ -2128,6 +2128,10 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
                     "match_number": match_obj.get("match_number"),
                     "round": round_key,
                     "label": meta.get("label"),
+                    # Çift eleme yönlendirmesi (boş slotlara "Mx Kazananı/Kaybedeni" etiketi için)
+                    "win_to": meta.get("win_to"),
+                    "lose_to": meta.get("lose_to"),
+                    "gf": meta.get("gf"),
                     "red_alliance": match_obj.get("red_alliance") or [],
                     "blue_alliance": match_obj.get("blue_alliance") or [],
                     "red_alliance_info": _build_alliance_info(match_obj.get("red_alliance") or []),

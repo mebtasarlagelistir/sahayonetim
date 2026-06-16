@@ -239,6 +239,10 @@ def register_match_schedule_routes(bp, datastore, require_login, require_event_m
         match_date = request.args.get("date", "").strip()
         field_number = _parse_int(request.args.get("field"))
         match_type = request.args.get("type", "").strip()
+        # Playoff maçları sistemde "final" tipinde saklanır (çift eleme M1–M11 dahil).
+        # "Eleme (Playoff)" filtresi (elimination) bunlarla eşleşsin diye final'e çevrilir.
+        if match_type == "elimination":
+            match_type = "final"
         status = request.args.get("status", "").strip()
 
         matches = datastore.get_match_schedule(
