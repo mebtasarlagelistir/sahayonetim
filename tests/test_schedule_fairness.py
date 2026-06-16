@@ -43,8 +43,22 @@ def _build_app_on_temp_db():
     """create_app'i geçici bir DB dizinine yönlendirir; (app, datastore) döner."""
     import app_web
     from src.core.storage import DataStore
+    import src.core.storage.connection_pool as _cp
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="memskor_fairness_"))
+
+    # ÖNEMLİ: Bağlantı havuzu (get_connection_pool) global bir SINGLETON'dur — ilk
+    # DataStore'un db yolunu kalıcı tutar, sonraki yolları yok sayar. Daha önce (ör.
+    # canlı sunucu veya başka bir test ile) gerçek data.db'ye işaret eden bir havuz
+    # oluşmuşsa, bu temp DataStore o havuzu kullanıp GERÇEK veritabanına yazar (etkinlik
+    # verisini kirletir!). Bu yüzden temp app oluşturmadan önce singleton sıfırlanır ve
+    # mevcut havuz kapatılır; böylece temp DataStore kendi temp havuzunu alır.
+    if getattr(_cp, "_connection_pool", None) is not None:
+        try:
+            _cp._connection_pool.close_all()
+        except Exception:
+            pass
+        _cp._connection_pool = None
 
     # create_app içindeki DataStore(base_path=...) çağrısını geçici dizine zorla
     real_datastore_cls = app_web.DataStore
