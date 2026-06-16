@@ -6148,69 +6148,83 @@ body[data-referee-mode="blue"] #active_match_card {
 /* ============================================================================
    Seyirci Ekranı — İttifak Seçimi Töreni (Kaptan + Partner)
    ============================================================================ */
+/* İttifak seçimi başlığını bu görünümde küçült (yer kazan) */
+#audience_alliances_view h1 { font-size: clamp(20px, 3.4vh, 34px); margin-bottom: clamp(8px, 1.5vh, 20px); }
+/* Tek 16:9 ekrana sığan, çözünürlüğe göre ölçeklenen (clamp) ittifak seçimi tahtası.
+   Panel overflow:hidden olduğundan içerik paneli AŞMAMALI; bu yüzden yükseklik flex ile
+   dağıtılır (kartlar 2 satıra, havuz satırları eşit paya). */
 .audience-alliances-grid {
-  display: block;
-  padding: 20px;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(4px, 0.6vw, 12px);
   width: 100%;
   box-sizing: border-box;
 }
-/* FRC tarzı ittifak seçimi tahtası: solda ittifaklar, sağda sıralı takım havuzu */
 .aa-board {
   display: flex;
-  gap: 24px;
-  align-items: flex-start;
+  gap: clamp(10px, 1.4vw, 22px);
   width: 100%;
-  box-sizing: border-box;
+  min-height: 0;
+  align-items: stretch;
 }
+/* Sol: 6 ittifak = 3 sütun x 2 satır (yüksekliği doldurur) */
 .aa-left {
-  flex: 1 1 58%;
+  flex: 1 1 56%;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: clamp(6px, 0.9vw, 14px);
+  min-height: 0;
 }
 .aa-right {
-  flex: 1 1 42%;
+  flex: 1 1 44%;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: clamp(8px, 0.9vw, 14px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .aa-pool-title {
-  font-size: 1.1rem;
+  font-size: clamp(0.8rem, 1.7vh, 1.1rem);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #ffd54a;
-  margin-bottom: 10px;
+  margin-bottom: clamp(4px, 0.8vh, 10px);
   text-align: center;
+  flex: 0 0 auto;
 }
-.aa-pool { display: flex; flex-direction: column; gap: 5px; }
+/* Havuz: tüm satırlar yüksekliği eşit paylaşır -> takım sayısı ne olursa olsun sığar */
+.aa-pool { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: clamp(2px, 0.4vh, 5px); overflow: hidden; }
 .ap-row {
   display: grid;
-  grid-template-columns: 2.4rem 4.5rem 1fr auto;
+  grid-template-columns: 1.9rem 4rem 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
-  font-size: 1.15rem;
+  font-size: clamp(0.72rem, 1.55vh, 1.05rem);
+  flex: 1 1 0;
+  min-height: 0;
 }
 .ap-rank { color: #aab3c5; font-weight: 700; text-align: right; }
 .ap-team { font-weight: 800; }
-.ap-name { color: #d6dcea; opacity: 0.85; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-badge { font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
-/* Kaptan: altın vurgu */
+.ap-name { color: #d6dcea; opacity: 0.85; font-size: 0.88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-badge { font-size: 0.85em; font-weight: 700; white-space: nowrap; }
 .ap-row.ap-captain { background: rgba(255, 213, 74, 0.18); border: 1px solid rgba(255, 213, 74, 0.55); }
 .ap-row.ap-captain .ap-badge { color: #ffd54a; }
-/* Partner (seçildi): mavi + üstü çizili numara */
-.ap-row.ap-partner { background: rgba(159, 208, 255, 0.12); opacity: 0.7; }
+.ap-row.ap-partner { background: rgba(159, 208, 255, 0.12); opacity: 0.72; }
 .ap-row.ap-partner .ap-team { text-decoration: line-through; }
 .ap-row.ap-partner .ap-badge { color: #9fd0ff; }
 .aa-legend {
-  display: flex; justify-content: center; gap: 18px; margin-top: 12px;
-  font-size: 0.9rem; color: #cfd6e4;
+  display: flex; justify-content: center; gap: clamp(10px, 1.4vw, 18px); margin-top: clamp(4px, 0.8vh, 10px);
+  font-size: clamp(0.6rem, 1.2vh, 0.85rem); color: #cfd6e4; flex: 0 0 auto;
 }
-.aa-legend i.lg { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+.aa-legend i.lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
 .aa-legend .lg-cap { background: rgba(255, 213, 74, 0.7); }
 .aa-legend .lg-par { background: rgba(159, 208, 255, 0.5); }
 .aa-legend .lg-av { background: rgba(255, 255, 255, 0.18); }
@@ -6238,37 +6252,38 @@ body[data-referee-mode="blue"] #active_match_card {
 .aa-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 16px;
-  padding: 18px 16px;
+  border-radius: 12px;
+  padding: clamp(6px, 0.9vh, 14px) clamp(8px, 0.8vw, 14px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  align-items: stretch;
+  gap: clamp(4px, 0.7vh, 10px);
+  justify-content: center;
+  min-height: 0;
 }
 .aa-seed {
-  font-size: 1.5rem;
+  font-size: clamp(0.85rem, 1.7vh, 1.4rem);
   font-weight: 800;
   text-align: center;
   color: #ffd54a;
   letter-spacing: 0.5px;
 }
 .aa-member {
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 8px;
+  padding: clamp(4px, 0.8vh, 10px) 10px;
   text-align: center;
 }
 .aa-member.aa-captain { background: rgba(255, 213, 74, 0.16); border: 1px solid rgba(255, 213, 74, 0.5); }
 .aa-member.aa-partner { background: rgba(159, 208, 255, 0.12); border: 1px solid rgba(159, 208, 255, 0.4); }
 .aa-role {
-  font-size: 0.85rem;
+  font-size: clamp(0.55rem, 1vh, 0.8rem);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #cfd6e4;
   opacity: 0.85;
 }
-.aa-team { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
-.aa-name { font-size: 1rem; color: #e3e8f2; opacity: 0.9; }
+.aa-team { font-size: clamp(1rem, 2.5vh, 1.8rem); font-weight: 800; line-height: 1.1; }
+.aa-name { font-size: clamp(0.6rem, 1.2vh, 1rem); color: #e3e8f2; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ============================================================
    DOKUNMATİK CİHAZ OPTİMİZASYONU (tablet/telefon)
