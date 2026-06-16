@@ -489,31 +489,27 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                         # Aktif maçı kontrol et (maç başladıysa önizlemeyi kaldırmak için önce alıyoruz)
                         active_match = match_state_manager.get_active_match(event_id)
                         current_state = active_match.get("current_state") if active_match else None
-                        # Maç başladığında (otonom/SKS) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
+                        # Maç başladığında (otonom/SKS) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin.
+                        # ÖNEMLİ: Önizleme temizleme YALNIZCA maç yeni aktif olduğunda (tek seferlik geçişte)
+                        # yapılır. Aksi halde operatör canlı maç sırasında bilerek bir önizleme gösterdiğinde
+                        # bu thread her döngüde önizlemeyi ezip ekranı "Maçı Göster" görünümüne döndürür.
+                        # Anahtar maç kimliğine (source_id) bağlı; state değişimlerinde tekrar ezme olmaz.
                         if current_state in ("autonomous", "driver_controlled"):
-                            # Önce mevcut preview durumunu kontrol et (view veya payload varsa)
-                            screen_data = _screen_registry.get(screen_id, {})
-                            had_preview = bool(
-                                _global_preview.get("override_view") or 
-                                _global_preview.get("override_payload") or
-                                screen_data.get("override_view") or 
-                                screen_data.get("override_payload")
-                            )
-                            
-                            _global_preview["override_view"] = None
-                            _global_preview["override_until"] = None
-                            _global_preview["override_payload"] = None
-                            screen = _screen_registry.get(screen_id, {})
-                            screen["override_view"] = None
-                            screen["override_until"] = None
-                            screen["override_payload"] = None
-                            _screen_registry[screen_id] = screen
-                            
-                            # Maç aktif olduğunda bir kez active_view'ı "match" olarak ayarla
-                            match_key_for_update = f"{active_match.get('id')}_{current_state}"
+                            match_key_for_update = f"{active_match.get('match_source', 'schedule')}_{active_match.get('id')}"
                             if last_active_view_update != match_key_for_update:
                                 last_active_view_update = match_key_for_update
-                                
+
+                                # Maç yeni başladığı için önizleme override'larını bir kez temizle
+                                _global_preview["override_view"] = None
+                                _global_preview["override_until"] = None
+                                _global_preview["override_payload"] = None
+                                screen = _screen_registry.get(screen_id, {})
+                                screen["override_view"] = None
+                                screen["override_until"] = None
+                                screen["override_payload"] = None
+                                _screen_registry[screen_id] = screen
+
+                                # Aktif maçta bir kez active_view'ı "match" olarak ayarla
                                 event_id_for_view = datastore.get_active_event_id()
                                 if event_id_for_view:
                                     event_data = datastore.load_event(event_id_for_view)
