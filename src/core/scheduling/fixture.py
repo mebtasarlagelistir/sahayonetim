@@ -129,6 +129,8 @@ def generate_partner_balanced_fixture(
     max_attempts: int = 100,
     relaxed_attempts: int = 20,
     rng: Optional[random.Random] = None,
+    late_teams: Optional[set] = None,
+    late_until_match: int = 0,
 ) -> Optional[List[Dict[str, List[str]]]]:
     """
     Partner-dengeli bir maç takvimi üretir.
@@ -151,6 +153,17 @@ def generate_partner_balanced_fixture(
     """
     _rng = rng or random
     required_count = teams_per_alliance * 2
+
+    # Geç gelen takımlar: ilk `late_until_match` maçta (1-bazlı) havuzdan çıkarılır
+    # (etkinlik alanına geç ulaşan takımlar erken maçlara konmaz). Yeterli takım
+    # kalmazsa (deadlock) kısıt o maç için gevşetilir.
+    _late = {str(t) for t in late_teams} if late_teams else set()
+
+    def _apply_late_filter(eligible, match_index):
+        if not _late or match_index > late_until_match:
+            return eligible
+        filtered = [t for t in eligible if str(t) not in _late]
+        return filtered if len(filtered) >= required_count else eligible
 
     if len(team_numbers) < required_count:
         return None
@@ -278,6 +291,9 @@ def generate_partner_balanced_fixture(
                 if len(eligible) < required_count:
                     return None
 
+            # Geç gelen takımları erken maçlardan çıkar (kapasite dolumundan sonra uygula).
+            eligible = _apply_late_filter(eligible, _match_index)
+
             # Eşit önceliklerde takım-numarası sırasına saplanmamak için önce karıştır;
             # stable sort sayesinde yalnız eşit-öncelikli takımların sırası rastgelelenir.
             shuffled_eligible = list(eligible)
@@ -357,6 +373,8 @@ def generate_partner_balanced_fixture(
                 eligible = eligible + extra
                 if len(eligible) < required_count:
                     return None
+
+            eligible = _apply_late_filter(eligible, _match_index)
 
             match_found = False
             best_candidates = None
