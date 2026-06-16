@@ -561,7 +561,7 @@ class AudienceCoreManager {
       this.audienceSocket.on("match_update", (data) => {
         try {
           const match = data.match;
-          const isActiveMatch = match && ["autonomous", "prepare_teleop", "driver_controlled", "end_game"].includes(match.current_state);
+          const isActiveMatch = match && ["autonomous", "prepare_teleop", "driver_controlled"].includes(match.current_state);
           if (this.previewState !== "none" && isActiveMatch) {
             console.log("AudienceCore: Aktif maç algılandı, preview temizleniyor ve maç view'a geçiliyor");
             this.previewPayload = null;

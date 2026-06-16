@@ -2,7 +2,10 @@
 MatchStateManager durum ilerleme birim testi (sunucusuz, deterministik).
 
 Otomatik akışın gercekten su sirayi izledigini ve sureleri dogruladigini test eder:
-  autonomous(30) -> prepare_teleop(10) -> driver_controlled(90) -> end_game(30) -> post_match(10)
+  autonomous(30) -> prepare_teleop(10) -> driver_controlled(120) -> post_match(10)
+
+NOT: "end_game" ayrı bir faz değildir; SKS (driver_controlled) 120 sn içine birleştirildi.
+Son 30 sn yalnızca ses efekti uyarısı olarak kalır.
 """
 
 import sys
@@ -27,8 +30,7 @@ class StubDatastore:
 EXPECTED_SEQUENCE = [
     ("autonomous", 30),
     ("prepare_teleop", 10),
-    ("driver_controlled", 90),
-    ("end_game", 30),
+    ("driver_controlled", 120),
     ("post_match", 10),
 ]
 
@@ -73,7 +75,7 @@ def main():
         for f in failures:
             print("  - " + f)
         return 1
-    print("PASS: Akis tam ve sureler dogru (end_game dahil).")
+    print("PASS: Akis tam ve sureler dogru (SKS 120 sn, end_game birlestirildi).")
     return 0
 
 

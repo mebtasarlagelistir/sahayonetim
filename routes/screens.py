@@ -489,8 +489,8 @@ def register_screen_routes(bp, datastore, require_login, require_event_manager, 
                         # Aktif maçı kontrol et (maç başladıysa önizlemeyi kaldırmak için önce alıyoruz)
                         active_match = match_state_manager.get_active_match(event_id)
                         current_state = active_match.get("current_state") if active_match else None
-                        # Maç başladığında (otonom/teleop/end_game) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
-                        if current_state in ("autonomous", "driver_controlled", "end_game"):
+                        # Maç başladığında (otonom/SKS) önizlemeyi otomatik kaldır; canlı skor/timer gösterilsin
+                        if current_state in ("autonomous", "driver_controlled"):
                             # Önce mevcut preview durumunu kontrol et (view veya payload varsa)
                             screen_data = _screen_registry.get(screen_id, {})
                             had_preview = bool(

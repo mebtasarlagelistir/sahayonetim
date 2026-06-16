@@ -206,6 +206,12 @@ function updateRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
           timerDisplayEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
         }
 
+        // "OYUN SONU" rozeti: SKS son 30 sn'sinde sürenin altında göster
+        if (typeof showEndgameBanner === "function") {
+          const warn = (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.END_GAME_DURATION) || 30;
+          showEndgameBanner(currentState === "driver_controlled" && remaining > 0 && remaining <= warn, timerDisplayEl);
+        }
+
         // Süre dolduysa interval'i temizle
         if (remaining <= 0) {
           if (refereeTimerInterval) {
@@ -234,6 +240,12 @@ function updateRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
   };
   
   timerStateEl.textContent = stateLabels[currentState] || currentState || "-";
+
+  // Durum değiştiğinde / sayım olmayan durumlarda rozeti senkronla (örn. SKS dışına çıkınca gizle)
+  if (typeof showEndgameBanner === "function") {
+    const warnInit = (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.END_GAME_DURATION) || 30;
+    showEndgameBanner(currentState === "driver_controlled" && (timeRemaining || 0) > 0 && (timeRemaining || 0) <= warnInit, timerDisplayEl);
+  }
 }
 
 /**

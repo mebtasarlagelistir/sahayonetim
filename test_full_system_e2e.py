@@ -164,7 +164,7 @@ def api_phases(s):
             m1 = finals[0]
             ts = {"red": {"r1": "ready", "r2": "ready"}, "blue": {"r1": "ready", "r2": "ready"}}
             s.post(f"{BASE}/api/match-control/start", json={"match_id": m1["id"], "match_source": "schedule", "team_statuses": ts}, timeout=10)
-            exp = [("autonomous", 30), ("prepare_teleop", 10), ("driver_controlled", 90), ("end_game", 30), ("post_match", 10)]
+            exp = [("autonomous", 30), ("prepare_teleop", 10), ("driver_controlled", 120), ("post_match", 10)]
             tok = True
             for st, sec in exp:
                 rr = s.post(f"{BASE}/api/match-control/state", json={"match_id": m1["id"], "state": st, "match_source": "schedule"}, timeout=10)

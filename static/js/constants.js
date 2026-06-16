@@ -10,22 +10,22 @@
  * NOT: Backend (src/core/constants.py) ile aynı değerler olmalı. Timer kararlı sayar.
  */
 const MATCH_CONSTANTS = {
-  // Maç zamanlayıcı süreleri (saniye) - OKS 30 sn, SKS 90 sn + Oyun Sonu 30 sn
+  // Maç zamanlayıcı süreleri (saniye) - OKS 30 sn, SKS 120 sn (eski 90 SKS + 30 Oyun Sonu birleştirildi)
   AUTONOMOUS_DURATION: 30,      // OKS - Otonom
-  PREPARE_TELEOP_DURATION: 10,
-  DRIVER_CONTROLLED_DURATION: 90,  // SKS - Sürücü kontrollü (Oyun Sonu hariç)
-  END_GAME_DURATION: 30,           // Oyun Sonu - SKS'nin ardından gelen son 30 sn
+  PREPARE_TELEOP_DURATION: 5,
+  DRIVER_CONTROLLED_DURATION: 120,  // SKS - Sürücü kontrollü (tek dönem, oyun sonu dahil)
+  END_GAME_DURATION: 30,           // Oyun sonu UYARISI: SKS bitimine 30 sn kala ses efekti (ayrı faz değil)
   POST_MATCH_DURATION: 10,
-  
+
   // Timer: tüm arayüzlerde akıcı geri sayım için yerel tick aralığı (ms)
   TIMER_TICK_MS: 100,
   // Maç durumları
+  // NOT: "end_game" ayrı bir faz değildir; SKS (driver_controlled) içine birleştirildi.
   STATES: {
     idle: "Beklemede",
     autonomous: "Otonom",
     prepare_teleop: "Kontrol Ünitelerinizi Hazırlayınız",
     driver_controlled: "Sürücü Kontrollü",
-    end_game: "Oyun Sonu",
     post_match: "Maç Sonrası",
     completed: "Tamamlandı"
   }

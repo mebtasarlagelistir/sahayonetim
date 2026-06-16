@@ -170,7 +170,6 @@ class MatchStateManager:
                 "autonomous": MatchConstants.AUTONOMOUS_DURATION,
                 "prepare_teleop": MatchConstants.PREPARE_TELEOP_DURATION,
                 "driver_controlled": MatchConstants.DRIVER_CONTROLLED_DURATION,
-                "end_game": MatchConstants.END_GAME_DURATION,
                 "post_match": MatchConstants.POST_MATCH_DURATION,
             }
             
@@ -220,7 +219,6 @@ class MatchStateManager:
                 "autonomous": MatchConstants.AUTONOMOUS_DURATION,
                 "prepare_teleop": MatchConstants.PREPARE_TELEOP_DURATION,
                 "driver_controlled": MatchConstants.DRIVER_CONTROLLED_DURATION,
-                "end_game": MatchConstants.END_GAME_DURATION,
                 "post_match": MatchConstants.POST_MATCH_DURATION,
             }
             
@@ -485,16 +483,14 @@ class MatchStateManager:
                     "autonomous": MatchConstants.AUTONOMOUS_DURATION,
                     "prepare_teleop": MatchConstants.PREPARE_TELEOP_DURATION,
                     "driver_controlled": MatchConstants.DRIVER_CONTROLLED_DURATION,
-                    "end_game": MatchConstants.END_GAME_DURATION,
                     "post_match": MatchConstants.POST_MATCH_DURATION,
                 }
             except ImportError:
                 # Fallback değerler (constants.py ile birebir aynı olmalı)
                 MATCH_TIMINGS = {
                     "autonomous": 30,
-                    "prepare_teleop": 10,  # PREPARE_TELEOP_DURATION ile aynı
-                    "driver_controlled": 90,
-                    "end_game": 30,
+                    "prepare_teleop": 5,  # PREPARE_TELEOP_DURATION ile aynı
+                    "driver_controlled": 120,  # SKS tek dönem (90 + 30 birleştirildi)
                     "post_match": 10,
                 }
             
@@ -509,9 +505,9 @@ class MatchStateManager:
                 
                 # State geçişleri
                 needs_update = False
-                # Akış: Otonom -> Hazırlık -> SKS -> Oyun Sonu -> Maç Sonrası
+                # Akış: Otonom -> Hazırlık -> SKS (son 30 sn oyun sonu uyarısı) -> Maç Sonrası
                 if time_remaining == 0 and current_state not in ["post_match", "completed"]:
-                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"]
+                    state_order = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"]
                     if current_state in state_order:
                         current_index = state_order.index(current_state)
                         if current_index < len(state_order) - 1:

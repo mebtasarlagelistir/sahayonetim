@@ -478,16 +478,12 @@ function showImportantMoment(state) {
     autonomous: "Otonom süre başladı!",
     prepare_teleop: "Kontrol ünitelerinizi hazırlayınız!",
     driver_controlled: "Sürücü kontrollü süre başladı!",
-    end_game: "Oyun sonu!",
     post_match: "Maç sonrası"
   };
-  
+
   const message = messages[state];
   if (message) {
     showToast(message, "info", 3000);
-  }
-  if (state === "end_game") {
-    playAlertTone();
   }
 }
 

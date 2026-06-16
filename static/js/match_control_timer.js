@@ -102,6 +102,25 @@ function updateStateDisplay() {
   const stateLabel = qs("state_label");
   const stateTimer = qs("state_timer");
   const stateIndicator = qs("state_indicator");
+
+  // Oyun sonu uyarısı: SKS (driver_controlled) bitimine 30 sn kala bir kez ses çal.
+  // "end_game" artık ayrı bir faz değil; uyarı eşiği END_GAME_DURATION'dan gelir.
+  const warnThreshold = (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.END_GAME_DURATION) || 30;
+  const inEndgame = currentState === "driver_controlled" && timeRemaining > 0 && timeRemaining <= warnThreshold;
+  if (typeof endgameWarningPlayed !== "undefined") {
+    if (currentState !== "driver_controlled") {
+      endgameWarningPlayed = false;
+    } else if (!endgameWarningPlayed && inEndgame) {
+      endgameWarningPlayed = true;
+      if (typeof playAlertTone === "function") {
+        playAlertTone();
+      }
+    }
+  }
+  // "OYUN SONU" rozetini sürenin altında göster/gizle
+  if (typeof showEndgameBanner === "function") {
+    showEndgameBanner(inEndgame, qs("state_timer") || qs("compact_timer"));
+  }
   
   if (stateLabel) {
     stateLabel.textContent = MATCH_STATES[currentState]?.label || "Bilinmiyor";

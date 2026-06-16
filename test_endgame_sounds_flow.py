@@ -1,11 +1,12 @@
 """
-Oyun Sonu (end_game) akışı + sesler + "Maçı Göster" testi.
+Oyun Sonu uyarısı + sesler + "Maçı Göster" testi.
 
 Bu test, son değişiklikleri doğrular:
-  1) Maç akışına end_game eklendi: autonomous -> prepare_teleop -> driver_controlled -> end_game -> post_match
-  2) SKS 90 sn, Oyun Sonu 30 sn (sürücü dönemi 120 sn)
-  3) Seyirci ekranında announceState tüm durumlar için (yeni prepare_teleop + end_game dahil) hatasız çalışıyor
-  4) Frontend MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION == 90
+  1) Maç akışı: autonomous -> prepare_teleop -> driver_controlled -> post_match
+     ("end_game" ayrı faz değil; SKS 120 sn içine birleştirildi)
+  2) SKS 120 sn (eski 90 SKS + 30 Oyun Sonu birleştirildi); son 30 sn yalnız ses uyarısı
+  3) Seyirci ekranında announceState tüm durumlar için (oyun sonu uyarı sesi dahil) hatasız çalışıyor
+  4) Frontend MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION == 120
   5) "Maçı Göster" seyirci ekranını canlı maç görünümüne alıyor
 
 Kullanım: python test_endgame_sounds_flow.py
@@ -21,8 +22,7 @@ BASE_URL = "http://localhost:5001"
 EXPECTED = [
     ("autonomous", 30),
     ("prepare_teleop", 10),
-    ("driver_controlled", 90),
-    ("end_game", 30),
+    ("driver_controlled", 120),
     ("post_match", 10),
 ]
 
@@ -75,7 +75,7 @@ async def main():
             # --- Frontend sabiti: SKS 90 ---
             sks = await audience.evaluate("() => (window.MATCH_CONSTANTS||{}).DRIVER_CONTROLLED_DURATION")
             eg = await audience.evaluate("() => (window.MATCH_CONSTANTS||{}).END_GAME_DURATION")
-            check("Frontend MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION == 90", sks == 90, f"geldi: {sks}")
+            check("Frontend MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION == 120", sks == 120, f"geldi: {sks}")
             check("Frontend MATCH_CONSTANTS.END_GAME_DURATION == 30", eg == 30, f"geldi: {eg}")
 
             # --- Ses fonksiyonlari hatasiz calisiyor mu (yeni prepare_teleop + end_game dahil) ---

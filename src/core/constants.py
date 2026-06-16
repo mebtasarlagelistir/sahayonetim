@@ -21,18 +21,19 @@ class MatchConstants:
     
     # Maç zamanlayıcı süreleri (saniye) - resmi değerler, timer kararlılığı için tek kaynak
     AUTONOMOUS_DURATION = 30   # OKS (Otonom) - 30 saniye
-    PREPARE_TELEOP_DURATION = 10   # Otonom -> Teleop arası hazırlık
-    DRIVER_CONTROLLED_DURATION = 90  # SKS (Sürücü kontrollü) - 90 sn + 30 sn Oyun Sonu = 120 sn sürücü dönemi
-    END_GAME_DURATION = 30  # Oyun sonu - SKS'nin ardından gelen son 30 sn
+    PREPARE_TELEOP_DURATION = 5   # Otonom -> Teleop arası hazırlık
+    DRIVER_CONTROLLED_DURATION = 120  # SKS (Sürücü kontrollü) - tek dönem, 120 sn (eski 90 sn SKS + 30 sn Oyun Sonu birleştirildi)
+    END_GAME_DURATION = 30  # Oyun sonu UYARISI: SKS bitimine 30 sn kala ses efekti çalınır (ayrı faz değildir)
     POST_MATCH_DURATION = 10  # Maç sonrası
-    
+
     # Maç durumları
+    # NOT: "end_game" ayrı bir faz değildir; SKS (driver_controlled) içine birleştirildi.
+    # Son 30 sn (END_GAME_DURATION) yalnızca ses efekti uyarısı olarak kalır.
     MATCH_STATES = {
         "idle": "Beklemede",
         "autonomous": "Otonom",
         "prepare_teleop": "Kontrol Ünitelerinizi Hazırlayınız",
         "driver_controlled": "Sürücü Kontrollü",
-        "end_game": "Oyun Sonu",
         "post_match": "Maç Sonrası",
         "completed": "Tamamlandı"
     }

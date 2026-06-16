@@ -37,12 +37,7 @@ const MATCH_STATES = {
     duration: (typeof MATCH_CONSTANTS !== "undefined") ? MATCH_CONSTANTS.DRIVER_CONTROLLED_DURATION : 90,
     color: "#2196f3" 
   },
-  end_game: { 
-    label: (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.STATES) ? MATCH_CONSTANTS.STATES.end_game : "Oyun Sonu", 
-    duration: (typeof MATCH_CONSTANTS !== "undefined") ? MATCH_CONSTANTS.END_GAME_DURATION : 30, 
-    color: "#9c27b0" 
-  },
-  post_match: { 
+  post_match: {
     label: (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.STATES) ? MATCH_CONSTANTS.STATES.post_match : "Maç Sonrası", 
     duration: (typeof MATCH_CONSTANTS !== "undefined") ? MATCH_CONSTANTS.POST_MATCH_DURATION : 10, 
     color: "#607d8b" 
@@ -72,6 +67,10 @@ let manuallySelectedMatchSource = null;
 // Timer için Date tabanlı zamanlama
 let timerStartTime = null;
 let timerInitialDuration = 0;
+
+// Oyun sonu uyarısı: SKS (driver_controlled) bitimine 30 sn kala bir kez ses çalınır.
+// Faz başına yalnız bir kez çalsın diye bayrak tutulur (updateStateDisplay'de yönetilir).
+let endgameWarningPlayed = false;
 
 // Skor düzenleme
 let scoreEditMatches = [];

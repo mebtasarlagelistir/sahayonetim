@@ -4,9 +4,9 @@ Canlı timer akıcılık testi (KENDİNİ TEMİZLER).
 Gerçek bir maçı baştan sona çalıştırır; audience-display API'sini ~1sn'de bir
 pollar (bu, sunucunun otomatik ilerlemesini sürer) ve aynı anda seyirci
 ekranındaki görünen sayacı okur. Akıcılığı/tutarlılığı analiz eder:
-  - Her fazın süresi doğru mu (otonom 30 / hazırlık 10 / SKS 90 / oyun sonu 30)
+  - Her fazın süresi doğru mu (otonom 30 / hazırlık 10 / SKS 120)
   - Faz içinde sayaç düzgün (monoton, sıçramasız) azalıyor mu
-  - Geçişler temiz mi (otonom->hazırlık->SKS->oyun sonu->maç sonrası)
+  - Geçişler temiz mi (otonom->hazırlık->SKS->maç sonrası); oyun sonu uyarısı SKS son 30 sn'sinde
   - Görünen sayaç API ile uyumlu mu (akıcı render)
 Sonunda maçı durdurur, oluşturulan finalleri siler, etkinliği geri yükler.
 """
@@ -23,8 +23,8 @@ async def login(page):
     except Exception: pass
     await page.wait_for_load_state("load")
 
-EXPECTED_DUR = {"autonomous": 30, "prepare_teleop": 10, "driver_controlled": 90, "end_game": 30, "post_match": 10}
-ORDER = ["autonomous", "prepare_teleop", "driver_controlled", "end_game", "post_match"]
+EXPECTED_DUR = {"autonomous": 30, "prepare_teleop": 10, "driver_controlled": 120, "post_match": 10}
+ORDER = ["autonomous", "prepare_teleop", "driver_controlled", "post_match"]
 
 async def main():
     async with async_playwright() as p:
@@ -133,7 +133,7 @@ async def main():
             # Gorunen sayac API ile uyumu (son aktif fazda)
             disp_ok = 0; disp_tot = 0
             for el, st, tr, disp in samples:
-                if st in ("driver_controlled","autonomous","end_game") and disp and ":" in disp and tr is not None:
+                if st in ("driver_controlled","autonomous") and disp and ":" in disp and tr is not None:
                     mm, ss = disp.split(":"); dval = int(mm)*60+int(ss)
                     disp_tot += 1
                     if abs(dval - tr) <= 2: disp_ok += 1

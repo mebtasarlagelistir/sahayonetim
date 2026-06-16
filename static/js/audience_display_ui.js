@@ -8,6 +8,9 @@ let audienceTimerInterval = null;
 let audienceTimerStartTime = null;
 let audienceTimerInitialTime = null;
 let audienceTimerState = null;
+// Oyun sonu uyarısı: SKS (driver_controlled) bitimine 30 sn kala bir kez ses çalınır.
+// "end_game" artık ayrı bir faz değil; uyarı yerel timer sayımıyla tetiklenir.
+let audienceEndgameWarned = false;
 
 /**
  * Zamanı formatlar (MM:SS formatında)
@@ -56,6 +59,23 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
   var isActive = timeRemaining > 0 && currentState && currentState !== "idle" && currentState !== "completed";
   var stateOrTimeChanged = audienceTimerState !== currentState || audienceTimerInitialTime !== timeRemaining;
 
+  // SKS dışındayken oyun sonu uyarı bayrağını sıfırla (bir sonraki SKS için hazır olsun).
+  if (currentState !== "driver_controlled") {
+    audienceEndgameWarned = false;
+  }
+  // Oyun sonu uyarısı eşiği (sn): SKS bitimine bu kadar kala ses çalınır.
+  var warnThreshold = (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.END_GAME_DURATION) || 30;
+
+  function maybeWarnEndgame(remaining) {
+    if (currentState === "driver_controlled" && !audienceEndgameWarned &&
+        remaining > 0 && remaining <= warnThreshold) {
+      audienceEndgameWarned = true;
+      if (typeof announceState === "function") {
+        announceState("end_game");  // mevcut "düşük ton uzun bip" oyun sonu uyarısı
+      }
+    }
+  }
+
   if (audienceTimerInterval) {
     clearInterval(audienceTimerInterval);
     audienceTimerInterval = null;
@@ -71,10 +91,12 @@ function updateTimerDisplay(timeRemaining, currentState, timeOffset = 0) {
     // için tam süreden başlamak <1 sn hatayla doğrudur.
     audienceTimerStartTime = Date.now();
     applyTimerDisplay(timeRemaining);
+    maybeWarnEndgame(timeRemaining);
     audienceTimerInterval = setInterval(function () {
       var elapsed = Math.floor((Date.now() - audienceTimerStartTime) / 1000);
       var remaining = Math.max(0, audienceTimerInitialTime - elapsed);
       applyTimerDisplay(remaining);
+      maybeWarnEndgame(remaining);
       if (remaining <= 0) {
         clearInterval(audienceTimerInterval);
         audienceTimerInterval = null;

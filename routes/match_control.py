@@ -33,7 +33,6 @@ MATCH_TIMINGS = {
     "autonomous": MatchConstants.AUTONOMOUS_DURATION,
     "prepare_teleop": MatchConstants.PREPARE_TELEOP_DURATION,
     "driver_controlled": MatchConstants.DRIVER_CONTROLLED_DURATION,
-    "end_game": MatchConstants.END_GAME_DURATION,
     "post_match": MatchConstants.POST_MATCH_DURATION,
 }
 
@@ -1112,11 +1111,11 @@ def register_match_control_routes(bp, datastore, require_login, require_event_ma
     @require_event_manager
     def update_match_state():
         """
-        Maç durumunu günceller (autonomous -> prepare_teleop -> driver_controlled -> end_game -> post_match).
-        
+        Maç durumunu günceller (autonomous -> prepare_teleop -> driver_controlled -> post_match).
+
         Body:
             match_id: Maç ID'si
-            state: Yeni durum (autonomous, prepare_teleop, driver_controlled, end_game, post_match)
+            state: Yeni durum (autonomous, prepare_teleop, driver_controlled, post_match)
         
         Returns:
             JSON: Güncelleme sonucu

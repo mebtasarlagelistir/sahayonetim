@@ -777,6 +777,11 @@ function updateHeadRefereeTimer(currentState, timeRemaining, timeOffset = 0) {
     var minutes = Math.floor((remaining || 0) / 60);
     var seconds = (remaining || 0) % 60;
     timerDisplayEl.textContent = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+    // "OYUN SONU" rozeti: SKS son 30 sn'sinde sürenin altında göster
+    if (typeof showEndgameBanner === "function") {
+      var warn = (typeof MATCH_CONSTANTS !== "undefined" && MATCH_CONSTANTS.END_GAME_DURATION) || 30;
+      showEndgameBanner(currentState === "driver_controlled" && remaining > 0 && remaining <= warn, timerDisplayEl);
+    }
     if (remaining <= 0 && headTimerInterval) {
       clearInterval(headTimerInterval);
       headTimerInterval = null;
