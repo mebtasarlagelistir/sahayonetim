@@ -603,6 +603,9 @@ async function loadPlayoffView() {
  * ============================================================================
  */
 
+// Son render imzası: içerik değişmediyse yeniden render edilmez (kaydırma sürsün).
+let _aaLastSig = null;
+
 /**
  * /api/public/playoff-alliances verisini ittifak kartları olarak çizer.
  */
@@ -668,12 +671,20 @@ async function renderAudienceAlliances() {
         </div>`;
     }).join("");
 
+    // İçerik değişmediyse yeniden render etme (otomatik kaydırma kesintisiz sürsün).
+    const sig = JSON.stringify({
+      a: alliances.map((x) => [x.seed, x.captain && x.captain.team, x.partner && x.partner.team]),
+      r: rankings.map((x) => [String(x.team), x.rank]),
+    });
+    if (sig === _aaLastSig && container.querySelector(".aa-board")) return;
+    _aaLastSig = sig;
+
     container.innerHTML = `
       <div class="aa-board">
         <div class="aa-left">${allianceCards}</div>
         <div class="aa-right">
           <div class="aa-pool-title">Sıralama / Seçim Durumu</div>
-          <div class="aa-pool">${poolRows || `<div class="audience-empty">Sıralama yok.</div>`}</div>
+          <div class="aa-pool"><div class="aa-pool-scroll">${poolRows || `<div class="audience-empty">Sıralama yok.</div>`}</div></div>
           <div class="aa-legend">
             <span><i class="lg lg-cap"></i> Kaptan</span>
             <span><i class="lg lg-par"></i> Seçildi (partner)</span>
@@ -681,6 +692,22 @@ async function renderAudienceAlliances() {
           </div>
         </div>
       </div>`;
+
+    // Havuz panele sığmıyorsa: içeriği kopyala + yavaş, kesintisiz DÖNGÜ kaydırma uygula.
+    // (Sığıyorsa statik kalır.) requestAnimationFrame ile layout ölç.
+    requestAnimationFrame(() => {
+      const wrap = container.querySelector(".aa-pool");
+      const scroll = container.querySelector(".aa-pool-scroll");
+      if (!wrap || !scroll) return;
+      if (scroll.scrollHeight > wrap.clientHeight + 6) {
+        const oneHeight = scroll.scrollHeight;
+        scroll.innerHTML += scroll.innerHTML; // kesintisiz döngü için ikinci kopya
+        // Hız: ~her satır için sabit süre (yavaş). Min 24sn.
+        const dur = Math.max(24, rankings.length * 2.2);
+        scroll.style.setProperty("--aa-scroll-dist", `${oneHeight}px`);
+        scroll.style.animation = `aa-pool-scroll ${dur}s linear infinite`;
+      }
+    });
   } catch (err) {
     console.error("renderAudienceAlliances error:", err);
     container.innerHTML = `<div class="audience-empty">İttifak verisi yüklenemedi.</div>`;

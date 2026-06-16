@@ -6197,19 +6197,23 @@ body[data-referee-mode="blue"] #active_match_card {
   text-align: center;
   flex: 0 0 auto;
 }
-/* Havuz: tüm satırlar yüksekliği eşit paylaşır -> takım sayısı ne olursa olsun sığar */
-.aa-pool { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: clamp(2px, 0.4vh, 5px); overflow: hidden; }
+/* Havuz: panele sığmazsa içerik yavaşça DÖNGÜ kayar (JS taşmayı ölçüp animasyonu açar). */
+.aa-pool { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.aa-pool-scroll { will-change: transform; }
 .ap-row {
   display: grid;
   grid-template-columns: 1.9rem 4rem 1fr auto;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: clamp(3px, 0.55vh, 8px) 10px;
+  margin-bottom: clamp(3px, 0.5vh, 6px);
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
   font-size: clamp(0.72rem, 1.55vh, 1.05rem);
-  flex: 1 1 0;
-  min-height: 0;
+}
+@keyframes aa-pool-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-1 * var(--aa-scroll-dist, 50%))); }
 }
 .ap-rank { color: #aab3c5; font-weight: 700; text-align: right; }
 .ap-team { font-weight: 800; }
