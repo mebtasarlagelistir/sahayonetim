@@ -58,11 +58,11 @@ def test_structure():
     names = [r["name"] for r in rounds]
     assert names == ["Üst Kademe", "Alt Kademe", "Büyük Final"]
 
-    # İlk tur kaynakları (seed eşleşmeleri)
-    assert matches["M1"]["red_alliance"] == ALLIANCES[2]   # A3
-    assert matches["M1"]["blue_alliance"] == ALLIANCES[5]  # A6
-    assert matches["M2"]["red_alliance"] == ALLIANCES[3]   # A4
-    assert matches["M2"]["blue_alliance"] == ALLIANCES[4]  # A5
+    # İlk tur kaynakları (FRC Figure 13-5 seed eşleşmeleri)
+    assert matches["M1"]["red_alliance"] == ALLIANCES[3]   # A4
+    assert matches["M1"]["blue_alliance"] == ALLIANCES[4]  # A5
+    assert matches["M2"]["red_alliance"] == ALLIANCES[2]   # A3
+    assert matches["M2"]["blue_alliance"] == ALLIANCES[5]  # A6
     assert matches["M3"]["red_alliance"] == ALLIANCES[0]   # A1 (bye)
     assert matches["M4"]["red_alliance"] == ALLIANCES[1]   # A2 (bye)
     # Placeholder slotlar boş
@@ -75,8 +75,8 @@ def test_structure():
     assert matches["M3"]["win_to"] == "M7:red" and matches["M3"]["lose_to"] == "M5:red"
     assert matches["M4"]["win_to"] == "M7:blue" and matches["M4"]["lose_to"] == "M6:red"
     assert matches["M7"]["win_to"] == "M10:red" and matches["M7"]["lose_to"] == "M9:red"
-    assert matches["M5"]["win_to"] == "M8:red" and "lose_to" not in matches["M5"]
-    assert matches["M6"]["win_to"] == "M8:blue"
+    assert matches["M5"]["win_to"] == "M8:blue" and "lose_to" not in matches["M5"]
+    assert matches["M6"]["win_to"] == "M8:red"
     assert matches["M8"]["win_to"] == "M9:blue"
     assert matches["M9"]["win_to"] == "M10:blue"
     assert matches["M10"].get("gf") == "1" and matches["M10"].get("reset_to") == "M11"
